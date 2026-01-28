@@ -1,0 +1,166 @@
+1. Development Environment Setup
+
+Since we're doing this natively on Android, your stack would be:
+
+Language: Kotlin (modern, official for Android)
+
+IDE: Android Studio (best for Android; supports emulator, build tools, debugging)
+
+Optional tools:
+
+yt-dlp (command-line tool for downloading YouTube audio)
+
+Git (version control)
+
+Steps:
+
+Install Android Studio.
+
+Install Kotlin plugin (usually comes by default).
+
+Set up an Android Emulator for testing, or use your S22 Ultra via USB debugging.
+
+Install yt-dlp on your PC first to experiment, then we'll integrate it into the app.
+
+2. Project Structure
+
+A typical Android project structure looks like this:
+
+YourApp/
+│
+├─ app/
+│  ├─ src/
+│  │  ├─ main/
+│  │  │  ├─ java/com/yourname/yourapp/   <-- Kotlin code
+│  │  │  ├─ res/                         <-- Layouts, images, icons
+│  │  │  │  ├─ layout/
+│  │  │  │  │  ├─ activity_main.xml      <-- Main UI
+│  │  │  │  ├─ drawable/
+│  │  │  │  ├─ values/
+│  │  │  ├─ AndroidManifest.xml          <-- Permissions, app config
+│  │  ├─ test/                           <-- Unit tests
+│  │  ├─ androidTest/                     <-- UI / integration tests
+
+├─ build.gradle                          <-- Project build config
+├─ settings.gradle
+
+
+Key parts you'll touch:
+
+MainActivity.kt → main screen (search, library).
+
+DownloadManager.kt → handle YouTube download via yt-dlp.
+
+MusicPlayerService.kt → background audio service.
+
+Layouts → XML files for your UI (search box, library, player controls).
+
+Manifest → declare permissions (Internet, storage, foreground service).
+
+3. Permissions
+
+Since your app will download and play audio, you'll need:
+
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+
+
+Note: Android 10+ has scoped storage rules, so we'll use the app's own storage folder for downloads to simplify things.
+
+4. Core Modules / Components
+
+Search & Download Module
+
+Input: Song or playlist name
+
+Output: MP3 file in app cache folder
+
+Implementation: call yt-dlp via command line from Kotlin.
+
+Music Playback Module (Foreground Service)
+
+Use MediaPlayer for audio playback
+
+Run as foreground service so music plays when screen off
+
+Handles play/pause/next/prev/loop
+
+Media Session / Notification Module
+
+Integrates headphone buttons & lock screen controls
+
+Displays track info and playback controls in the notification bar
+
+Library / Cache Manager
+
+Lists downloaded songs
+
+Handles auto-delete, favorites, storage limits
+
+UI / UX
+
+Screens:
+
+Search → results → download/play
+
+Library → play offline
+
+Player → mini controls, loop, skip
+
+5. Development Flow
+
+Here's a realistic sequence for development:
+
+Prototype the UI
+
+Create a search box, results list, play button
+
+No downloads yet, just placeholder audio
+
+Implement Music Playback
+
+Play a local MP3 in a foreground service
+
+Ensure background playback works when screen off
+
+Implement Media Session
+
+Hook up headphone buttons & lock screen controls
+
+Integrate YouTube Download
+
+Use yt-dlp in Kotlin to download MP3s
+
+Save to app cache folder
+
+Connect UI to Downloads
+
+Search → download → play
+
+Implement Cache Management
+
+Auto-delete after playback
+
+Mark favorites to retain
+
+Polish UX
+
+Notifications, playlists, looping, queue
+
+Icons, dark mode, responsive layout
+
+Test on Device
+
+S22 Ultra, headphones, screen off playback
+
+6. Optional Enhancements
+
+Split long compilations into individual tracks
+
+Integrate offline search from cached songs
+
+Add custom playlists
+
+Optional compression options for very long compilations
