@@ -12,7 +12,7 @@ This document breaks down the Shuckler Android music app development into increm
    - App name: Shuckler
    - Package: com.shuckler.app (or your preferred package)
    - Min SDK: Android 10 (API 29)
-   - Target SDK: Latest stable (API 34+)
+   - Target SDK: Latest (API 36 - Android 16 "Baklava") - since targeting S22 Ultra/S25
    - Language: Kotlin
 
 2. Configure build.gradle
