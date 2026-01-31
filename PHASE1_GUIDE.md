@@ -123,7 +123,7 @@ android {
    - Or use the SVG directly if supported
 
 3. **Alternative: Use PNG for launcher icon:**
-   - For the app launcher icon, you might want to use the PNG
+   - For the app launcher icon, you might w ant to use the PNG
    - Copy `shuckle.png` to `app/src/main/res/mipmap-xxx/` folders
    - Or use Android Studio's Image Asset Studio: **Right-click res → New → Image Asset**
 

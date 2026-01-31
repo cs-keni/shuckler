@@ -37,7 +37,7 @@ Shuckler is a private Android application designed for personal use and sharing 
 
 ## Project Status
 
-**In Development** - Currently in Phase 1 (Project Setup & Basic UI Foundation)
+**In Development** - Phase 1 complete, Phase 2 in progress
 
 See [PHASES.md](./PHASES.md) for detailed development phases and progress.
 
@@ -45,8 +45,8 @@ See [PHASES.md](./PHASES.md) for detailed development phases and progress.
 
 The project is broken down into 10 incremental phases:
 
-1. [ ] Project Setup & Basic UI Foundation
-2. [ ] Basic Audio Playback (Local File)
+1. [x] Project Setup & Basic UI Foundation
+2. [ ] Basic Audio Playback (Local File) - **See [PHASE2_SETUP.md](./PHASE2_SETUP.md)**
 3. [ ] Foreground Service for Background Playback
 4. [ ] MediaSession & System Controls
 5. [ ] Download Functionality

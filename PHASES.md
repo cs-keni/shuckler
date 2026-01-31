@@ -34,9 +34,9 @@ This document breaks down the Shuckler Android music app development into increm
    - Configure in AndroidManifest.xml
 
 ### Testing:
-- [ ] App launches without crashes
-- [ ] Can navigate between Search, Library, and Player screens
-- [ ] UI elements are visible and properly laid out
+- [x] App launches without crashes
+- [x] Can navigate between Search, Library, and Player screens
+- [x] UI elements are visible and properly laid out
 
 ### Deliverables:
 - Working Android project
@@ -49,7 +49,7 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Play a local MP3 file using MediaPlayer/Media3
 
 ### Tasks:
-1. Add a test MP3 file to `res/raw/` or assets folder
+1. Add a test MP3 file to `res/raw/` or assets folder ✅
 2. Create basic `MusicPlayer` class
    - Use ExoPlayer (Media3) or MediaPlayer
    - Implement play/pause functionality
