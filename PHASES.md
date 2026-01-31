@@ -62,10 +62,10 @@ This document breaks down the Shuckler Android music app development into increm
    - Handle runtime permission requests
 
 ### Testing:
-- [ ] Can play a local MP3 file
-- [ ] Play/pause buttons work
-- [ ] Audio plays through device speakers/headphones
-- [ ] App handles audio focus (pauses when phone call comes in)
+- [x] Can play a local MP3 file
+- [x] Play/pause buttons work
+- [x] Audio plays through device speakers/headphones
+- [x] App handles audio focus (pauses when phone call comes in)
 
 ### Deliverables:
 - Working audio playback from local file
@@ -292,6 +292,7 @@ This document breaks down the Shuckler Android music app development into increm
 5. Audio quality options
    - Configurable bitrate (192-320 kbps)
    - Quality selector in download options
+   - Investigate/fix any playback glitches (ticking, stutter) if they persist
 6. Bug fixes and testing
    - Test on Samsung S22 Ultra
    - Test with headphones

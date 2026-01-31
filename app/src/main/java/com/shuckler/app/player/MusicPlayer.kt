@@ -1,7 +1,7 @@
 package com.shuckler.app.player
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -27,13 +27,9 @@ class MusicPlayer(context: Context) {
 
     val player: Player get() = exoPlayer
 
-    var isPlaying: Boolean
-        get() = exoPlayer.isPlaying
-        private set(_) {}
-
     init {
         // Load the test song from res/raw
-        val uri = Uri.parse("android.resource://${context.packageName}/${R.raw.test_song}")
+        val uri = "android.resource://${context.packageName}/${R.raw.test_song}".toUri()
         exoPlayer.setMediaItem(MediaItem.fromUri(uri))
         exoPlayer.prepare()
     }
