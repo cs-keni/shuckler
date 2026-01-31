@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">shuckler</string>
+    <string name="app_name">Shuckler</string>
+    <string name="notification_channel_name">Playback</string>
+    <string name="notification_channel_description">Music playback controls</string>
+    <string name="notification_play">Play</string>
+    <string name="notification_pause">Pause</string>
 </resources>

@@ -16,17 +16,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel = viewModel(
-        factory = PlayerViewModel.Factory(LocalContext.current)
+        factory = PlayerViewModel.Factory(
+            LocalContext.current,
+            LocalMusicServiceConnection.current
+        )
     )
 ) {
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val trackTitle by viewModel.currentTrackTitle.collectAsState()
-    val trackArtist by viewModel.currentTrackArtist.collectAsState()
+    val isPlaying by viewModel.isPlaying.collectAsState(initial = false)
+    val trackTitle by viewModel.currentTrackTitle.collectAsState(initial = "How About a Song (Jubilife City)")
+    val trackArtist by viewModel.currentTrackArtist.collectAsState(initial = "Pokémon X and Y (OST)")
 
     Column(
         modifier = Modifier

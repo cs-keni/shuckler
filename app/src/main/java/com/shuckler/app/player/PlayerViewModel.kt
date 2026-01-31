@@ -1,58 +1,76 @@
 package com.shuckler.app.player
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.media3.common.Player
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
-class PlayerViewModel(context: Context) : ViewModel() {
-    private val appContext = context.applicationContext
+class PlayerViewModel(
+    private val context: Context,
+    private val serviceConnection: MusicServiceConnection
+) : ViewModel() {
 
-    private val _musicPlayer = lazy {
-        MusicPlayer(appContext).also { player ->
-            player.player.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    _isPlaying.value = isPlaying
-                }
-            })
+    val isPlaying: Flow<Boolean> = serviceConnection.service
+        .flatMapLatest { service ->
+            service?.isPlaying ?: flowOf(false)
         }
-    }
-    val musicPlayer: MusicPlayer get() = _musicPlayer.value
 
-    private val _isPlaying = MutableStateFlow(false)
-    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
+    val currentTrackTitle: Flow<String> = serviceConnection.service
+        .map { service -> service?.currentTrackTitle ?: "How About a Song (Jubilife City)" }
 
-    private val _currentTrackTitle = MutableStateFlow("How About a Song (Jubilife City)")
-    val currentTrackTitle: StateFlow<String> = _currentTrackTitle.asStateFlow()
-
-    private val _currentTrackArtist = MutableStateFlow("Pokémon X and Y (OST)")
-    val currentTrackArtist: StateFlow<String> = _currentTrackArtist.asStateFlow()
+    val currentTrackArtist: Flow<String> = serviceConnection.service
+        .map { service -> service?.currentTrackArtist ?: "Pokémon X and Y (OST)" }
 
     fun togglePlayPause() {
-        musicPlayer.togglePlayPause()
+        val service = serviceConnection.service.value
+        if (service != null) {
+            // Start service so it stays alive when activity unbinds
+            context.startService(Intent(context, MusicPlayerService::class.java))
+            service.togglePlayPause()
+        } else {
+            // Service not bound yet - start it; onStartCommand will handle play
+            startPlaybackService()
+        }
     }
 
     fun play() {
-        musicPlayer.play()
+        val service = serviceConnection.service.value
+        if (service != null) {
+            context.startService(Intent(context, MusicPlayerService::class.java))
+            service.play()
+        } else {
+            startPlaybackService()
+        }
+    }
+
+    private fun startPlaybackService() {
+        val intent = Intent(context, MusicPlayerService::class.java).apply {
+            action = MusicPlayerService.ACTION_PLAY
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
+        }
     }
 
     fun pause() {
-        musicPlayer.pause()
+        serviceConnection.service.value?.pause()
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        musicPlayer.release()
-    }
-
-    class Factory(private val context: Context) : ViewModelProvider.Factory {
+    class Factory(
+        private val context: Context,
+        private val serviceConnection: MusicServiceConnection
+    ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
-                return PlayerViewModel(context) as T
+                return PlayerViewModel(context, serviceConnection) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
