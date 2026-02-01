@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.MediaMetadata
+import android.net.Uri
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Binder
@@ -97,8 +98,11 @@ class MusicPlayerService : Service() {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
-    val currentTrackTitle = DefaultTrackInfo.TITLE
-    val currentTrackArtist = DefaultTrackInfo.ARTIST
+    private val _currentTrackTitle = MutableStateFlow(DefaultTrackInfo.TITLE)
+    val currentTrackTitle: StateFlow<String> = _currentTrackTitle.asStateFlow()
+
+    private val _currentTrackArtist = MutableStateFlow(DefaultTrackInfo.ARTIST)
+    val currentTrackArtist: StateFlow<String> = _currentTrackArtist.asStateFlow()
 
     inner class LocalBinder : Binder() {
         fun getService(): MusicPlayerService = this@MusicPlayerService
@@ -113,6 +117,15 @@ class MusicPlayerService : Service() {
             ACTION_TOGGLE -> togglePlayPause()
             ACTION_NEXT -> skipToNext()
             ACTION_PREVIOUS -> skipToPrevious()
+            ACTION_PLAY_URI -> {
+                val uriString = intent.getStringExtra(EXTRA_URI)
+                val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+                val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
+                if (uriString != null) {
+                    setMediaUri(uriString.toUri(), title, artist)
+                    play()
+                }
+            }
         }
         return START_STICKY
     }
@@ -156,6 +169,36 @@ class MusicPlayerService : Service() {
         exoPlayer.seekTo(0)
     }
 
+    /**
+     * Switch playback to a file (e.g. downloaded track). Call before or instead of play().
+     */
+    fun setMediaUri(uri: Uri, title: String, artist: String) {
+        _currentTrackTitle.value = title
+        _currentTrackArtist.value = artist
+        _exoPlayer?.let { player ->
+            player.setMediaItem(MediaItem.fromUri(uri))
+            player.prepare()
+        } ?: run {
+            _exoPlayer = ExoPlayer.Builder(applicationContext)
+                .setAudioAttributes(audioAttributes, true)
+                .setHandleAudioBecomingNoisy(true)
+                .build()
+                .apply {
+                    setMediaItem(MediaItem.fromUri(uri))
+                    prepare()
+                    addListener(object : Player.Listener {
+                        override fun onIsPlayingChanged(playing: Boolean) {
+                            _isPlaying.value = playing
+                            updateMediaSession()
+                            updateNotification()
+                        }
+                    })
+                }
+        }
+        updateMediaSession()
+        updateNotification()
+    }
+
     private fun updateMediaSession() {
         mediaSession?.let { session ->
             val state = if (_exoPlayer?.isPlaying == true) {
@@ -175,8 +218,8 @@ class MusicPlayerService : Service() {
             )
             session.setMetadata(
                 MediaMetadata.Builder()
-                    .putString(MediaMetadata.METADATA_KEY_TITLE, currentTrackTitle)
-                    .putString(MediaMetadata.METADATA_KEY_ARTIST, currentTrackArtist)
+                    .putString(MediaMetadata.METADATA_KEY_TITLE, _currentTrackTitle.value)
+                    .putString(MediaMetadata.METADATA_KEY_ARTIST, _currentTrackArtist.value)
                     .build()
             )
         }
@@ -229,8 +272,8 @@ class MusicPlayerService : Service() {
         // Notification still shows prev/play/next; lock screen uses platform session from updateMediaSession().
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(currentTrackTitle)
-            .setContentText(currentTrackArtist)
+            .setContentTitle(_currentTrackTitle.value)
+            .setContentText(_currentTrackArtist.value)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
             .addAction(previousAction)
@@ -282,6 +325,10 @@ class MusicPlayerService : Service() {
         const val ACTION_TOGGLE = "com.shuckler.app.TOGGLE"
         const val ACTION_NEXT = "com.shuckler.app.NEXT"
         const val ACTION_PREVIOUS = "com.shuckler.app.PREVIOUS"
+        const val ACTION_PLAY_URI = "com.shuckler.app.PLAY_URI"
+        const val EXTRA_URI = "uri"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_ARTIST = "artist"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }

@@ -2,13 +2,13 @@ package com.shuckler.app.player
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModel(
@@ -22,10 +22,10 @@ class PlayerViewModel(
         }
 
     val currentTrackTitle: Flow<String> = serviceConnection.service
-        .map { service -> service?.currentTrackTitle ?: DEFAULT_TRACK_TITLE }
+        .flatMapLatest { service -> service?.currentTrackTitle ?: flowOf(DEFAULT_TRACK_TITLE) }
 
     val currentTrackArtist: Flow<String> = serviceConnection.service
-        .map { service -> service?.currentTrackArtist ?: DEFAULT_TRACK_ARTIST }
+        .flatMapLatest { service -> service?.currentTrackArtist ?: flowOf(DEFAULT_TRACK_ARTIST) }
 
     fun togglePlayPause() {
         val service = serviceConnection.service.value
@@ -35,6 +35,21 @@ class PlayerViewModel(
         } else {
             startPlaybackService()
         }
+    }
+
+    /**
+     * Switch to and play a track from a file URI (e.g. downloaded track).
+     * Uses service Intent so it works even before the service is bound.
+     */
+    fun playTrack(uri: Uri, title: String, artist: String) {
+        applicationContext.startForegroundService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_PLAY_URI
+                putExtra(MusicPlayerService.EXTRA_URI, uri.toString())
+                putExtra(MusicPlayerService.EXTRA_TITLE, title)
+                putExtra(MusicPlayerService.EXTRA_ARTIST, artist)
+            }
+        )
     }
 
     private fun startPlaybackService() {

@@ -139,18 +139,18 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Download audio from a URL (start with direct MP3 link, then YouTube)
 
 ### Tasks:
-1. Create `DownloadManager.kt`
+1. Create `DownloadManager.kt` ✅
    - Handle file downloads
    - Save to app-specific storage (`getExternalFilesDir()` or `getFilesDir()`)
    - Show download progress
-2. Create download data model
+2. Create download data model ✅
    - Track metadata (title, artist, file path, duration)
    - Track download status
-3. Implement storage management
+3. Implement storage management ✅
    - Create app-specific audio directory
    - Handle file naming conflicts
    - Store metadata (use SharedPreferences or simple JSON for now)
-4. Add download UI
+4. Add download UI ✅
    - Download button in search results
    - Progress indicator
    - Download status in library
@@ -160,6 +160,15 @@ This document breaks down the Shuckler Android music app development into increm
 - [ ] File saves to app storage
 - [ ] Download progress is visible
 - [ ] Downloaded file can be played
+
+### How to test Phase 5 (direct MP3 URLs)
+- **Not a YouTube search:** Phase 5 is "Download from URL" — you paste a **direct link** to an MP3 file. YouTube search/download is Phase 6.
+- **What to enter:** A URL that points directly to an audio file (e.g. ends in `.mp3` or returns audio when opened in a browser). Examples of how to get one:
+  - Search the web for "free sample mp3 download" or "test mp3 url" and use a link that goes straight to the file (e.g. from a CDN or audio host).
+  - Example test URLs (may change; use any public direct MP3 link):  
+    - `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3` (sample music)  
+    - Any `.mp3` link from a site like Internet Archive, Freesound, or a podcast feed.
+- **Title / Artist:** Optional; if you leave them blank, the app uses "Track (id)" and "Unknown".
 
 ### Deliverables:
 - Working download system for direct audio URLs

@@ -13,6 +13,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.shuckler.app.download.DownloadManager
+import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.navigation.ShucklerNavGraph
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.MusicServiceConnection
@@ -31,9 +33,13 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermission()
         musicServiceConnection.bind(this)
         enableEdgeToEdge()
+        val downloadManager = DownloadManager(applicationContext)
         setContent {
             ShucklerTheme {
-                CompositionLocalProvider(LocalMusicServiceConnection provides musicServiceConnection) {
+                CompositionLocalProvider(
+                    LocalMusicServiceConnection provides musicServiceConnection,
+                    LocalDownloadManager provides downloadManager
+                ) {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         ShucklerNavGraph()
                     }
