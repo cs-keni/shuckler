@@ -28,8 +28,7 @@
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:811)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:715)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:702)
----------------------------- PROCESS STARTED (8137) for package com.shuckler.app ----------------------------
-2026-02-01 00:32:34.845  8137-8155  YouTubeRepository       com.shuckler.app                     E  getAudioStreamUrl failed for https://www.youtube.com/watch?v=x1y_0DwRoc4
+2026-02-01 00:32:34.845  8137-8155  YouTubeRepository       pid-8137                             E  getAudioStreamUrl failed for https://www.youtube.com/watch?v=x1y_0DwRoc4
                                                                                                     org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException: The page needs to be reloaded.
                                                                                                     	at org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.checkPlayabilityStatus(YoutubeStreamExtractor.java:891)
                                                                                                     	at org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.fetchHtml5Client(YoutubeStreamExtractor.java:940)
@@ -44,7 +43,7 @@
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:811)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:715)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:702)
-2026-02-01 00:33:20.770  8137-8155  YouTubeRepository       com.shuckler.app                     E  getAudioStreamUrl failed for https://www.youtube.com/watch?v=x1y_0DwRoc4
+2026-02-01 00:33:20.770  8137-8155  YouTubeRepository       pid-8137                             E  getAudioStreamUrl failed for https://www.youtube.com/watch?v=x1y_0DwRoc4
                                                                                                     org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException: The page needs to be reloaded.
                                                                                                     	at org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.checkPlayabilityStatus(YoutubeStreamExtractor.java:891)
                                                                                                     	at org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.fetchHtml5Client(YoutubeStreamExtractor.java:940)
@@ -59,8 +58,6 @@
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:811)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:715)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:702)
----------------------------- PROCESS ENDED (8137) for package com.shuckler.app ----------------------------
----------------------------- PROCESS STARTED (8228) for package com.shuckler.app ----------------------------
 2026-02-01 00:33:38.823  8228-8248  YouTubeRepository       com.shuckler.app                     E  getAudioStreamUrl failed for https://www.youtube.com/watch?v=uMeBK_6hfdQ
                                                                                                     org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException: The page needs to be reloaded.
                                                                                                     	at org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.checkPlayabilityStatus(YoutubeStreamExtractor.java:891)
@@ -91,3 +88,4 @@
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:811)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:715)
                                                                                                     	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:702)
+---------------------------- PROCESS STARTED (8565) for package com.shuckler.app ----------------------------

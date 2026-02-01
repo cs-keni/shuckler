@@ -52,6 +52,7 @@ fun SearchScreen() {
     val downloadManager = LocalDownloadManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val progress by downloadManager.progress.collectAsState(initial = emptyMap())
+    val lastDownloadError by downloadManager.lastDownloadError.collectAsState(initial = null)
     val scrollState = rememberScrollState()
 
     fun runSearch() {
@@ -113,6 +114,14 @@ fun SearchScreen() {
         youtubeDownloadError?.let { msg ->
             Text(
                 text = msg,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+        lastDownloadError?.let { msg ->
+            Text(
+                text = "Download failed: $msg",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(vertical = 8.dp)

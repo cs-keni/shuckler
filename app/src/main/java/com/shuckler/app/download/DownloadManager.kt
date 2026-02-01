@@ -2,6 +2,7 @@ package com.shuckler.app.download
 
 import android.content.Context
 import android.os.Environment
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +34,9 @@ class DownloadManager(private val context: Context) {
     private val _progress = MutableStateFlow<Map<String, DownloadProgress>>(emptyMap())
     val progress: StateFlow<Map<String, DownloadProgress>> = _progress.asStateFlow()
 
+    private val _lastDownloadError = MutableStateFlow<String?>(null)
+    val lastDownloadError: StateFlow<String?> = _lastDownloadError.asStateFlow()
+
     private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
 
     private val audioDir: File
@@ -57,6 +61,7 @@ class DownloadManager(private val context: Context) {
      * Returns the download id; progress and completion are exposed via [progress] and [downloads].
      */
     fun startDownload(url: String, title: String? = null, artist: String? = null): String {
+        _lastDownloadError.value = null
         val id = UUID.randomUUID().toString()
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
@@ -83,7 +88,7 @@ class DownloadManager(private val context: Context) {
                 connection = url.openConnection() as HttpURLConnection
                 connection.requestMethod = "GET"
                 connection.connectTimeout = 15_000
-                connection.readTimeout = 30_000
+                connection.readTimeout = 120_000
                 connection.setRequestProperty("User-Agent", USER_AGENT)
                 connection.connect()
 
@@ -113,9 +118,10 @@ class DownloadManager(private val context: Context) {
                     updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0)
                 }
 
+                // Complete and persist before close() so we don't lose the track if close() throws
+                completeDownload(id, file.absolutePath, urlString, title, artist)
                 outputStream.close()
                 outputStream = null
-                completeDownload(id, file.absolutePath, urlString, title, artist)
             } catch (e: Exception) {
                 failDownload(id, urlString, title, artist, e.message ?: "Unknown error")
             } finally {
@@ -153,6 +159,7 @@ class DownloadManager(private val context: Context) {
     }
 
     private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String) {
+        Log.d(TAG, "completeDownload: $title -> $filePath")
         val track = DownloadedTrack(
             id = id,
             title = title,
@@ -167,6 +174,8 @@ class DownloadManager(private val context: Context) {
     }
 
     private fun failDownload(id: String, sourceUrl: String, title: String, artist: String, errorMessage: String) {
+        Log.e(TAG, "failDownload: $title - $errorMessage")
+        _lastDownloadError.value = errorMessage
         val track = DownloadedTrack(
             id = id,
             title = title,
@@ -227,6 +236,7 @@ class DownloadManager(private val context: Context) {
     }
 
     companion object {
+        private const val TAG = "DownloadManager"
         private const val METADATA_FILENAME = "downloads.json"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0"
         private const val DEFAULT_BUFFER_SIZE = 8192
