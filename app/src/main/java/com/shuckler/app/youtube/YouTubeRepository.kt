@@ -1,8 +1,9 @@
 package com.shuckler.app.youtube
 
 import android.util.Log
-import io.github.shalva97.initNewPipe
 import kotlinx.coroutines.Dispatchers
+import okhttp3.OkHttpClient
+import org.schabi.newpipe.extractor.NewPipe
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.StreamingService
@@ -10,13 +11,15 @@ import org.schabi.newpipe.extractor.stream.StreamExtractor
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
 /**
- * YouTube search and audio URL extraction using NewPipe Extractor (via NewValve).
+ * YouTube search and audio URL extraction using NewPipe Extractor 0.25.1 with OkHttp.
  * Call [ensureInitialized] once before use (e.g. on first search).
  */
 object YouTubeRepository {
 
     @Volatile
     private var initialized = false
+
+    private val httpClient = OkHttpClient()
 
     /**
      * Call once before using search or getAudioUrl. Thread-safe.
@@ -26,10 +29,10 @@ object YouTubeRepository {
         synchronized(this) {
             if (initialized) return
             try {
-                initNewPipe()
+                NewPipe.init(OkHttpDownloader(httpClient))
                 initialized = true
             } catch (_: Throwable) {
-                // NewValve init failed (e.g. missing OkHttp)
+                // Init failed (e.g. NewPipe already init with different Downloader)
             }
         }
     }
@@ -88,11 +91,19 @@ object YouTubeRepository {
     }
 
     /**
-     * Get a direct audio stream URL for a YouTube video URL. Runs on IO.
-     * Returns null on error or if no audio stream.
+     * Result of getting an audio stream URL: either success with [AudioStreamInfo] or failure with a message.
      */
-    suspend fun getAudioStreamUrl(videoUrl: String): AudioStreamInfo? = withContext(Dispatchers.IO) {
-        if (videoUrl.isBlank()) return@withContext null
+    sealed class AudioStreamResult {
+        data class Success(val info: AudioStreamInfo) : AudioStreamResult()
+        data class Failure(val message: String) : AudioStreamResult()
+    }
+
+    /**
+     * Get a direct audio stream URL for a YouTube video URL. Runs on IO.
+     * Returns [AudioStreamResult.Success] or [AudioStreamResult.Failure] with an error message.
+     */
+    suspend fun getAudioStreamUrl(videoUrl: String): AudioStreamResult = withContext(Dispatchers.IO) {
+        if (videoUrl.isBlank()) return@withContext AudioStreamResult.Failure("No video URL")
         ensureInitialized()
         val normalizedUrl = normalizeYouTubeUrl(videoUrl)
         try {
@@ -100,24 +111,29 @@ object YouTubeRepository {
             extractor.fetchPage()
             val audioStreams = extractor.audioStreams
             if (audioStreams.isNullOrEmpty()) {
-                Log.w(TAG, "getAudioStreamUrl: no audio streams for $normalizedUrl")
-                return@withContext null
+                val msg = "No audio streams found for this video."
+                Log.w(TAG, "getAudioStreamUrl: $msg $normalizedUrl")
+                return@withContext AudioStreamResult.Failure(msg)
             }
             // Prefer higher bitrate
             val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams.first()
             val streamUrl = best.content
             if (streamUrl.isNullOrBlank()) {
-                Log.w(TAG, "getAudioStreamUrl: best stream has no content URL")
-                return@withContext null
+                val msg = "Stream URL was empty."
+                Log.w(TAG, "getAudioStreamUrl: $msg")
+                return@withContext AudioStreamResult.Failure(msg)
             }
-            AudioStreamInfo(
-                url = streamUrl,
-                title = extractor.name,
-                uploaderName = extractor.uploaderName
+            AudioStreamResult.Success(
+                AudioStreamInfo(
+                    url = streamUrl,
+                    title = extractor.name,
+                    uploaderName = extractor.uploaderName
+                )
             )
         } catch (t: Throwable) {
+            val msg = t.message?.take(200) ?: t.javaClass.simpleName
             Log.e(TAG, "getAudioStreamUrl failed for $normalizedUrl", t)
-            null
+            AudioStreamResult.Failure(msg)
         }
     }
 

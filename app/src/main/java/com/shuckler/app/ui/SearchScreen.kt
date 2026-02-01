@@ -141,16 +141,20 @@ fun SearchScreen() {
                         youtubeDownloadError = null
                         downloadingVideoUrl = result.url
                         scope.launch {
-                            val audio = YouTubeRepository.getAudioStreamUrl(result.url)
+                            val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url)
                             downloadingVideoUrl = null
-                            if (audio != null) {
-                                downloadManager.startDownload(
-                                    audio.url,
-                                    audio.title.ifBlank { result.title },
-                                    audio.uploaderName.ifBlank { result.uploaderName ?: "" }
-                                )
-                            } else {
-                                youtubeDownloadError = "Could not get audio stream. Try again."
+                            when (resultAudio) {
+                                is YouTubeRepository.AudioStreamResult.Success -> {
+                                    val audio = resultAudio.info
+                                    downloadManager.startDownload(
+                                        audio.url,
+                                        audio.title.ifBlank { result.title },
+                                        audio.uploaderName.ifBlank { result.uploaderName ?: "" }
+                                    )
+                                }
+                                is YouTubeRepository.AudioStreamResult.Failure -> {
+                                    youtubeDownloadError = resultAudio.message
+                                }
                             }
                         }
                     }
