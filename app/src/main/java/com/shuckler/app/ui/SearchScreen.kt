@@ -46,6 +46,7 @@ fun SearchScreen() {
     var searchLoading by remember { mutableStateOf(false) }
     var lastSearchedQuery by remember { mutableStateOf("") }
     var downloadingVideoUrl by remember { mutableStateOf<String?>(null) }
+    var youtubeDownloadError by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val downloadManager = LocalDownloadManager.current
@@ -60,6 +61,7 @@ fun SearchScreen() {
         searchLoading = true
         searchResults = emptyList()
         lastSearchedQuery = q
+        youtubeDownloadError = null
         scope.launch {
             searchResults = YouTubeRepository.search(q)
             searchLoading = false
@@ -108,6 +110,15 @@ fun SearchScreen() {
             }
         }
 
+        youtubeDownloadError?.let { msg ->
+            Text(
+                text = msg,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
+
         if (!searchLoading && searchResults.isEmpty() && lastSearchedQuery.isNotBlank()) {
             Text(
                 text = "No results for \"$lastSearchedQuery\". Check your connection or try another search.",
@@ -127,6 +138,7 @@ fun SearchScreen() {
                     result = result,
                     isDownloading = downloadingVideoUrl == result.url,
                     onDownloadClick = {
+                        youtubeDownloadError = null
                         downloadingVideoUrl = result.url
                         scope.launch {
                             val audio = YouTubeRepository.getAudioStreamUrl(result.url)
@@ -137,6 +149,8 @@ fun SearchScreen() {
                                     audio.title.ifBlank { result.title },
                                     audio.uploaderName.ifBlank { result.uploaderName ?: "" }
                                 )
+                            } else {
+                                youtubeDownloadError = "Could not get audio stream. Try again."
                             }
                         }
                     }

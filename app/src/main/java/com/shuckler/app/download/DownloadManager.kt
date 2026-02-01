@@ -84,6 +84,7 @@ class DownloadManager(private val context: Context) {
                 connection.requestMethod = "GET"
                 connection.connectTimeout = 15_000
                 connection.readTimeout = 30_000
+                connection.setRequestProperty("User-Agent", USER_AGENT)
                 connection.connect()
 
                 val responseCode = connection.responseCode
@@ -227,6 +228,8 @@ class DownloadManager(private val context: Context) {
 
     companion object {
         private const val METADATA_FILENAME = "downloads.json"
+        private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0"
+        private const val DEFAULT_BUFFER_SIZE = 8192
         private const val KEY_ID = "id"
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"

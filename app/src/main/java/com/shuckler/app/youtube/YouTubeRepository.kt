@@ -1,5 +1,6 @@
 package com.shuckler.app.youtube
 
+import android.util.Log
 import io.github.shalva97.initNewPipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,30 +69,59 @@ object YouTubeRepository {
     }
 
     /**
+     * Normalize YouTube URL to canonical form (https://www.youtube.com/watch?v=VIDEO_ID).
+     * Helps avoid parsing issues when search returns alternate formats.
+     */
+    private fun normalizeYouTubeUrl(input: String): String {
+        val trimmed = input.trim()
+        // youtu.be/VIDEO_ID
+        val shortMatch = Regex("youtu\\.be/([a-zA-Z0-9_-]{11})").find(trimmed)
+        if (shortMatch != null) {
+            return "https://www.youtube.com/watch?v=${shortMatch.groupValues[1]}"
+        }
+        // watch?v=VIDEO_ID or /embed/VIDEO_ID or /v/VIDEO_ID
+        val idMatch = Regex("(?:watch\\?v=|/embed/|/v/)([a-zA-Z0-9_-]{11})").find(trimmed)
+        if (idMatch != null) {
+            return "https://www.youtube.com/watch?v=${idMatch.groupValues[1]}"
+        }
+        return trimmed
+    }
+
+    /**
      * Get a direct audio stream URL for a YouTube video URL. Runs on IO.
      * Returns null on error or if no audio stream.
      */
     suspend fun getAudioStreamUrl(videoUrl: String): AudioStreamInfo? = withContext(Dispatchers.IO) {
         if (videoUrl.isBlank()) return@withContext null
         ensureInitialized()
+        val normalizedUrl = normalizeYouTubeUrl(videoUrl)
         try {
-            val extractor: StreamExtractor = youtube.getStreamExtractor(videoUrl)
+            val extractor: StreamExtractor = youtube.getStreamExtractor(normalizedUrl)
             extractor.fetchPage()
             val audioStreams = extractor.audioStreams
-            if (audioStreams.isNullOrEmpty()) return@withContext null
+            if (audioStreams.isNullOrEmpty()) {
+                Log.w(TAG, "getAudioStreamUrl: no audio streams for $normalizedUrl")
+                return@withContext null
+            }
             // Prefer higher bitrate
             val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams.first()
-            val url = best.content
-            if (url.isNullOrBlank()) return@withContext null
+            val streamUrl = best.content
+            if (streamUrl.isNullOrBlank()) {
+                Log.w(TAG, "getAudioStreamUrl: best stream has no content URL")
+                return@withContext null
+            }
             AudioStreamInfo(
-                url = url,
+                url = streamUrl,
                 title = extractor.name,
                 uploaderName = extractor.uploaderName
             )
-        } catch (_: Throwable) {
+        } catch (t: Throwable) {
+            Log.e(TAG, "getAudioStreamUrl failed for $normalizedUrl", t)
             null
         }
     }
+
+    private const val TAG = "YouTubeRepository"
 
     data class AudioStreamInfo(
         val url: String,
