@@ -92,10 +92,10 @@ This document breaks down the Shuckler Android music app development into increm
    - Handle app being killed
 
 ### Testing:
-- [ ] Music continues playing when screen turns off
-- [ ] Music continues when app is minimized
-- [ ] Notification appears and shows playback controls
-- [ ] Service survives app being swiped away (optional, depends on device)
+- [x] Music continues playing when screen turns off
+- [x] Music continues when app is minimized
+- [x] Notification appears and shows playback controls
+- [x] Service survives app being swiped away (optional, depends on device)
 
 ### Deliverables:
 - Background audio playback working
@@ -107,15 +107,15 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Headphone buttons, lock screen, and notification controls work
 
 ### Tasks:
-1. Implement MediaSession
+1. Implement MediaSession ✅
    - Create MediaSession in MusicPlayerService
    - Set metadata (title, artist, album art)
    - Handle media button events
-2. Update notification
+2. Update notification ✅
    - Add previous/next buttons
    - Add seek bar (optional for Phase 4)
    - Style notification as media notification
-3. Implement MediaSession callbacks
+3. Implement MediaSession callbacks ✅
    - onPlay, onPause, onSkipToNext, onSkipToPrevious
    - onSeekTo (optional)
 4. Test with headphones

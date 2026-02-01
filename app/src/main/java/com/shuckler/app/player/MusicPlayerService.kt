@@ -6,11 +6,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.media.MediaMetadata
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -26,6 +30,40 @@ import kotlinx.coroutines.flow.asStateFlow
 class MusicPlayerService : Service() {
 
     private val binder = LocalBinder()
+
+    private var mediaSession: MediaSession? = null
+        get() {
+            if (field == null) {
+                field = MediaSession(this, "ShucklerPlayback").apply {
+                    setCallback(object : MediaSession.Callback() {
+                        override fun onPlay() {
+                            this@MusicPlayerService.play()
+                        }
+
+                        override fun onPause() {
+                            this@MusicPlayerService.pause()
+                        }
+
+                        override fun onSkipToNext() {
+                            skipToNext()
+                        }
+
+                        override fun onSkipToPrevious() {
+                            skipToPrevious()
+                        }
+                    })
+                    setSessionActivity(
+                        PendingIntent.getActivity(
+                            this@MusicPlayerService,
+                            0,
+                            Intent(this@MusicPlayerService, MainActivity::class.java),
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    )
+                }
+            }
+            return field
+        }
 
     private val audioAttributes = AudioAttributes.Builder()
         .setUsage(C.USAGE_MEDIA)
@@ -47,6 +85,7 @@ class MusicPlayerService : Service() {
                         addListener(object : Player.Listener {
                             override fun onIsPlayingChanged(playing: Boolean) {
                                 _isPlaying.value = playing
+                                updateMediaSession()
                                 updateNotification()
                             }
                         })
@@ -58,8 +97,8 @@ class MusicPlayerService : Service() {
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
-    val currentTrackTitle = "How About a Song (Jubilife City)"
-    val currentTrackArtist = "Pokémon X and Y (OST)"
+    val currentTrackTitle = DefaultTrackInfo.TITLE
+    val currentTrackArtist = DefaultTrackInfo.ARTIST
 
     inner class LocalBinder : Binder() {
         fun getService(): MusicPlayerService = this@MusicPlayerService
@@ -72,11 +111,14 @@ class MusicPlayerService : Service() {
             ACTION_PLAY -> play()
             ACTION_PAUSE -> pause()
             ACTION_TOGGLE -> togglePlayPause()
+            ACTION_NEXT -> skipToNext()
+            ACTION_PREVIOUS -> skipToPrevious()
         }
         return START_STICKY
     }
 
     fun play() {
+        mediaSession?.isActive = true
         val notification = createNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceCompat.startForeground(
@@ -89,10 +131,12 @@ class MusicPlayerService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         exoPlayer.play()
+        updateMediaSession()
     }
 
     fun pause() {
         exoPlayer.pause()
+        updateMediaSession()
         updateNotification()
     }
 
@@ -101,6 +145,40 @@ class MusicPlayerService : Service() {
             pause()
         } else {
             play()
+        }
+    }
+
+    private fun skipToNext() {
+        // Single track: no-op for now
+    }
+
+    private fun skipToPrevious() {
+        exoPlayer.seekTo(0)
+    }
+
+    private fun updateMediaSession() {
+        mediaSession?.let { session ->
+            val state = if (_exoPlayer?.isPlaying == true) {
+                PlaybackState.STATE_PLAYING
+            } else {
+                PlaybackState.STATE_PAUSED
+            }
+            val actions = PlaybackState.ACTION_PLAY or
+                PlaybackState.ACTION_PAUSE or
+                PlaybackState.ACTION_SKIP_TO_NEXT or
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS
+            session.setPlaybackState(
+                PlaybackState.Builder()
+                    .setActions(actions)
+                    .setState(state, exoPlayer.currentPosition, 1f)
+                    .build()
+            )
+            session.setMetadata(
+                MediaMetadata.Builder()
+                    .putString(MediaMetadata.METADATA_KEY_TITLE, currentTrackTitle)
+                    .putString(MediaMetadata.METADATA_KEY_ARTIST, currentTrackArtist)
+                    .build()
+            )
         }
     }
 
@@ -124,34 +202,53 @@ class MusicPlayerService : Service() {
             NotificationCompat.Action(
                 android.R.drawable.ic_media_pause,
                 getString(R.string.notification_pause),
-                getPlayPausePendingIntent(ACTION_PAUSE)
+                getServicePendingIntent(ACTION_PAUSE)
             )
         } else {
             NotificationCompat.Action(
                 android.R.drawable.ic_media_play,
                 getString(R.string.notification_play),
-                getPlayPausePendingIntent(ACTION_PLAY)
+                getServicePendingIntent(ACTION_PLAY)
             )
         }
+
+        val previousAction = NotificationCompat.Action(
+            android.R.drawable.ic_media_previous,
+            getString(R.string.notification_previous),
+            getServicePendingIntent(ACTION_PREVIOUS)
+        )
+        val nextAction = NotificationCompat.Action(
+            android.R.drawable.ic_media_next,
+            getString(R.string.notification_next),
+            getServicePendingIntent(ACTION_NEXT)
+        )
+
+        val mediaStyle = MediaNotificationCompat.MediaStyle()
+            .setShowActionsInCompactView(0, 1, 2) // prev, play/pause, next
+        // MediaStyle.setMediaSession() expects MediaSessionCompat.Token; we use platform MediaSession.
+        // Notification still shows prev/play/next; lock screen uses platform session from updateMediaSession().
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTrackTitle)
             .setContentText(currentTrackArtist)
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentIntent(pendingIntent)
+            .addAction(previousAction)
             .addAction(playPauseAction)
+            .addAction(nextAction)
+            .setStyle(mediaStyle)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
     }
 
-    private fun getPlayPausePendingIntent(action: String): PendingIntent {
+    private fun getServicePendingIntent(action: String): PendingIntent {
         val intent = Intent(this, MusicPlayerService::class.java).apply {
             this.action = action
         }
         return PendingIntent.getService(
             this,
-            0,
+            action.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -172,6 +269,9 @@ class MusicPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        mediaSession?.isActive = false
+        mediaSession?.release()
+        mediaSession = null
         _exoPlayer?.release()
         _exoPlayer = null
     }
@@ -180,6 +280,8 @@ class MusicPlayerService : Service() {
         const val ACTION_PLAY = "com.shuckler.app.PLAY"
         const val ACTION_PAUSE = "com.shuckler.app.PAUSE"
         const val ACTION_TOGGLE = "com.shuckler.app.TOGGLE"
+        const val ACTION_NEXT = "com.shuckler.app.NEXT"
+        const val ACTION_PREVIOUS = "com.shuckler.app.PREVIOUS"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }
