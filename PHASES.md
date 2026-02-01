@@ -156,10 +156,10 @@ This document breaks down the Shuckler Android music app development into increm
    - Download status in library
 
 ### Testing:
-- [ ] Can download a direct MP3 URL
-- [ ] File saves to app storage
-- [ ] Download progress is visible
-- [ ] Downloaded file can be played
+- [x] Can download a direct MP3 URL
+- [x] File saves to app storage
+- [x] Download progress is visible
+- [x] Downloaded file can be played
 
 ### How to test Phase 5 (direct MP3 URLs)
 - **Not a YouTube search:** Phase 5 is "Download from URL" — you paste a **direct link** to an MP3 file. YouTube search/download is Phase 6.
@@ -181,19 +181,19 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Search YouTube and download audio using yt-dlp or similar
 
 ### Tasks:
-1. Research YouTube audio extraction
+1. Research YouTube audio extraction ✅
    - Option A: Use yt-dlp via ProcessBuilder (requires root or external tool)
    - Option B: Use YouTube API + audio extraction library
    - Option C: Use a third-party library (NewPipe extractor, etc.)
-   - **Recommendation:** Start with NewPipe extractor or similar Kotlin library
-2. Implement YouTube search
+   - **Implemented:** NewValve (OkHttp + NewPipe Extractor)
+2. Implement YouTube search ✅
    - Search YouTube for queries
    - Display results (title, thumbnail, duration)
-3. Implement YouTube download
+3. Implement YouTube download ✅
    - Extract audio URL or download directly
    - Convert to MP3 (if needed)
    - Save with proper metadata
-4. Integrate with UI
+4. Integrate with UI ✅
    - SearchFragment shows YouTube results
    - Download button triggers download
    - Show download progress
