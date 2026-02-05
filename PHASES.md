@@ -199,10 +199,10 @@ This document breaks down the Shuckler Android music app development into increm
    - Show download progress
 
 ### Testing:
-- [ ] Can search YouTube
-- [ ] Search results display correctly
-- [ ] Can download audio from YouTube
-- [ ] Downloaded audio plays correctly
+- [x] Can search YouTube
+- [x] Search results display correctly
+- [x] Can download audio from YouTube
+- [x] Downloaded audio plays correctly
 - [ ] Works with long compilations (1-2 hours)
 
 ### Deliverables:

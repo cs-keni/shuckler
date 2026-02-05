@@ -81,54 +81,64 @@ class DownloadManager(private val context: Context) {
 
     private suspend fun runDownload(id: String, urlString: String, title: String, artist: String) {
         withContext(Dispatchers.IO) {
-            var connection: HttpURLConnection? = null
-            var outputStream: FileOutputStream? = null
-            try {
-                val url = URL(urlString)
-                connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 120_000
-                connection.setRequestProperty("User-Agent", USER_AGENT)
-                connection.connect()
+            val maxAttempts = 2
+            var lastError: Exception? = null
+            for (attempt in 1..maxAttempts) {
+                var connection: HttpURLConnection? = null
+                var outputStream: FileOutputStream? = null
+                try {
+                    val url = URL(urlString)
+                    connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "GET"
+                    connection.connectTimeout = 15_000
+                    connection.readTimeout = 120_000
+                    connection.setRequestProperty("User-Agent", USER_AGENT)
+                    connection.connect()
 
-                val responseCode = connection.responseCode
-                if (responseCode !in 200..299) {
-                    failDownload(id, urlString, title, artist, "HTTP $responseCode")
+                    val responseCode = connection.responseCode
+                    if (responseCode !in 200..299) {
+                        failDownload(id, urlString, title, artist, "HTTP $responseCode")
+                        return@withContext
+                    }
+
+                    val contentLength = connection.contentLengthLong.takeIf { it > 0 }
+                    val fileName = suggestFileName(urlString, connection.contentType)
+                    val file = File(audioDir, fileName)
+                    file.parentFile?.mkdirs()
+                    outputStream = FileOutputStream(file)
+
+                    val inputStream = connection.inputStream
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var totalRead: Long = 0
+                    var read: Int
+
+                    while (inputStream.read(buffer).also { read = it } != -1) {
+                        outputStream.write(buffer, 0, read)
+                        totalRead += read
+                        val percent = if (contentLength != null && contentLength > 0) {
+                            ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
+                        } else null
+                        updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0)
+                    }
+
+                    // Complete and persist before close() so we don't lose the track if close() throws
+                    completeDownload(id, file.absolutePath, urlString, title, artist)
+                    outputStream.close()
+                    outputStream = null
+                    clearProgress(id)
                     return@withContext
+                } catch (e: Exception) {
+                    lastError = e
+                    if (attempt < maxAttempts) {
+                        Log.w(TAG, "Download attempt $attempt failed (${e.message}), retrying...")
+                    }
+                } finally {
+                    outputStream?.closeQuietly()
+                    connection?.disconnect()
                 }
-
-                val contentLength = connection.contentLengthLong.takeIf { it > 0 }
-                val fileName = suggestFileName(urlString, connection.contentType)
-                val file = File(audioDir, fileName)
-                file.parentFile?.mkdirs()
-                outputStream = FileOutputStream(file)
-
-                val inputStream = connection.inputStream
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                var totalRead: Long = 0
-                var read: Int
-
-                while (inputStream.read(buffer).also { read = it } != -1) {
-                    outputStream.write(buffer, 0, read)
-                    totalRead += read
-                    val percent = if (contentLength != null && contentLength > 0) {
-                        ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
-                    } else null
-                    updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0)
-                }
-
-                // Complete and persist before close() so we don't lose the track if close() throws
-                completeDownload(id, file.absolutePath, urlString, title, artist)
-                outputStream.close()
-                outputStream = null
-            } catch (e: Exception) {
-                failDownload(id, urlString, title, artist, e.message ?: "Unknown error")
-            } finally {
-                outputStream?.closeQuietly()
-                connection?.disconnect()
-                clearProgress(id)
             }
+            clearProgress(id)
+            failDownload(id, urlString, title, artist, lastError?.message ?: "Unknown error")
         }
     }
 
