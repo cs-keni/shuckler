@@ -111,6 +111,23 @@ fun SearchScreen() {
             }
         }
 
+        if (progress.isNotEmpty()) {
+            Text("Downloading…", style = MaterialTheme.typography.titleSmall)
+            progress.values.forEach { p ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LinearProgressIndicator(
+                        progress = { p.percent / 100f },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text("${p.percent}%", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
         youtubeDownloadError?.let { msg ->
             Text(
                 text = msg,
@@ -222,23 +239,6 @@ fun SearchScreen() {
             enabled = downloadUrl.trim().isNotBlank()
         ) {
             Text("Download")
-        }
-
-        if (progress.isNotEmpty()) {
-            Text("Downloading…", style = MaterialTheme.typography.titleSmall)
-            progress.values.forEach { p ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LinearProgressIndicator(
-                        progress = { p.percent / 100f },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text("${p.percent}%", style = MaterialTheme.typography.bodySmall)
-                }
-            }
         }
 
         if (downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() && !searchLoading) {

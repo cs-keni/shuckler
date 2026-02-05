@@ -231,6 +231,9 @@ This document breaks down the Shuckler Android music app development into increm
    - Show total storage used
    - Delete individual tracks
    - Clear all cache option
+5. Improve download progress display (Search screen)
+   - Show download speed (e.g. MB/s or Mbps) next to progress for active downloads
+   - Active downloads section is visible at top of Search so progress is visible without switching tabs
 
 ### Testing:
 - [ ] Library shows all downloaded tracks
