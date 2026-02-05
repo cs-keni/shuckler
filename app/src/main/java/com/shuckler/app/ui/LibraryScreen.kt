@@ -12,15 +12,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,6 +38,8 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
@@ -44,6 +54,37 @@ fun LibraryScreen(
     val downloadManager = LocalDownloadManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+    var storageUsed by remember { mutableStateOf(0L) }
+    var storageAvailable by remember { mutableStateOf(0L) }
+    var showClearAllConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(downloads) {
+        storageUsed = withContext(Dispatchers.IO) { downloadManager.getTotalStorageUsed() }
+        storageAvailable = withContext(Dispatchers.IO) { downloadManager.getAvailableSpace() }
+    }
+
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text("Clear all downloads?") },
+            text = { Text("This will delete all downloaded tracks and free storage. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        downloadManager.clearAllDownloads()
+                        showClearAllConfirm = false
+                    }
+                ) {
+                    Text("Clear all", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -54,6 +95,28 @@ fun LibraryScreen(
             text = "Your Library",
             style = MaterialTheme.typography.headlineMedium
         )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Used: ${formatBytes(storageUsed)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Free: ${formatBytes(storageAvailable)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (completedTracks.isNotEmpty()) {
+            TextButton(onClick = { showClearAllConfirm = true }) {
+                Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+            }
+        }
         if (completedTracks.isEmpty()) {
             Column(
                 modifier = Modifier
@@ -63,7 +126,7 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    "No downloaded tracks yet. Use Search to download from an MP3 URL.",
+                    "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -71,7 +134,7 @@ fun LibraryScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 16.dp),
+                    .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(completedTracks, key = { it.id }) { track ->
@@ -80,7 +143,8 @@ fun LibraryScreen(
                         onPlayClick = {
                             val uri = Uri.fromFile(File(track.filePath))
                             viewModel.playTrack(uri, track.title, track.artist)
-                        }
+                        },
+                        onDeleteClick = { downloadManager.deleteTrack(track.id) }
                     )
                 }
             }
@@ -91,7 +155,8 @@ fun LibraryScreen(
 @Composable
 private fun LibraryTrackItem(
     track: DownloadedTrack,
-    onPlayClick: () -> Unit
+    onPlayClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -104,7 +169,7 @@ private fun LibraryTrackItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -118,12 +183,65 @@ private fun LibraryTrackItem(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (track.durationMs > 0 || track.fileSizeBytes > 0) {
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (track.durationMs > 0) {
+                            Text(
+                                text = formatDurationMs(track.durationMs),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (track.fileSizeBytes > 0) {
+                            Text(
+                                text = formatBytes(track.fileSizeBytes),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Play",
-                modifier = Modifier.padding(start = 8.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Play",
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .clickable(onClick = onPlayClick)
+                )
+                IconButton(
+                    onClick = onDeleteClick,
+                    modifier = Modifier.padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete"
+                    )
+                }
+            }
         }
     }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0) return "0 B"
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+        else -> "%.1f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+private fun formatDurationMs(ms: Long): String {
+    if (ms <= 0) return ""
+    val totalSec = (ms / 1000).toInt()
+    val s = totalSec % 60
+    val m = (totalSec / 60) % 60
+    val h = totalSec / 3600
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }

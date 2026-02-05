@@ -36,6 +36,15 @@ import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
 import kotlinx.coroutines.launch
 
+private fun formatSpeed(bytesPerSecond: Long): String {
+    if (bytesPerSecond <= 0) return ""
+    return when {
+        bytesPerSecond >= 1024 * 1024 -> "%.1f MB/s".format(bytesPerSecond / (1024.0 * 1024.0))
+        bytesPerSecond >= 1024 -> "%.0f KB/s".format(bytesPerSecond / 1024.0)
+        else -> "$bytesPerSecond B/s"
+    }
+}
+
 @Composable
 fun SearchScreen() {
     var searchQuery by remember { mutableStateOf("") }
@@ -123,7 +132,10 @@ fun SearchScreen() {
                         progress = { p.percent / 100f },
                         modifier = Modifier.weight(1f)
                     )
-                    Text("${p.percent}%", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = if (p.bytesPerSecond > 0) "${p.percent}% · ${formatSpeed(p.bytesPerSecond)}" else "${p.percent}%",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }

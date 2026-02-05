@@ -231,6 +231,7 @@ This document breaks down the Shuckler Android music app development into increm
    - Show total storage used
    - Delete individual tracks
    - Clear all cache option
+   - Storage awareness: show per-track file size in Library; show available device space; before starting a download, when size is known, check available space and warn or fail with a clear message if insufficient (so users don’t fill storage with e.g. an 8-hour song)
 5. Improve download progress display (Search screen)
    - Show download speed (e.g. MB/s or Mbps) next to progress for active downloads
    - Active downloads section is visible at top of Search so progress is visible without switching tabs

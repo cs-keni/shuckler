@@ -39,6 +39,16 @@ class DownloadManager(private val context: Context) {
 
     private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
 
+    /** Total bytes used by completed downloads (from metadata). Recomputed when needed. */
+    fun getTotalStorageUsed(): Long = _downloads.value
+        .filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+        .sumOf { it.fileSizeBytes.takeIf { size -> size > 0 } ?: run { kotlin.runCatching { File(it.filePath).length() }.getOrNull() ?: 0L } }
+
+    /** Approximate free space on the volume where we store audio (in bytes). */
+    fun getAvailableSpace(): Long = kotlin.runCatching {
+        audioDir.usableSpace
+    }.getOrNull() ?: 0L
+
     private val audioDir: File
         get() {
             val dir = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
@@ -79,6 +89,39 @@ class DownloadManager(private val context: Context) {
         activeJobs[id]?.cancel()
     }
 
+    /**
+     * Delete a single track: remove file from disk and from metadata.
+     * No-op if id not found or file already missing.
+     */
+    fun deleteTrack(id: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                if (track.filePath.isNotBlank()) {
+                    try { File(track.filePath).delete() } catch (_: Exception) { }
+                }
+                _downloads.value = list.filter { it.id != id }
+                saveMetadata(_downloads.value)
+            }
+        }
+    }
+
+    /**
+     * Delete all completed tracks (files and metadata). Does not cancel in-progress downloads.
+     */
+    fun clearAllDownloads() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                list.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+                    .forEach { try { File(it.filePath).delete() } catch (_: Exception) { } }
+                _downloads.value = emptyList()
+                saveMetadata(emptyList())
+            }
+        }
+    }
+
     private suspend fun runDownload(id: String, urlString: String, title: String, artist: String) {
         withContext(Dispatchers.IO) {
             val maxAttempts = 2
@@ -102,6 +145,14 @@ class DownloadManager(private val context: Context) {
                     }
 
                     val contentLength = connection.contentLengthLong.takeIf { it > 0 }
+                    if (contentLength != null && contentLength > 0) {
+                        val available = getAvailableSpace()
+                        if (available < contentLength) {
+                            failDownload(id, urlString, title, artist, "Not enough space. Need ${contentLength / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
+                            return@withContext
+                        }
+                    }
+
                     val fileName = suggestFileName(urlString, connection.contentType)
                     val file = File(audioDir, fileName)
                     file.parentFile?.mkdirs()
@@ -111,18 +162,29 @@ class DownloadManager(private val context: Context) {
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var totalRead: Long = 0
                     var read: Int
+                    var lastProgressTime = System.currentTimeMillis()
+                    var lastProgressBytes = 0L
 
                     while (inputStream.read(buffer).also { read = it } != -1) {
                         outputStream.write(buffer, 0, read)
                         totalRead += read
+                        val now = System.currentTimeMillis()
+                        val elapsedSec = (now - lastProgressTime) / 1000.0
+                        val bytesPerSecond = if (elapsedSec >= 0.5 && totalRead > lastProgressBytes) {
+                            ((totalRead - lastProgressBytes) / elapsedSec).toLong()
+                        } else 0L
+                        if (elapsedSec >= 0.5) {
+                            lastProgressTime = now
+                            lastProgressBytes = totalRead
+                        }
                         val percent = if (contentLength != null && contentLength > 0) {
                             ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
                         } else null
-                        updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0)
+                        updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0, bytesPerSecond)
                     }
 
                     // Complete and persist before close() so we don't lose the track if close() throws
-                    completeDownload(id, file.absolutePath, urlString, title, artist)
+                    completeDownload(id, file.absolutePath, urlString, title, artist, file.length())
                     outputStream.close()
                     outputStream = null
                     clearProgress(id)
@@ -160,15 +222,15 @@ class DownloadManager(private val context: Context) {
         return name.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(128)
     }
 
-    private fun updateProgress(id: String, bytesDownloaded: Long, totalBytes: Long, percent: Int) {
-        _progress.value = _progress.value + (id to DownloadProgress(id, bytesDownloaded, totalBytes, percent))
+    private fun updateProgress(id: String, bytesDownloaded: Long, totalBytes: Long, percent: Int, bytesPerSecond: Long = 0L) {
+        _progress.value = _progress.value + (id to DownloadProgress(id, bytesDownloaded, totalBytes, percent, bytesPerSecond))
     }
 
     private fun clearProgress(id: String) {
         _progress.value = _progress.value - id
     }
 
-    private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String) {
+    private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String, fileSizeBytes: Long = 0L) {
         Log.d(TAG, "completeDownload: $title -> $filePath")
         val track = DownloadedTrack(
             id = id,
@@ -177,7 +239,9 @@ class DownloadManager(private val context: Context) {
             filePath = filePath,
             sourceUrl = sourceUrl,
             status = DownloadStatus.COMPLETED,
-            downloadProgress = 100
+            downloadProgress = 100,
+            fileSizeBytes = fileSizeBytes,
+            downloadDateMs = System.currentTimeMillis()
         )
         _downloads.value = _downloads.value + track
         saveMetadata(_downloads.value)
@@ -207,13 +271,17 @@ class DownloadManager(private val context: Context) {
             val arr = JSONArray(json)
             List(arr.length()) { i ->
                 val obj = arr.getJSONObject(i)
+                val path = obj.optString(KEY_FILE_PATH, "")
+                val size = obj.optLong(KEY_FILE_SIZE, 0L)
                 DownloadedTrack(
                     id = obj.optString(KEY_ID, ""),
                     title = obj.optString(KEY_TITLE, ""),
                     artist = obj.optString(KEY_ARTIST, ""),
-                    filePath = obj.optString(KEY_FILE_PATH, ""),
+                    filePath = path,
                     sourceUrl = obj.optString(KEY_SOURCE_URL, ""),
                     durationMs = obj.optLong(KEY_DURATION_MS, 0L),
+                    fileSizeBytes = if (size > 0) size else runCatching { File(path).length() }.getOrNull() ?: 0L,
+                    downloadDateMs = obj.optLong(KEY_DOWNLOAD_DATE_MS, 0L),
                     status = DownloadStatus.COMPLETED,
                     downloadProgress = 100
                 )
@@ -235,6 +303,8 @@ class DownloadManager(private val context: Context) {
                         put(KEY_FILE_PATH, track.filePath)
                         put(KEY_SOURCE_URL, track.sourceUrl)
                         put(KEY_DURATION_MS, track.durationMs)
+                        put(KEY_FILE_SIZE, track.fileSizeBytes)
+                        put(KEY_DOWNLOAD_DATE_MS, track.downloadDateMs)
                     })
                 }
             metadataFile.writeText(arr.toString())
@@ -256,5 +326,7 @@ class DownloadManager(private val context: Context) {
         private const val KEY_FILE_PATH = "filePath"
         private const val KEY_SOURCE_URL = "sourceUrl"
         private const val KEY_DURATION_MS = "durationMs"
+        private const val KEY_FILE_SIZE = "fileSizeBytes"
+        private const val KEY_DOWNLOAD_DATE_MS = "downloadDateMs"
     }
 }
