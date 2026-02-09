@@ -1,7 +1,10 @@
 package com.shuckler.app.ui
 
 import android.net.Uri
+import androidx.compose.foundation.ExperimentalFoundationApi
 import java.io.File
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
@@ -42,10 +46,12 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
+import com.shuckler.app.player.QueueItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LibraryScreen(
     viewModel: PlayerViewModel = viewModel(
@@ -172,10 +178,19 @@ fun LibraryScreen(
                 items(filteredTracks, key = { it.id }) { track ->
                     LibraryTrackItem(
                         track = track,
+                        modifier = Modifier.animateItem(),
                         onPlayClick = {
                             downloadManager.incrementPlayCount(track.id)
-                            val uri = Uri.fromFile(File(track.filePath))
-                            viewModel.playTrack(uri, track.title, track.artist, track.id)
+                            val queueItems = filteredTracks.map {
+                                QueueItem(
+                                    uri = Uri.fromFile(File(it.filePath)).toString(),
+                                    title = it.title,
+                                    artist = it.artist,
+                                    trackId = it.id
+                                )
+                            }
+                            val index = filteredTracks.indexOf(track).coerceAtLeast(0)
+                            viewModel.playTrackWithQueue(queueItems, index)
                         },
                         onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
                         onDeleteClick = { downloadManager.deleteTrack(track.id) }
@@ -212,12 +227,18 @@ private fun FilterChip(
 @Composable
 private fun LibraryTrackItem(
     track: DownloadedTrack,
+    modifier: Modifier = Modifier,
     onPlayClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val favoriteScale by animateFloatAsState(
+        targetValue = if (track.isFavorite) 1.15f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "favoriteScale"
+    )
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onPlayClick),
         colors = CardDefaults.cardColors(
@@ -273,7 +294,9 @@ private fun LibraryTrackItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onFavoriteClick,
-                    modifier = Modifier.padding(4.dp)
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .scale(favoriteScale)
                 ) {
                     Icon(
                         imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,

@@ -33,6 +33,9 @@ import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.player.DefaultTrackInfo
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
+import com.shuckler.app.ui.theme.LocalThemeMode
+import com.shuckler.app.ui.theme.LocalThemeModeSetter
+import com.shuckler.app.ui.theme.ThemeMode
 import kotlinx.coroutines.delay
 
 @Composable
@@ -50,6 +53,7 @@ fun PlayerScreen(
     val repeatMode by viewModel.repeatMode.collectAsState(initial = Player.REPEAT_MODE_OFF)
     val positionMs by viewModel.playbackPositionMs.collectAsState(initial = 0L)
     val durationMs by viewModel.durationMs.collectAsState(initial = 0L)
+    val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -60,8 +64,12 @@ fun PlayerScreen(
         }
     }
 
+    val themeMode = LocalThemeMode.current
+    val setThemeMode = LocalThemeModeSetter.current
     if (showSettingsDialog) {
         SettingsDialog(
+            themeMode = themeMode,
+            onThemeModeChange = setThemeMode,
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
             onAutoDeleteChange = { downloadManager.autoDeleteAfterPlayback = it },
             onDismiss = { showSettingsDialog = false }
@@ -92,8 +100,16 @@ fun PlayerScreen(
         Text(
             text = trackArtist,
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 4.dp)
         )
+        if (queueInfo.second > 1) {
+            Text(
+                text = "Track ${queueInfo.first} of ${queueInfo.second}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -141,7 +157,7 @@ fun PlayerScreen(
             modifier = Modifier.padding(top = 16.dp)
         ) {
             Button(
-                onClick = { /* Previous - no queue yet */ }
+                onClick = { viewModel.skipToPrevious() }
             ) {
                 Text("Previous")
             }
@@ -151,7 +167,7 @@ fun PlayerScreen(
                 Text(if (isPlaying) "Pause" else "Play")
             }
             Button(
-                onClick = { /* Next - no queue yet */ }
+                onClick = { viewModel.skipToNext() }
             ) {
                 Text("Next")
             }
@@ -179,6 +195,8 @@ private fun formatPlaybackTime(ms: Long): String {
 
 @Composable
 private fun SettingsDialog(
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     autoDeleteAfterPlayback: Boolean,
     onAutoDeleteChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
@@ -188,14 +206,52 @@ private fun SettingsDialog(
         onDismissRequest = onDismiss,
         title = { Text("Settings") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = "App theme",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM).forEach { mode ->
+                        val selected = themeMode == mode
+                        Button(
+                            onClick = { onThemeModeChange(mode) },
+                            modifier = Modifier.weight(1f),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = when (mode) {
+                                    ThemeMode.LIGHT -> "Light"
+                                    ThemeMode.DARK -> "Dark"
+                                    ThemeMode.SYSTEM -> "System"
+                                },
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "Delete after playback (except favorites)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Delete after playback (except favorites)",
+                        text = "Remove track when it finishes, unless it's a favorite",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f)
                     )

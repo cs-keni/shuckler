@@ -334,7 +334,7 @@ This document breaks down the Shuckler Android music app development into increm
 
 **Next/Previous:** They don’t work yet because there is no play queue; that’s addressed in Phase 10.
 
-**Static when playing:** Often an **emulator** issue (buffer/sample-rate quirks). Test on a **real device** first. If it still happens, try updating Media3/ExoPlayer and/or adjusting buffers; see Phase 12.
+**Static when playing:** Often an **emulator** issue (buffer/sample-rate quirks). Test on a **real device** first. If it still happens, try updating Media3/ExoPlayer and/or adjusting buffers; see Phase 12. **Startup static:** Some users observe brief static when the app first starts playing; the audio often clears up after the app (or audio pipeline) has been running for a short while. This can be emulator-related or buffer warmup; note in Phase 12 if investigating.
 
 **Lossless compression:** Android supports **FLAC** (lossless). **Opus** is lossy but very efficient. Phase 14 covers quality/lossless options and storage.
 
@@ -349,25 +349,25 @@ This document breaks down the Shuckler Android music app development into increm
 - Next/Previous require a queue (list of tracks to play). Without a queue there is no "next" or "previous" track, so the buttons were no-ops until this phase.
 
 ### Tasks:
-1. Define a play queue (in-memory or persisted)
+1. Define a play queue (in-memory or persisted) ✅
    - Queue: ordered list of track URIs + metadata (title, artist, optional trackId for library items)
    - Current index into the queue
-2. Integrate queue with MusicPlayerService
+2. Integrate queue with MusicPlayerService ✅
    - On track end (STATE_ENDED): if repeat mode off, advance to next queue item; if at end, stop
    - Next: skip to next item in queue (or stop if last)
    - Previous: go to previous item or restart current (e.g. if under 3s in, go to previous; else restart current)
-3. Populate queue from Library
+3. Populate queue from Library ✅
    - "Play" from Library: set queue to full library (or filtered list), set current index to selected track, play
    - Optional: "Play next" / "Add to queue" from Library or Search (add single track to queue)
-4. Update Player UI
+4. Update Player UI ✅
    - Next/Previous buttons call service methods that use the queue
    - Optional: show "Track X of Y" or queue length
 
 ### Testing:
-- [ ] Next advances to next track in queue
-- [ ] Previous goes to previous or restarts current
-- [ ] Playing from Library sets queue and plays selected track; Next/Previous work
-- [ ] When queue ends (no repeat), playback stops
+- [x] Next advances to next track in queue
+- [x] Previous goes to previous or restarts current
+- [x] Playing from Library sets queue and plays selected track; Next/Previous work
+- [x] When queue ends (no repeat), playback stops
 
 ### Deliverables:
 - Functional Next/Previous
@@ -379,34 +379,39 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Smooth, satisfying animations and transitions (Spotify/YouTube Music–style feel), plus app theme support.
 
 ### Tasks:
-1. **App theme (light / dark / follow system)**
+1. **App theme (light / dark / follow system)** ✅
    - Add a theme setting: **Light**, **Dark**, or **Follow system** (use system light/dark setting).
    - Persist the choice (e.g. SharedPreferences or DataStore).
    - Apply theme at app startup and when the setting changes (Compose: use `MaterialTheme.colorScheme` from a theme that respects the setting; wrap app in a theme that reads the preference and uses `darkTheme =` / `ColorScheme` accordingly).
    - Expose the setting in the existing Settings dialog (Player tab) or a dedicated "Appearance" section (e.g. dropdown or list choice).
-2. Screen and transition animations
-   - Animated transitions between tabs (e.g. fade/slide)
+2. **Fix app icon framing** ✅
+   - The launcher icon currently zooms into the body of the Shuckle image; it should show the **whole picture** (full shuckle visible).
+   - Adjust the launcher foreground (e.g. `ic_launcher_foreground.xml` and/or `ic_shuckle` usage) so the drawable is scaled or positioned to **fit the full image** in the adaptive icon bounds (e.g. use `android:gravity="center"` with a scaled bitmap that fits, or an inset so the full asset is visible rather than cropped/zoomed). Use `shuckle.png` or `shuckle.svg` (convert SVG to vector drawable if needed) so the entire character is visible.
+3. Screen and transition animations
+   - Animated transitions between tabs (e.g. fade/slide) — *requires NavHost animation API (e.g. navigation-compose animation artifact or 2.8+); current NavHost does not expose enter/exit transition lambdas with matching receiver type.*
    - Fragment/screen enter/exit transitions
-3. List and item animations
+4. List and item animations ✅
    - Animate list items on appear (e.g. staggered fade-in or slide)
-   - Smooth scroll behavior; consider item animations on scroll
-4. Loading and feedback
-   - Skeleton loaders or shimmer for Search results and Library
+   - Smooth scroll behavior; consider item animations on scroll — *Library uses `Modifier.animateItemPlacement()` for list item placement animation; favorite heart has scale animation.*
+5. Loading and feedback
+   - Skeleton loaders or shimmer for Search results and Library — *Search already shows CircularProgressIndicator when loading; full skeleton/shimmer optional.*
    - Button/layout state changes with subtle scale or opacity animation
    - Pull-to-refresh on Search or Library (if applicable)
-5. Micro-interactions
-   - Play button press feedback (e.g. ripple, scale)
-   - Favorite heart animation (e.g. brief scale or fill animation)
+6. Micro-interactions ✅
+   - Play button press feedback (e.g. ripple, scale) — *Material buttons have built-in ripple.*
+   - Favorite heart animation (e.g. brief scale or fill animation) — *Scale animation on favorite icon when toggled.*
    - Seek bar thumb feedback
 
 ### Testing:
-- [ ] Theme setting switches between Light, Dark, and Follow system correctly
-- [ ] Theme choice persists after app restart
-- [ ] Transitions feel smooth and consistent
+- [x] Theme setting switches between Light, Dark, and Follow system correctly
+- [x] Theme choice persists after app restart
+- [x] App icon shows full Shuckle image (not zoomed into body)
+- [ ] Transitions feel smooth and consistent (tab transitions deferred)
 - [ ] No jank or dropped frames on target device
 
 ### Deliverables:
 - Light / Dark / Follow system theme with persisted setting
+- App icon with full Shuckle visible (correct framing)
 - Cohesive animation set for main flows
 - Improved perceived quality and "polish"
 
@@ -422,6 +427,7 @@ This document breaks down the Shuckler Android music app development into increm
    - When queue advances: start next track at 0 volume, fade out current while fading in next over N seconds
 2. Static / crackling (research and mitigation)
    - **Emulator note:** Static and glitches are common on the Android emulator (buffer size, sample rate quirks). Always verify playback on a **real device** (e.g. S22 Ultra) before assuming an app bug.
+   - **Startup static:** Audio may be staticky when playback first starts; it often improves or disappears after the app has been running for a while (pipeline warmup or emulator behavior). If it persists on a real device, investigate buffer sizes or Media3 version.
    - If static persists on real device: ensure Media3/ExoPlayer is up to date (SilenceSkippingAudioProcessor bugs have been fixed in newer versions)
    - Optional: try increasing buffer sizes or disabling silence-skipping if using custom pipeline
    - Add a short "Audio troubleshooting" note in app docs or developer notes

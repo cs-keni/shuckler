@@ -118,7 +118,7 @@ object YouTubeRepository {
             // Prefer higher bitrate
             val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams.first()
             val streamUrl = best.content
-            if (streamUrl.isNullOrBlank()) {
+            if (streamUrl.isBlank()) {
                 val msg = "Stream URL was empty."
                 Log.w(TAG, "getAudioStreamUrl: $msg")
                 return@withContext AudioStreamResult.Failure(msg)

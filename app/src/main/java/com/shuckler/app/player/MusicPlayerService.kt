@@ -118,6 +118,18 @@ class MusicPlayerService : Service() {
     /** When set (play from library), used for auto-delete-after-playback when track ends. */
     private var currentTrackId: String? = null
 
+    private val queue = mutableListOf<QueueItem>()
+    private var currentQueueIndex = -1
+
+    private val _queueInfo = MutableStateFlow(0 to 0) // (current 1-based index, total size)
+    val queueInfo: StateFlow<Pair<Int, Int>> = _queueInfo.asStateFlow()
+
+    private fun updateQueueInfo() {
+        val total = queue.size
+        val current = if (total > 0 && currentQueueIndex in queue.indices) currentQueueIndex + 1 else 0
+        _queueInfo.value = current to total
+    }
+
     fun setRepeatMode(mode: Int) {
         _repeatMode.value = mode
         _exoPlayer?.repeatMode = mode
@@ -163,8 +175,18 @@ class MusicPlayerService : Service() {
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
                 if (uriString != null) {
+                    queue.clear()
+                    currentQueueIndex = -1
+                    updateQueueInfo()
                     setMediaUri(uriString.toUri(), title, artist, trackId)
                     play()
+                }
+            }
+            ACTION_PLAY_WITH_QUEUE -> {
+                val queueJson = intent.getStringExtra(EXTRA_QUEUE_JSON)
+                val startIndex = intent.getIntExtra(EXTRA_START_INDEX, 0)
+                if (!queueJson.isNullOrBlank()) {
+                    setQueueAndPlay(queueJson, startIndex)
                 }
             }
         }
@@ -203,11 +225,69 @@ class MusicPlayerService : Service() {
     }
 
     private fun skipToNext() {
-        // Single track: no-op for now
+        if (queue.isEmpty()) return
+        if (currentQueueIndex + 1 < queue.size) {
+            currentQueueIndex++
+            playQueueItemAt(currentQueueIndex)
+        } else {
+            pause()
+        }
     }
 
     private fun skipToPrevious() {
-        exoPlayer.seekTo(0)
+        if (queue.isEmpty()) {
+            _exoPlayer?.seekTo(0)
+            return
+        }
+        val positionMs = _exoPlayer?.currentPosition ?: 0L
+        if (positionMs < 3000 && currentQueueIndex > 0) {
+            currentQueueIndex--
+            playQueueItemAt(currentQueueIndex)
+        } else if (currentQueueIndex > 0) {
+            currentQueueIndex--
+            playQueueItemAt(currentQueueIndex)
+        } else {
+            exoPlayer.seekTo(0)
+        }
+    }
+
+    /**
+     * Set the play queue and start at the given index. Call from ACTION_PLAY_WITH_QUEUE.
+     */
+    private fun setQueueAndPlay(queueJson: String, startIndex: Int) {
+        val list = QueueItem.listFromJson(queueJson)
+        if (list.isEmpty()) return
+        queue.clear()
+        queue.addAll(list)
+        currentQueueIndex = startIndex.coerceIn(0, list.size - 1)
+        updateQueueInfo()
+        playQueueItemAt(currentQueueIndex)
+    }
+
+    private fun playQueueItemAt(index: Int) {
+        if (index !in queue.indices) return
+        val item = queue[index]
+        val uri = Uri.parse(item.uri)
+        setMediaUri(uri, item.title, item.artist, item.trackId)
+        updateQueueInfo()
+        play()
+    }
+
+    /**
+     * Called when the current track ends (STATE_ENDED). Handles auto-delete and queue advance.
+     */
+    private fun onCurrentTrackEnded() {
+        (applicationContext as? ShucklerApplication)?.downloadManager
+            ?.considerAutoDeleteAfterPlayback(currentTrackId)
+        currentTrackId = null
+        if (queue.isNotEmpty() && _repeatMode.value != Player.REPEAT_MODE_ONE) {
+            if (currentQueueIndex + 1 < queue.size) {
+                currentQueueIndex++
+                playQueueItemAt(currentQueueIndex)
+            } else {
+                pause()
+            }
+        }
     }
 
     /**
@@ -229,9 +309,7 @@ class MusicPlayerService : Service() {
                     updatePlaybackProgress()
                 }
                 if (playbackState == Player.STATE_ENDED) {
-                    (applicationContext as? ShucklerApplication)?.downloadManager
-                        ?.considerAutoDeleteAfterPlayback(currentTrackId)
-                    currentTrackId = null
+                    onCurrentTrackEnded()
                 }
             }
         }
@@ -383,10 +461,13 @@ class MusicPlayerService : Service() {
         const val ACTION_NEXT = "com.shuckler.app.NEXT"
         const val ACTION_PREVIOUS = "com.shuckler.app.PREVIOUS"
         const val ACTION_PLAY_URI = "com.shuckler.app.PLAY_URI"
+        const val ACTION_PLAY_WITH_QUEUE = "com.shuckler.app.PLAY_WITH_QUEUE"
         const val EXTRA_URI = "uri"
         const val EXTRA_TITLE = "title"
         const val EXTRA_ARTIST = "artist"
         const val EXTRA_TRACK_ID = "track_id"
+        const val EXTRA_QUEUE_JSON = "queue_json"
+        const val EXTRA_START_INDEX = "start_index"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }

@@ -37,6 +37,9 @@ class PlayerViewModel(
     val durationMs: Flow<Long> = serviceConnection.service
         .flatMapLatest { service -> service?.durationMs ?: flowOf(0L) }
 
+    val queueInfo: Flow<Pair<Int, Int>> = serviceConnection.service
+        .flatMapLatest { service -> service?.queueInfo ?: flowOf(0 to 0) }
+
     fun togglePlayPause() {
         val service = serviceConnection.service.value
         if (service != null) {
@@ -49,8 +52,7 @@ class PlayerViewModel(
 
     /**
      * Switch to and play a track from a file URI (e.g. downloaded track).
-     * Uses service Intent so it works even before the service is bound.
-     * @param trackId Optional library track id; when set, used for auto-delete-after-playback if enabled.
+     * No queue; Next/Previous will be no-op or seek to 0.
      */
     fun playTrack(uri: Uri, title: String, artist: String, trackId: String? = null) {
         applicationContext.startForegroundService(
@@ -60,6 +62,38 @@ class PlayerViewModel(
                 putExtra(MusicPlayerService.EXTRA_TITLE, title)
                 putExtra(MusicPlayerService.EXTRA_ARTIST, artist)
                 trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
+            }
+        )
+    }
+
+    /**
+     * Play with a queue (e.g. full library). Next/Previous will move through the queue.
+     * @param items Ordered list of queue items
+     * @param startIndex Index in [items] to start playing
+     */
+    fun playTrackWithQueue(items: List<QueueItem>, startIndex: Int) {
+        if (items.isEmpty()) return
+        applicationContext.startForegroundService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_PLAY_WITH_QUEUE
+                putExtra(MusicPlayerService.EXTRA_QUEUE_JSON, QueueItem.listToJson(items))
+                putExtra(MusicPlayerService.EXTRA_START_INDEX, startIndex.coerceIn(0, items.size - 1))
+            }
+        )
+    }
+
+    fun skipToNext() {
+        applicationContext.startService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_NEXT
+            }
+        )
+    }
+
+    fun skipToPrevious() {
+        applicationContext.startService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_PREVIOUS
             }
         )
     }
