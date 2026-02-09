@@ -376,29 +376,37 @@ This document breaks down the Shuckler Android music app development into increm
 ---
 
 ## Phase 11: Animations & UX Polish
-**Goal:** Smooth, satisfying animations and transitions (Spotify/YouTube Music–style feel).
+**Goal:** Smooth, satisfying animations and transitions (Spotify/YouTube Music–style feel), plus app theme support.
 
 ### Tasks:
-1. Screen and transition animations
+1. **App theme (light / dark / follow system)**
+   - Add a theme setting: **Light**, **Dark**, or **Follow system** (use system light/dark setting).
+   - Persist the choice (e.g. SharedPreferences or DataStore).
+   - Apply theme at app startup and when the setting changes (Compose: use `MaterialTheme.colorScheme` from a theme that respects the setting; wrap app in a theme that reads the preference and uses `darkTheme =` / `ColorScheme` accordingly).
+   - Expose the setting in the existing Settings dialog (Player tab) or a dedicated "Appearance" section (e.g. dropdown or list choice).
+2. Screen and transition animations
    - Animated transitions between tabs (e.g. fade/slide)
    - Fragment/screen enter/exit transitions
-2. List and item animations
+3. List and item animations
    - Animate list items on appear (e.g. staggered fade-in or slide)
    - Smooth scroll behavior; consider item animations on scroll
-3. Loading and feedback
+4. Loading and feedback
    - Skeleton loaders or shimmer for Search results and Library
    - Button/layout state changes with subtle scale or opacity animation
    - Pull-to-refresh on Search or Library (if applicable)
-4. Micro-interactions
+5. Micro-interactions
    - Play button press feedback (e.g. ripple, scale)
    - Favorite heart animation (e.g. brief scale or fill animation)
    - Seek bar thumb feedback
 
 ### Testing:
+- [ ] Theme setting switches between Light, Dark, and Follow system correctly
+- [ ] Theme choice persists after app restart
 - [ ] Transitions feel smooth and consistent
 - [ ] No jank or dropped frames on target device
 
 ### Deliverables:
+- Light / Dark / Follow system theme with persisted setting
 - Cohesive animation set for main flows
 - Improved perceived quality and "polish"
 
