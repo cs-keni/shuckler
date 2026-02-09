@@ -24,6 +24,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.shuckler.app.MainActivity
 import com.shuckler.app.R
+import com.shuckler.app.ShucklerApplication
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -80,6 +81,7 @@ class MusicPlayerService : Service() {
                     .setHandleAudioBecomingNoisy(true)
                     .build()
                     .apply {
+                        repeatMode = _repeatMode.value
                         val uri = "android.resource://$packageName/${R.raw.test_song}".toUri()
                         setMediaItem(MediaItem.fromUri(uri))
                         prepare()
@@ -104,6 +106,44 @@ class MusicPlayerService : Service() {
     private val _currentTrackArtist = MutableStateFlow(DefaultTrackInfo.ARTIST)
     val currentTrackArtist: StateFlow<String> = _currentTrackArtist.asStateFlow()
 
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
+    private val _playbackPositionMs = MutableStateFlow(0L)
+    val playbackPositionMs: StateFlow<Long> = _playbackPositionMs.asStateFlow()
+
+    private val _durationMs = MutableStateFlow(0L)
+    val durationMs: StateFlow<Long> = _durationMs.asStateFlow()
+
+    /** When set (play from library), used for auto-delete-after-playback when track ends. */
+    private var currentTrackId: String? = null
+
+    fun setRepeatMode(mode: Int) {
+        _repeatMode.value = mode
+        _exoPlayer?.repeatMode = mode
+    }
+
+    fun cycleRepeatMode(): Int {
+        val next = when (_repeatMode.value) {
+            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_OFF
+            else -> Player.REPEAT_MODE_ONE
+        }
+        setRepeatMode(next)
+        return next
+    }
+
+    fun seekTo(positionMs: Long) {
+        _exoPlayer?.seekTo(positionMs.coerceIn(0L, (_durationMs.value).takeIf { it > 0 } ?: Long.MAX_VALUE))
+    }
+
+    fun updatePlaybackProgress() {
+        _exoPlayer?.let { player ->
+            _playbackPositionMs.value = player.currentPosition
+            val dur = player.duration
+            _durationMs.value = if (dur == C.TIME_UNSET) 0L else dur
+        }
+    }
+
     inner class LocalBinder : Binder() {
         fun getService(): MusicPlayerService = this@MusicPlayerService
     }
@@ -121,8 +161,9 @@ class MusicPlayerService : Service() {
                 val uriString = intent.getStringExtra(EXTRA_URI)
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
+                val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
                 if (uriString != null) {
-                    setMediaUri(uriString.toUri(), title, artist)
+                    setMediaUri(uriString.toUri(), title, artist, trackId)
                     play()
                 }
             }
@@ -171,11 +212,32 @@ class MusicPlayerService : Service() {
 
     /**
      * Switch playback to a file (e.g. downloaded track). Call before or instead of play().
+     * @param trackId Optional library track id for auto-delete-after-playback when track ends.
      */
-    fun setMediaUri(uri: Uri, title: String, artist: String) {
+    fun setMediaUri(uri: Uri, title: String, artist: String, trackId: String? = null) {
+        currentTrackId = trackId
         _currentTrackTitle.value = title
         _currentTrackArtist.value = artist
+        val playbackEndedListener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                _isPlaying.value = playing
+                updateMediaSession()
+                updateNotification()
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
+                    updatePlaybackProgress()
+                }
+                if (playbackState == Player.STATE_ENDED) {
+                    (applicationContext as? ShucklerApplication)?.downloadManager
+                        ?.considerAutoDeleteAfterPlayback(currentTrackId)
+                    currentTrackId = null
+                }
+            }
+        }
         _exoPlayer?.let { player ->
+            player.addListener(playbackEndedListener)
+            player.repeatMode = _repeatMode.value
             player.setMediaItem(MediaItem.fromUri(uri))
             player.prepare()
         } ?: run {
@@ -184,15 +246,10 @@ class MusicPlayerService : Service() {
                 .setHandleAudioBecomingNoisy(true)
                 .build()
                 .apply {
+                    repeatMode = _repeatMode.value
+                    addListener(playbackEndedListener)
                     setMediaItem(MediaItem.fromUri(uri))
                     prepare()
-                    addListener(object : Player.Listener {
-                        override fun onIsPlayingChanged(playing: Boolean) {
-                            _isPlaying.value = playing
-                            updateMediaSession()
-                            updateNotification()
-                        }
-                    })
                 }
         }
         updateMediaSession()
@@ -329,6 +386,7 @@ class MusicPlayerService : Service() {
         const val EXTRA_URI = "uri"
         const val EXTRA_TITLE = "title"
         const val EXTRA_ARTIST = "artist"
+        const val EXTRA_TRACK_ID = "track_id"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }

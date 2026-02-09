@@ -1,6 +1,7 @@
 package com.shuckler.app.download
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -60,6 +61,15 @@ class DownloadManager(private val context: Context) {
     private val metadataFile: File
         get() = context.filesDir.resolve(METADATA_FILENAME)
 
+    private val prefs: SharedPreferences
+        get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    var autoDeleteAfterPlayback: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_DELETE_AFTER_PLAYBACK, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_AUTO_DELETE_AFTER_PLAYBACK, value).apply()
+        }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -87,6 +97,50 @@ class DownloadManager(private val context: Context) {
 
     fun cancelDownload(id: String) {
         activeJobs[id]?.cancel()
+    }
+
+    /**
+     * Increment play count for a track (e.g. when played from library). Persists metadata.
+     */
+    fun incrementPlayCount(id: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                val updated = track.copy(playCount = track.playCount + 1)
+                _downloads.value = list.map { if (it.id == id) updated else it }
+                saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
+    }
+
+    /**
+     * Set or clear favorite status for a track. Persists metadata.
+     */
+    fun setFavorite(id: String, favorite: Boolean) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                val updated = track.copy(isFavorite = favorite)
+                _downloads.value = list.map { if (it.id == id) updated else it }
+                saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
+    }
+
+    /**
+     * Called when playback of a track ends naturally. If auto-delete is enabled and the track
+     * is not a favorite, deletes the track. No-op if trackId is null (e.g. not from library).
+     */
+    fun considerAutoDeleteAfterPlayback(trackId: String?) {
+        if (trackId == null || !autoDeleteAfterPlayback) return
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val track = _downloads.value.find { it.id == trackId } ?: return@withContext
+                if (!track.isFavorite) deleteTrack(trackId)
+            }
+        }
     }
 
     /**
@@ -282,6 +336,8 @@ class DownloadManager(private val context: Context) {
                     durationMs = obj.optLong(KEY_DURATION_MS, 0L),
                     fileSizeBytes = if (size > 0) size else runCatching { File(path).length() }.getOrNull() ?: 0L,
                     downloadDateMs = obj.optLong(KEY_DOWNLOAD_DATE_MS, 0L),
+                    playCount = obj.optInt(KEY_PLAY_COUNT, 0),
+                    isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
                     status = DownloadStatus.COMPLETED,
                     downloadProgress = 100
                 )
@@ -305,6 +361,8 @@ class DownloadManager(private val context: Context) {
                         put(KEY_DURATION_MS, track.durationMs)
                         put(KEY_FILE_SIZE, track.fileSizeBytes)
                         put(KEY_DOWNLOAD_DATE_MS, track.downloadDateMs)
+                        put(KEY_PLAY_COUNT, track.playCount)
+                        put(KEY_IS_FAVORITE, track.isFavorite)
                     })
                 }
             metadataFile.writeText(arr.toString())
@@ -328,5 +386,9 @@ class DownloadManager(private val context: Context) {
         private const val KEY_DURATION_MS = "durationMs"
         private const val KEY_FILE_SIZE = "fileSizeBytes"
         private const val KEY_DOWNLOAD_DATE_MS = "downloadDateMs"
+        private const val KEY_PLAY_COUNT = "playCount"
+        private const val KEY_IS_FAVORITE = "isFavorite"
+        private const val PREFS_NAME = "shuckler_settings"
+        private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
     }
 }

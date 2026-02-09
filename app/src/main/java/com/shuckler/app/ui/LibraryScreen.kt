@@ -13,10 +13,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +58,13 @@ fun LibraryScreen(
     val downloadManager = LocalDownloadManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+    var libraryFilter by remember { mutableStateOf(LibraryFilter.ALL) }
+    val filteredTracks = remember(completedTracks, libraryFilter) {
+        when (libraryFilter) {
+            LibraryFilter.ALL -> completedTracks
+            LibraryFilter.FAVORITES -> completedTracks.filter { it.isFavorite }
+        }
+    }
     var storageUsed by remember { mutableStateOf(0L) }
     var storageAvailable by remember { mutableStateOf(0L) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
@@ -91,10 +102,28 @@ fun LibraryScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Your Library",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Your Library",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilterChip(
+                    label = "All",
+                    selected = libraryFilter == LibraryFilter.ALL,
+                    onClick = { libraryFilter = LibraryFilter.ALL }
+                )
+                FilterChip(
+                    label = "Favorites",
+                    selected = libraryFilter == LibraryFilter.FAVORITES,
+                    onClick = { libraryFilter = LibraryFilter.FAVORITES }
+                )
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -117,7 +146,7 @@ fun LibraryScreen(
                 Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
             }
         }
-        if (completedTracks.isEmpty()) {
+        if (filteredTracks.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -126,7 +155,10 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL.",
+                    text = when (libraryFilter) {
+                        LibraryFilter.ALL -> "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL."
+                        LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track to add it."
+                    },
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
@@ -137,13 +169,15 @@ fun LibraryScreen(
                     .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(completedTracks, key = { it.id }) { track ->
+                items(filteredTracks, key = { it.id }) { track ->
                     LibraryTrackItem(
                         track = track,
                         onPlayClick = {
+                            downloadManager.incrementPlayCount(track.id)
                             val uri = Uri.fromFile(File(track.filePath))
-                            viewModel.playTrack(uri, track.title, track.artist)
+                            viewModel.playTrack(uri, track.title, track.artist, track.id)
                         },
+                        onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
                         onDeleteClick = { downloadManager.deleteTrack(track.id) }
                     )
                 }
@@ -152,10 +186,34 @@ fun LibraryScreen(
     }
 }
 
+private enum class LibraryFilter { ALL, FAVORITES }
+
+@Composable
+private fun FilterChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = if (selected)
+        FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    else
+        FilterChipDefaults.filterChipColors()
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        colors = colors
+    )
+}
+
 @Composable
 private fun LibraryTrackItem(
     track: DownloadedTrack,
     onPlayClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(
@@ -183,7 +241,7 @@ private fun LibraryTrackItem(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (track.durationMs > 0 || track.fileSizeBytes > 0) {
+                if (track.durationMs > 0 || track.fileSizeBytes > 0 || track.playCount > 0) {
                     Row(
                         modifier = Modifier.padding(top = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -202,10 +260,27 @@ private fun LibraryTrackItem(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        if (track.playCount > 0) {
+                            Text(
+                                text = if (track.playCount == 1) "Played once" else "Played ${track.playCount} times",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
+                        tint = if (track.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = "Play",

@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermission()
         musicServiceConnection.bind(this)
         enableEdgeToEdge()
-        val downloadManager = DownloadManager(applicationContext)
+        val downloadManager = (application as ShucklerApplication).downloadManager
         setContent {
             ShucklerTheme {
                 CompositionLocalProvider(

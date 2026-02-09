@@ -109,19 +109,8 @@ fun SearchScreen() {
             }
         }
 
-        if (searchLoading) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-                Text("Searching…", modifier = Modifier.padding(8.dp))
-            }
-        }
-
         if (progress.isNotEmpty()) {
-            Text("Downloading…", style = MaterialTheme.typography.titleSmall)
+            Text("Active downloads", style = MaterialTheme.typography.titleSmall)
             progress.values.forEach { p ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -137,6 +126,17 @@ fun SearchScreen() {
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+            }
+        }
+
+        if (searchLoading) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+                Text("Searching…", modifier = Modifier.padding(8.dp))
             }
         }
 

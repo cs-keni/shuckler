@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.media3.common.Player
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -27,6 +28,15 @@ class PlayerViewModel(
     val currentTrackArtist: Flow<String> = serviceConnection.service
         .flatMapLatest { service -> service?.currentTrackArtist ?: flowOf(DEFAULT_TRACK_ARTIST) }
 
+    val repeatMode: Flow<Int> = serviceConnection.service
+        .flatMapLatest { service -> service?.repeatMode ?: flowOf(Player.REPEAT_MODE_OFF) }
+
+    val playbackPositionMs: Flow<Long> = serviceConnection.service
+        .flatMapLatest { service -> service?.playbackPositionMs ?: flowOf(0L) }
+
+    val durationMs: Flow<Long> = serviceConnection.service
+        .flatMapLatest { service -> service?.durationMs ?: flowOf(0L) }
+
     fun togglePlayPause() {
         val service = serviceConnection.service.value
         if (service != null) {
@@ -40,16 +50,30 @@ class PlayerViewModel(
     /**
      * Switch to and play a track from a file URI (e.g. downloaded track).
      * Uses service Intent so it works even before the service is bound.
+     * @param trackId Optional library track id; when set, used for auto-delete-after-playback if enabled.
      */
-    fun playTrack(uri: Uri, title: String, artist: String) {
+    fun playTrack(uri: Uri, title: String, artist: String, trackId: String? = null) {
         applicationContext.startForegroundService(
             Intent(applicationContext, MusicPlayerService::class.java).apply {
                 action = MusicPlayerService.ACTION_PLAY_URI
                 putExtra(MusicPlayerService.EXTRA_URI, uri.toString())
                 putExtra(MusicPlayerService.EXTRA_TITLE, title)
                 putExtra(MusicPlayerService.EXTRA_ARTIST, artist)
+                trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
             }
         )
+    }
+
+    fun cycleLoopMode() {
+        serviceConnection.service.value?.cycleRepeatMode()
+    }
+
+    fun seekTo(positionMs: Long) {
+        serviceConnection.service.value?.seekTo(positionMs)
+    }
+
+    fun updatePlaybackProgress() {
+        serviceConnection.service.value?.updatePlaybackProgress()
     }
 
     private fun startPlaybackService() {

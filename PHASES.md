@@ -216,31 +216,31 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Display downloaded tracks, manage storage
 
 ### Tasks:
-1. Create LibraryFragment UI
+1. Create LibraryFragment UI ✅
    - List of downloaded tracks
    - Display track info (title, duration, file size)
    - Play button for each track
-2. Implement track database/storage
+2. Implement track database/storage ✅
    - Store track metadata (use Room database or simple JSON)
    - Track file paths, download dates, play counts
-3. Implement library playback
+3. Implement library playback ✅
    - Select track from library
    - Play selected track
    - Queue management (optional: play next)
-4. Add storage management UI
+4. Add storage management UI ✅
    - Show total storage used
    - Delete individual tracks
    - Clear all cache option
    - Storage awareness: show per-track file size in Library; show available device space; before starting a download, when size is known, check available space and warn or fail with a clear message if insufficient (so users don’t fill storage with e.g. an 8-hour song)
-5. Improve download progress display (Search screen)
+5. Improve download progress display (Search screen) ✅
    - Show download speed (e.g. MB/s or Mbps) next to progress for active downloads
    - Active downloads section is visible at top of Search so progress is visible without switching tabs
 
 ### Testing:
-- [ ] Library shows all downloaded tracks
-- [ ] Can play tracks from library
-- [ ] Can delete tracks
-- [ ] Storage usage is accurate
+- [x] Library shows all downloaded tracks
+- [x] Can play tracks from library
+- [x] Can delete tracks
+- [x] Storage usage is accurate
 
 ### Deliverables:
 - Functional library screen
@@ -249,36 +249,37 @@ This document breaks down the Shuckler Android music app development into increm
 
 ---
 
-## Phase 8: Favorites & Auto-Delete
-**Goal:** Mark favorites, auto-delete after playback (except favorites)
+## Phase 8: Favorites (optional auto-delete)
+**Goal:** Let users mark favorites and optionally auto-delete tracks after playback.
+
+**Default behavior:** Downloaded tracks **stay in the library** after you play them. Users delete manually (Library delete button) when they don’t want a track. No automatic removal.
+
+**Optional:** A setting can enable “auto-delete after playback (except favorites)” for users who want to free space automatically—e.g. listen once, then remove unless favorited.
 
 ### Tasks:
-1. Add favorites functionality
-   - Favorite button on tracks
-   - Store favorite status in database
-   - Filter library by favorites
-2. Implement auto-delete logic
-   - Track playback completion
-   - Delete track after playback (if not favorite)
-   - Optional: Configurable auto-delete delay
-3. Update UI
-   - Favorite indicator in library
-   - Settings/preferences for auto-delete
-4. Handle edge cases
-   - Don't delete currently playing track
-   - Don't delete if user manually stopped
+1. Add favorites functionality ✅
+   - Favorite button on tracks (Library and optionally Player)
+   - Store favorite status in metadata/database
+   - Filter or sort library by favorites (e.g. “Favorites” filter)
+2. Optional auto-delete (off by default) ✅
+   - Setting: “Delete track after playback unless it’s a favorite” (default: off)
+   - When enabled: track playback completion → delete track if not favorite
+   - Don’t delete currently playing track; don’t delete if user manually stopped
+3. Update UI ✅
+   - Favorite indicator (e.g. heart icon) in library
+   - Settings screen or dialog: toggle for auto-delete, optional delay
 
 ### Testing:
-- [ ] Can mark/unmark favorites
-- [ ] Favorites persist across app restarts
-- [ ] Non-favorite tracks auto-delete after playback
-- [ ] Favorite tracks are never auto-deleted
-- [ ] Currently playing track is not deleted
+- [x] Can mark/unmark favorites
+- [x] Favorites persist across app restarts
+- [x] With auto-delete off (default): tracks remain after playback
+- [x] With auto-delete on: non-favorite tracks are removed after playback; favorites are never auto-deleted
+- [x] Currently playing track is not deleted
 
 ### Deliverables:
 - Favorites system
-- Auto-delete functionality
-- Settings/preferences UI
+- Optional auto-delete (off by default)
+- Settings for auto-delete
 
 ---
 
@@ -286,20 +287,22 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Improve UX, optimize for long compilations, add remaining features
 
 ### Tasks:
-1. Implement loop functionality
+1. Implement loop functionality ✅
    - Single track loop
    - Queue/playlist loop
    - UI toggle for loop mode
 2. Optimize for long compilations
    - Efficient storage (check compression options)
    - Progress tracking for long downloads
-   - Seek functionality in player
+   - Seek functionality in player ✅
 3. Improve UI/UX
+   - **App icon:** Use project assets `shuckle.png` / `shuckle.svg` as the app launcher icon ✅
    - Better loading states
    - Error handling and user feedback
    - Dark mode support (optional)
    - Responsive layouts
-4. Add seek bar
+   - **Preview before download:** In Search (YouTube results), let the user play a short preview (e.g. 30–60 seconds) of a track without downloading. If they like it, they can tap Download to get the full file. (Stream preview from YouTube audio URL, then stop after N seconds; no file saved until Download is pressed.)
+4. Add seek bar ✅
    - Show playback progress
    - Allow seeking to position
 5. Audio quality options
@@ -327,17 +330,180 @@ This document breaks down the Shuckler Android music app development into increm
 
 ---
 
-## Phase 10: Optional Enhancements (Future)
-**Goal:** Additional features if needed
+## Phase 10+ Roadmap (Brainstorm Summary)
 
-### Potential Features:
-- Split long compilations into individual tracks
-- Offline search within cached songs
-- Custom playlists
-- Playback speed control
-- Equalizer
-- Sleep timer
-- Widget for home screen
+**Next/Previous:** They don’t work yet because there is no play queue; that’s addressed in Phase 10.
+
+**Static when playing:** Often an **emulator** issue (buffer/sample-rate quirks). Test on a **real device** first. If it still happens, try updating Media3/ExoPlayer and/or adjusting buffers; see Phase 12.
+
+**Lossless compression:** Android supports **FLAC** (lossless). **Opus** is lossy but very efficient. Phase 14 covers quality/lossless options and storage.
+
+**Parity ideas (YouTube Music / Spotify style):** Queue + Next/Previous (Phase 10), smooth animations (Phase 11), crossfade (Phase 12), artwork/thumbnails (Phase 13), quality/bitrate options (Phase 14), then optional: preview before download, playback speed, equalizer, sleep timer, widget, offline search, custom playlists (Phase 15). Metadata/art is attainable for YouTube-sourced tracks via thumbnail URLs; full video metadata is optional.
+
+---
+
+## Phase 10: Queue, Next/Previous & Basic Playlist
+**Goal:** Make Next/Previous buttons functional with a play queue.
+
+### Why it was deferred:
+- Next/Previous require a queue (list of tracks to play). Without a queue there is no "next" or "previous" track, so the buttons were no-ops until this phase.
+
+### Tasks:
+1. Define a play queue (in-memory or persisted)
+   - Queue: ordered list of track URIs + metadata (title, artist, optional trackId for library items)
+   - Current index into the queue
+2. Integrate queue with MusicPlayerService
+   - On track end (STATE_ENDED): if repeat mode off, advance to next queue item; if at end, stop
+   - Next: skip to next item in queue (or stop if last)
+   - Previous: go to previous item or restart current (e.g. if under 3s in, go to previous; else restart current)
+3. Populate queue from Library
+   - "Play" from Library: set queue to full library (or filtered list), set current index to selected track, play
+   - Optional: "Play next" / "Add to queue" from Library or Search (add single track to queue)
+4. Update Player UI
+   - Next/Previous buttons call service methods that use the queue
+   - Optional: show "Track X of Y" or queue length
+
+### Testing:
+- [ ] Next advances to next track in queue
+- [ ] Previous goes to previous or restarts current
+- [ ] Playing from Library sets queue and plays selected track; Next/Previous work
+- [ ] When queue ends (no repeat), playback stops
+
+### Deliverables:
+- Functional Next/Previous
+- Play queue populated from Library (and optionally from Search)
+
+---
+
+## Phase 11: Animations & UX Polish
+**Goal:** Smooth, satisfying animations and transitions (Spotify/YouTube Music–style feel).
+
+### Tasks:
+1. Screen and transition animations
+   - Animated transitions between tabs (e.g. fade/slide)
+   - Fragment/screen enter/exit transitions
+2. List and item animations
+   - Animate list items on appear (e.g. staggered fade-in or slide)
+   - Smooth scroll behavior; consider item animations on scroll
+3. Loading and feedback
+   - Skeleton loaders or shimmer for Search results and Library
+   - Button/layout state changes with subtle scale or opacity animation
+   - Pull-to-refresh on Search or Library (if applicable)
+4. Micro-interactions
+   - Play button press feedback (e.g. ripple, scale)
+   - Favorite heart animation (e.g. brief scale or fill animation)
+   - Seek bar thumb feedback
+
+### Testing:
+- [ ] Transitions feel smooth and consistent
+- [ ] No jank or dropped frames on target device
+
+### Deliverables:
+- Cohesive animation set for main flows
+- Improved perceived quality and "polish"
+
+---
+
+## Phase 12: Crossfade & Audio Quality
+**Goal:** Crossfade between tracks (Spotify-like) and reduce/eliminate static or glitches.
+
+### Tasks:
+1. Crossfade between tracks
+   - ExoPlayer/Media3 has no built-in crossfade; use **volume-based crossfade** with two player instances (or fade out current, then switch and fade in next)
+   - Optional: configurable crossfade duration (e.g. 3–10 seconds) in Settings
+   - When queue advances: start next track at 0 volume, fade out current while fading in next over N seconds
+2. Static / crackling (research and mitigation)
+   - **Emulator note:** Static and glitches are common on the Android emulator (buffer size, sample rate quirks). Always verify playback on a **real device** (e.g. S22 Ultra) before assuming an app bug.
+   - If static persists on real device: ensure Media3/ExoPlayer is up to date (SilenceSkippingAudioProcessor bugs have been fixed in newer versions)
+   - Optional: try increasing buffer sizes or disabling silence-skipping if using custom pipeline
+   - Add a short "Audio troubleshooting" note in app docs or developer notes
+3. Optional: audio focus and ducking
+   - Ensure other apps (e.g. navigation) can take focus and Shuckler ducks correctly
+
+### Testing:
+- [ ] Crossfade works when moving to next track (no hard cut)
+- [ ] Playback on real device: confirm whether static is emulator-only or needs code fix
+
+### Deliverables:
+- Crossfade option (and setting for duration)
+- Documented approach for static (emulator vs device, Media3 version)
+
+---
+
+## Phase 13: Artwork & Metadata
+**Goal:** Show track art (e.g. thumbnails) in Library, Player, and notification where feasible.
+
+### Tasks:
+1. Artwork source
+   - **YouTube:** Thumbnail URL is available from search results and from extractor (e.g. NewPipe/yt-dlp). Store thumbnail URL or download and cache a small image per track in metadata.
+   - For direct MP3 URLs: no thumbnail unless we add a separate "artwork URL" field or embed in ID3 (advanced).
+2. Display artwork
+   - Library list: small thumbnail per track (or placeholder icon if none)
+   - Player screen: larger art (e.g. album-art style) with placeholder when missing
+   - Notification: set large icon / artwork in media notification (MediaStyle supports large icon)
+3. Storage
+   - Store thumbnail URL in track metadata, or cache image in app storage (e.g. in files dir by track id) and store path. Cache eviction when track is deleted.
+
+### Notes:
+- Full "video" or rich metadata (e.g. channel art, description) is optional and not required for parity; focus on thumbnail/art for now.
+
+### Testing:
+- [ ] YouTube-downloaded tracks show thumbnail in Library and Player when available
+- [ ] Notification shows artwork when supported
+
+### Deliverables:
+- Thumbnail/art in Library, Player, and notification where we have a source (e.g. YouTube)
+
+---
+
+## Phase 14: Storage, Quality & Lossless Options
+**Goal:** Offer quality options and explore lossless/compression for storage.
+
+### Tasks:
+1. Research and document
+   - **Lossless:** Android supports **FLAC** (decode from 3.1+, encode from 4.1+). Good for archival/high fidelity; no quality loss, smaller than raw PCM.
+   - **Opus:** Lossy but efficient; great quality/size; supported on Android 5+ (decode), 10+ (encode). Good alternative to MP3 for smaller files at similar quality.
+   - **MP3:** Current default; widely compatible. Consider configurable bitrate (e.g. 128 / 192 / 320 kbps) if the download pipeline supports it (e.g. yt-dlp format selection).
+2. Quality selector (download / settings)
+   - Let user choose preferred format or bitrate (e.g. "High (320 kbps MP3)", "Normal (192 kbps)", "Save space (Opus or 128 kbps)")
+   - If using yt-dlp or similar, map quality option to format codes
+3. Storage optimization
+   - Show "Storage used" breakdown (e.g. by format or by folder) in Settings or Library
+   - Optional: "Re-encode to lower bitrate" or "Convert to Opus" for existing files to free space
+4. Compression notes
+   - Document in PHASES or README: FLAC for lossless; Opus for best lossy compression; MP3 for compatibility. No change required if current MP3 pipeline is sufficient.
+
+### Testing:
+- [ ] Quality option affects downloaded file format/bitrate when supported
+- [ ] App works with FLAC/Opus if we add support (ExoPlayer supports both)
+
+### Deliverables:
+- Quality/format options in UI (where pipeline supports it)
+- Documentation on lossless (FLAC) and compression (Opus) options
+
+---
+
+## Phase 15: Optional Features (Pick as Needed)
+**Goal:** Extra features for parity or convenience; implement in any order.
+
+### Features (choose which to implement):
+1. **Preview before download** – In Search (YouTube), play a short preview (e.g. 30–60 s) from stream URL without saving; "Download" saves full file.
+2. **Playback speed** – 0.5x, 1x, 1.25x, 1.5x, 2x (ExoPlayer supports setPlaybackSpeed).
+3. **Equalizer** – Use Android AudioEffect (BassBoost, Equalizer) or a simple band EQ if desired.
+4. **Sleep timer** – Stop playback after N minutes; optional fade-out.
+5. **Home screen widget** – Show now playing and play/pause (and optionally next/previous).
+6. **Offline search** – Search within downloaded library (by title/artist) without network.
+7. **Custom playlists** – User-named playlists; add/remove library tracks; play playlist as queue.
+8. **Split long compilations** – For very long YouTube videos, optional split by chapters or time intervals into separate tracks.
+9. **"Play next" / "Add to queue"** – From Search or Library, add one track to queue or insert after current.
+10. **Lyrics** – If a source is available (e.g. some APIs or embedded), show lyrics in Player (stretch goal).
+
+### Implementation notes:
+- Each item can be a small sub-phase or a single task block; no strict order.
+- Prioritize based on user need (e.g. widget and sleep timer are high value for minimal effort).
+
+### Deliverables:
+- One or more of the above features, documented and tested.
 
 ---
 
