@@ -23,8 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -32,6 +35,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +59,7 @@ import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -78,6 +86,8 @@ fun LibraryScreen(
     var storageUsed by remember { mutableStateOf(0L) }
     var storageAvailable by remember { mutableStateOf(0L) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(downloads) {
         storageUsed = withContext(Dispatchers.IO) { downloadManager.getTotalStorageUsed() }
@@ -107,9 +117,13 @@ fun LibraryScreen(
         )
     }
 
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(paddingValues)
             .padding(16.dp)
     ) {
         Row(
@@ -180,29 +194,37 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filteredTracks, key = { it.id }) { track ->
+                    fun trackToQueueItem(t: DownloadedTrack) = QueueItem(
+                        uri = Uri.fromFile(File(t.filePath)).toString(),
+                        title = t.title,
+                        artist = t.artist,
+                        trackId = t.id,
+                        thumbnailUrl = t.thumbnailUrl
+                    )
                     LibraryTrackItem(
                         track = track,
                         modifier = Modifier.animateItem(),
                         onPlayClick = {
                             downloadManager.incrementPlayCount(track.id)
-                            val queueItems = filteredTracks.map {
-                                QueueItem(
-                                    uri = Uri.fromFile(File(it.filePath)).toString(),
-                                    title = it.title,
-                                    artist = it.artist,
-                                    trackId = it.id,
-                                    thumbnailUrl = it.thumbnailUrl
-                                )
-                            }
+                            val queueItems = filteredTracks.map { trackToQueueItem(it) }
                             val index = filteredTracks.indexOf(track).coerceAtLeast(0)
                             viewModel.playTrackWithQueue(queueItems, index)
                         },
                         onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
-                        onDeleteClick = { downloadManager.deleteTrack(track.id) }
+                        onDeleteClick = { downloadManager.deleteTrack(track.id) },
+                        onPlayNextClick = {
+                            viewModel.addToQueueNext(trackToQueueItem(it))
+                            scope.launch { snackbarHostState.showSnackbar("Playing next") }
+                        },
+                        onAddToQueueClick = {
+                            viewModel.addToQueueEnd(trackToQueueItem(it))
+                            scope.launch { snackbarHostState.showSnackbar("Added to queue") }
+                        }
                     )
                 }
             }
         }
+    }
     }
 }
 
@@ -235,8 +257,11 @@ private fun LibraryTrackItem(
     modifier: Modifier = Modifier,
     onPlayClick: () -> Unit,
     onFavoriteClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onPlayNextClick: (DownloadedTrack) -> Unit = {},
+    onAddToQueueClick: (DownloadedTrack) -> Unit = {}
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     val favoriteScale by animateFloatAsState(
         targetValue = if (track.isFavorite) 1.15f else 1f,
         animationSpec = tween(durationMillis = 150),
@@ -341,6 +366,36 @@ private fun LibraryTrackItem(
                         .padding(8.dp)
                         .clickable(onClick = onPlayClick)
                 )
+                Box {
+                    IconButton(
+                        onClick = { menuExpanded = true },
+                        modifier = Modifier.padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Queue options"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Play next") },
+                            onClick = {
+                                onPlayNextClick(track)
+                                menuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to queue") },
+                            onClick = {
+                                onAddToQueueClick(track)
+                                menuExpanded = false
+                            }
+                        )
+                    }
+                }
                 IconButton(
                     onClick = onDeleteClick,
                     modifier = Modifier.padding(4.dp)

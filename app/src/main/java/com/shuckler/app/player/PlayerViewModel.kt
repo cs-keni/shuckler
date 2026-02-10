@@ -43,6 +43,13 @@ class PlayerViewModel(
     val queueInfo: Flow<Pair<Int, Int>> = serviceConnection.service
         .flatMapLatest { service -> service?.queueInfo ?: flowOf(0 to 0) }
 
+    val queueItems: Flow<List<QueueItem>> = serviceConnection.service
+        .flatMapLatest { service -> service?.queueItems ?: flowOf(emptyList()) }
+
+    fun playQueueItemAt(index: Int) {
+        serviceConnection.service.value?.playQueueItemAt(index)
+    }
+
     fun togglePlayPause() {
         val service = serviceConnection.service.value
         if (service != null) {
@@ -81,6 +88,36 @@ class PlayerViewModel(
                 action = MusicPlayerService.ACTION_PLAY_WITH_QUEUE
                 putExtra(MusicPlayerService.EXTRA_QUEUE_JSON, QueueItem.listToJson(items))
                 putExtra(MusicPlayerService.EXTRA_START_INDEX, startIndex.coerceIn(0, items.size - 1))
+            }
+        )
+    }
+
+    /**
+     * Add a track to play next (insert after current) or to the end of the queue.
+     * When queue is empty or nothing is playing, starts playback with this track.
+     */
+    fun addToQueueNext(item: QueueItem) {
+        applicationContext.startForegroundService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_ADD_TO_QUEUE_NEXT
+                putExtra(MusicPlayerService.EXTRA_URI, item.uri)
+                putExtra(MusicPlayerService.EXTRA_TITLE, item.title)
+                putExtra(MusicPlayerService.EXTRA_ARTIST, item.artist)
+                item.trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
+                item.thumbnailUrl?.let { putExtra(MusicPlayerService.EXTRA_THUMBNAIL_URL, it) }
+            }
+        )
+    }
+
+    fun addToQueueEnd(item: QueueItem) {
+        applicationContext.startForegroundService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_ADD_TO_QUEUE_END
+                putExtra(MusicPlayerService.EXTRA_URI, item.uri)
+                putExtra(MusicPlayerService.EXTRA_TITLE, item.title)
+                putExtra(MusicPlayerService.EXTRA_ARTIST, item.artist)
+                item.trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
+                item.thumbnailUrl?.let { putExtra(MusicPlayerService.EXTRA_THUMBNAIL_URL, it) }
             }
         )
     }

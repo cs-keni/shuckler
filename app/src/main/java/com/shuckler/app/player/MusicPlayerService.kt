@@ -171,13 +171,20 @@ class MusicPlayerService : Service() {
     private val queue = mutableListOf<QueueItem>()
     private var currentQueueIndex = -1
 
+    /** True after we've started crossfade-out for the current track (so we don't trigger twice). */
+    private var crossfadeStartedForCurrentTrack = false
+
     private val _queueInfo = MutableStateFlow(0 to 0) // (current 1-based index, total size)
     val queueInfo: StateFlow<Pair<Int, Int>> = _queueInfo.asStateFlow()
+
+    private val _queueItems = MutableStateFlow<List<QueueItem>>(emptyList())
+    val queueItems: StateFlow<List<QueueItem>> = _queueItems.asStateFlow()
 
     private fun updateQueueInfo() {
         val total = queue.size
         val current = if (total > 0 && currentQueueIndex in queue.indices) currentQueueIndex + 1 else 0
         _queueInfo.value = current to total
+        _queueItems.value = queue.toList()
     }
 
     fun setRepeatMode(mode: Int) {
@@ -200,9 +207,24 @@ class MusicPlayerService : Service() {
 
     fun updatePlaybackProgress() {
         _exoPlayer?.let { player ->
-            _playbackPositionMs.value = player.currentPosition
+            val position = player.currentPosition
             val dur = player.duration
+            _playbackPositionMs.value = position
             _durationMs.value = if (dur == C.TIME_UNSET) 0L else dur
+            // Start crossfade before track end (fade out over last N ms, then switch to next and fade in)
+            val crossfadeMs = getCrossfadeDurationMs()
+            val remaining = dur - position
+            if (dur != C.TIME_UNSET && dur > 0 && crossfadeMs > 0 &&
+                queue.isNotEmpty() && currentQueueIndex + 1 < queue.size &&
+                _repeatMode.value != Player.REPEAT_MODE_ONE && !crossfadeStartedForCurrentTrack &&
+                remaining in 1..crossfadeMs
+            ) {
+                crossfadeStartedForCurrentTrack = true
+                startFadeOut {
+                    currentQueueIndex++
+                    playQueueItemAt(currentQueueIndex, fadeIn = true)
+                }
+            }
         }
     }
 
@@ -240,8 +262,40 @@ class MusicPlayerService : Service() {
                     setQueueAndPlay(queueJson, startIndex)
                 }
             }
+            ACTION_ADD_TO_QUEUE_NEXT -> handleAddToQueue(intent, next = true)
+            ACTION_ADD_TO_QUEUE_END -> handleAddToQueue(intent, next = false)
         }
         return START_STICKY
+    }
+
+    /**
+     * Add a single track to the queue (from Library). When queue is empty or nothing is playing,
+     * set queue to this item and start playback. Otherwise insert at current+1 (next) or append (end).
+     */
+    private fun handleAddToQueue(intent: Intent, next: Boolean) {
+        val uriString = intent.getStringExtra(EXTRA_URI) ?: return
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
+        val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
+        val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
+        val thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL)
+        val item = QueueItem(uriString, title, artist, trackId, thumbnailUrl)
+
+        if (queue.isEmpty()) {
+            queue.add(item)
+            currentQueueIndex = 0
+            updateQueueInfo()
+            playQueueItemAt(0, fadeIn = false)
+        } else {
+            if (next) {
+                val insertAt = (currentQueueIndex + 1).coerceIn(0, queue.size)
+                queue.add(insertAt, item)
+                if (currentQueueIndex >= insertAt) currentQueueIndex++
+            } else {
+                queue.add(item)
+            }
+            updateQueueInfo()
+            updateNotification()
+        }
     }
 
     fun play() {
@@ -323,8 +377,9 @@ class MusicPlayerService : Service() {
         playQueueItemAt(currentQueueIndex, fadeIn = false)
     }
 
-    private fun playQueueItemAt(index: Int, fadeIn: Boolean = false) {
+    fun playQueueItemAt(index: Int, fadeIn: Boolean = false) {
         if (index !in queue.indices) return
+        crossfadeStartedForCurrentTrack = false
         if (fadeIn) _exoPlayer?.volume = 0f
         val item = queue[index]
         val uri = Uri.parse(item.uri)
@@ -566,6 +621,8 @@ class MusicPlayerService : Service() {
         const val ACTION_PREVIOUS = "com.shuckler.app.PREVIOUS"
         const val ACTION_PLAY_URI = "com.shuckler.app.PLAY_URI"
         const val ACTION_PLAY_WITH_QUEUE = "com.shuckler.app.PLAY_WITH_QUEUE"
+        const val ACTION_ADD_TO_QUEUE_NEXT = "com.shuckler.app.ADD_TO_QUEUE_NEXT"
+        const val ACTION_ADD_TO_QUEUE_END = "com.shuckler.app.ADD_TO_QUEUE_END"
         const val EXTRA_URI = "uri"
         const val EXTRA_TITLE = "title"
         const val EXTRA_ARTIST = "artist"

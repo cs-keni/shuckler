@@ -497,28 +497,295 @@ This document breaks down the Shuckler Android music app development into increm
 
 ---
 
-## Phase 15: Optional Features (Pick as Needed)
-**Goal:** Extra features for parity or convenience; implement in any order.
+## Phase 15: Optional Features — Overview
+**Goal:** Expand the app with optional features; each feature below is a dedicated phase (16–27) with tasks and deliverables.
 
-### Features (choose which to implement):
-1. **Preview before download** – In Search (YouTube), play a short preview (e.g. 30–60 s) from stream URL without saving; "Download" saves full file.
-2. **Playback speed** – 0.5x, 1x, 1.25x, 1.5x, 2x (ExoPlayer supports setPlaybackSpeed).
-3. **Equalizer** – Use Android AudioEffect (BassBoost, Equalizer) or a simple band EQ if desired.
-4. **Sleep timer** – Stop playback after N minutes; optional fade-out.
-5. **Home screen widget** – Show now playing and play/pause (and optionally next/previous).
-6. **Offline search** – Search within downloaded library (by title/artist) without network.
-7. **Custom playlists** – User-named playlists; add/remove library tracks; play playlist as queue.
-8. **Split long compilations** – For very long YouTube videos, optional split by chapters or time intervals into separate tracks.
-9. **"Play next" / "Add to queue"** – From Search or Library, add one track to queue or insert after current.
-10. **Lyrics** – If a source is available (e.g. some APIs or embedded), show lyrics in Player (stretch goal).
-11. **Recommendation system (optional)** – Track what the user searches and what they favorite; recommend similar content. For 1–2 users, keep it simple: e.g. "Recent searches," "More from your favorites" (same artist or recently played), or a "For you" section that surfaces favorited artists and recent queries. Full ML/collaborative filtering is overkill; simple rules (recent + favorites) can work well and be implemented in a later phase if desired.
+**Recommended implementation order:** 16 → 17 → 18 → 19 → 20 → 21 → 22 → 23 → 24 → 25; 26 and 27 are optional/stretch.
 
-### Implementation notes:
-- Each item can be a small sub-phase or a single task block; no strict order.
-- Prioritize based on user need (e.g. widget and sleep timer are high value for minimal effort).
+| Phase | Feature | Notes |
+|-------|---------|--------|
+| 16 | Play next / Add to queue | Small; unblocks better queue UX. |
+| 17 | Offline search | Search/filter Library by title/artist. |
+| 18 | Playback speed | ExoPlayer setPlaybackSpeed; simple UI. |
+| 19 | Sleep timer | Stop after N min; optional fade-out. |
+| 20 | Custom playlists | Name, description, cover image; add/remove tracks; play as queue (Spotify-like). |
+| 21 | Modern UI refresh | Spotify/YouTube Music/Apple Music–style look; animations where safe. |
+| 22 | Home screen widget | Now playing + play/pause (and optionally next/previous). |
+| 23 | Preview before download | Play 30–60 s from stream URL in Search without saving. |
+| 24 | Recommendation system | Simple rules: recent searches, “more from favorites.” |
+| 25 | Equalizer | Android AudioEffect (BassBoost/Equalizer). |
+| 26 | Split long compilations | Optional; by chapters if extractor provides them. |
+| 27 | Lyrics | Stretch; only if a source (e.g. API) is available. |
+
+---
+
+## Phase 16: Play Next / Add to Queue
+**Goal:** From Search or Library, add a single track to the queue (“Play next” or “Add to end”) or insert after the current track.
+
+### Tasks:
+1. **Service/queue API**
+   - In MusicPlayerService (or connection interface): add `addToQueueNext(item: QueueItem)` (insert at currentQueueIndex + 1) and `addToQueueEnd(item: QueueItem)` (append to queue). Ensure queue JSON/list is updated and notification/UI reflect new queue length.
+2. **Library**
+   - On each Library track row (or long-press menu): actions “Play next” and “Add to queue.” “Play next” inserts a QueueItem built from that DownloadedTrack at position currentQueueIndex + 1. “Add to queue” appends. If nothing is playing, “Play next” can start playback with that single track (or insert and play).
+3. **Search**
+   - For YouTube results we don’t have a downloaded file yet; “Add to queue” only makes sense for already-downloaded content unless we support streaming in queue (out of scope). So Phase 16 focuses on **Library only**: “Play next” and “Add to queue” for downloaded tracks. If we later add preview/streaming, we can extend to Search.
+4. **UI**
+   - Expose “Play next” / “Add to queue” via long-press context menu or icon buttons on Library track items. Optional: show a snackbar “Added to queue” / “Playing next.”
+
+### Testing:
+- [ ] Play next inserts track after current and it plays when current ends (or when user skips).
+- [ ] Add to queue appends track; queue length updates in Player UI.
+- [ ] When nothing is playing, “Play next” starts playback with that track (or insert + play from current).
 
 ### Deliverables:
-- One or more of the above features, documented and tested.
+- Add to queue (next / end) from Library; queue and playback behavior correct.
+
+---
+
+## Phase 17: Offline Search
+**Goal:** Search or filter within the downloaded library by title and/or artist, without network.
+
+### Tasks:
+1. **Data source**
+   - Use existing `DownloadManager.downloads` (completed tracks). No new persistence; filter in memory.
+2. **Search UI**
+   - In Library screen: add a search bar or filter field (e.g. at top). As user types, filter the displayed list by matching query against `track.title` and `track.artist` (case-insensitive, substring). Clear button to reset.
+3. **Behavior**
+   - When filter is empty, show full list (respecting existing “All” / “Favorites” filter). When filter is non-empty, show only matching tracks. Play, favorite, delete, “Play next,” “Add to queue” work on the filtered list (use the same track reference/id).
+4. **Performance**
+   - Filter on main thread is fine for hundreds of tracks; if list is very large, consider debouncing the filter text (e.g. 150–300 ms) to avoid recomposition on every keystroke.
+
+### Testing:
+- [ ] Typing in search filters Library by title and artist.
+- [ ] Clearing search restores full list. Favorites filter still applies on top of search.
+- [ ] Play / Play next / Add to queue work on filtered results.
+
+### Deliverables:
+- Search/filter bar in Library; offline search by title and artist.
+
+---
+
+## Phase 18: Playback Speed
+**Goal:** Let the user change playback speed (e.g. 0.5x, 1x, 1.25x, 1.5x, 2x). ExoPlayer supports this natively.
+
+### Tasks:
+1. **Service**
+   - ExoPlayer: `player.setPlaybackSpeed(speed)`. Expose current speed and setter from MusicPlayerService (e.g. StateFlow or method). Persist last chosen speed in SharedPreferences so it can be restored (optional but nice).
+2. **UI**
+   - In Player screen (or Settings): speed selector. Options e.g. 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2 (or a subset). Chips or dropdown. Display as “1x”, “1.25x”, etc.
+3. **Behavior**
+   - On change, call service setter; playback continues at new speed. No need to change duration display logic (ExoPlayer reports position/duration in media time; speed only affects how fast time advances).
+
+### Testing:
+- [ ] Changing speed updates playback immediately; persists across track change if persisted.
+- [ ] No crash or stuck state when toggling speed.
+
+### Deliverables:
+- Playback speed control in Player (or Settings); ExoPlayer setPlaybackSpeed integrated.
+
+---
+
+## Phase 19: Sleep Timer
+**Goal:** Stop playback after a user-chosen duration (e.g. 15, 30, 45, 60 minutes); optionally fade out in the last minute.
+
+### Tasks:
+1. **Model**
+   - Store “sleep timer end time” (e.g. System.currentTimeMillis() + durationMs) or “remaining ms” in the service or a small helper. Cancel when playback stops (user pause) or when timer fires.
+2. **Service**
+   - MusicPlayerService: start a timer (Handler.postDelayed or coroutine with delay) when user sets sleep timer. When timer fires: if fade desired, run volume fade-out over last N seconds then pause; else just pause. Clear timer on pause/stop if desired (or let it run; document behavior).
+3. **UI**
+   - In Player or Settings: “Sleep timer” control. Options: Off, 15 min, 30 min, 45 min, 60 min, “When track ends.” Show countdown or “Stops in 23 min” when active. Optional: “Fade out last 1 min” checkbox.
+4. **Edge cases**
+   - App killed: timer is lost (acceptable). Optional: persist end time and restore in service onCreate (more complex).
+
+### Testing:
+- [ ] Timer stops playback after selected duration; fade (if implemented) works.
+- [ ] Turning timer off cancels scheduled stop.
+
+### Deliverables:
+- Sleep timer with duration options and optional fade-out; playback stops when timer ends.
+
+---
+
+## Phase 20: Custom Playlists (Spotify-like)
+**Goal:** User-created playlists with name, optional description, and optional cover image; add/remove library tracks; reorder; play playlist as queue.
+
+### Tasks:
+1. **Data model**
+   - **Playlist:** id (UUID), name (String), description (String?), coverImagePath (String? — path to a local image file in app storage, or null). **PlaylistEntry:** playlistId, trackId (references DownloadedTrack id), position (Int). Store playlists and entries in a persistent store (e.g. Room database, or JSON file in filesDir). Ensure when a track is deleted from library, remove it from all playlists (or leave orphaned entry and filter at read time).
+2. **Cover image**
+   - Allow user to set a cover image when creating/editing playlist: pick from gallery (Intent.ACTION_GET_CONTENT or picker) or take photo (camera). Save to app-specific storage (e.g. filesDir/playlist_covers/<playlistId>.jpg). Resize/compress to avoid huge files (e.g. max 512px). If no image, show a placeholder (e.g. first track’s thumbnail, or a default icon/gradient).
+3. **CRUD**
+   - Create playlist (dialog: name, description, optional cover). Edit playlist (same fields; reorder tracks if desired). Delete playlist (confirm). List playlists (e.g. in a new “Playlists” tab or section in Library).
+4. **Tracks**
+   - “Add to playlist” from Library: show dialog with list of playlists (or “New playlist”); add selected track to chosen playlist. From playlist detail: remove track; optional drag-to-reorder. Playlist detail screen: list of tracks (title, artist, thumbnail); play button sets queue to playlist and starts playback; “Play next” / “Add to queue” can reuse Phase 16.
+5. **Navigation**
+   - Add a way to reach playlists (tab, drawer, or “Playlists” in Library). Playlist detail: full-screen or bottom-sheet with list and metadata (name, description, cover at top).
+6. **Animations**
+   - Keep existing list animations (animateItem); optional: smooth transition when opening playlist detail. Avoid large refactors; stick to existing nav pattern (tabs: Search, Library, Player; playlists can live under Library or as a fourth tab).
+
+### Testing:
+- [ ] Create playlist with name, description, and cover; appears in list.
+- [ ] Add tracks from Library to playlist; remove and reorder; play playlist as queue.
+- [ ] Deleting a library track removes it from playlists (or UI hides it); deleting playlist removes data and cover file.
+
+### Deliverables:
+- Custom playlists with name, description, optional cover image; add/remove/reorder tracks; play as queue; persistent storage.
+
+---
+
+## Phase 21: Modern UI Refresh (Spotify / YouTube Music / Apple Music Style)
+**Goal:** Update the app’s look and feel to feel more modern and cohesive (Spotify, YouTube Music, or Apple Music inspired), with targeted animations where they don’t require risky refactors.
+
+### Tasks:
+1. **Design direction**
+   - Choose a consistent direction: e.g. **Spotify:** dark accent, rounded cards, bold headings, green CTA. **YouTube Music:** card-heavy, thumbnails prominent, red accent. **Apple Music:** clean, lots of white space, subtle shadows. Apply one consistently: color palette (primary/secondary), card shape (rounded corner radius), typography (title/body scale), spacing (padding/margins).
+2. **Global styling**
+   - Theme: adjust ColorScheme (primary, surface, background), Shape (componentsDefaultCornerSize, cards), Typography (headlineMedium, titleLarge, etc.). Keep existing theme mode (light/dark/system); ensure both look good.
+3. **Screens**
+   - **Search:** search bar prominence; result cards with consistent elevation and corner radius; thumbnail size/spacing. **Library:** section headers (e.g. “Playlists,” “Tracks”); list item height and padding; Favorites chip styling. **Player:** large artwork; title/artist hierarchy; control buttons size and spacing; seek bar style. Optional: “Now playing” bar at bottom of Search/Library that taps through to Player (minimized now-playing strip).
+4. **Navigation**
+   - Current tab bar (Search, Library, Player): restyle with icons and labels; selected state (e.g. primary color). If adding Playlists, add as tab or under Library; keep navigation simple.
+5. **Animations (safe)**
+   - Keep existing: tab transition (slide), list item placement (animateItem), favorite scale. Add only where low-risk: e.g. button press scale (already have ripple), list item fade-in on first load (initial animation), or subtle progress indicator. **Avoid:** broad changes to NavHost/navigation structure, or animations that depend on rewriting entire screens.
+6. **Assets**
+   - No new app icon required; optional: adjust default placeholder for “no artwork” (e.g. gradient or icon). Ensure playlist placeholder (Phase 20) fits the new style.
+
+### Testing:
+- [ ] Light and dark themes look consistent and modern; no contrast or readability regressions.
+- [ ] All existing flows (search, download, library, play, queue, settings) still work; no layout breaks.
+
+### Deliverables:
+- Cohesive modern UI (colors, shapes, typography, spacing); optional small animation tweaks; no large structural refactors.
+
+### Notes:
+- If a full “bottom sheet now playing” or “mini player” is desired, treat it as a follow-up task after Phase 21 to avoid scope creep.
+
+---
+
+## Phase 22: Home Screen Widget
+**Goal:** A home screen widget showing now-playing info and play/pause (and optionally next/previous).
+
+### Tasks:
+1. **Widget**
+   - Use App Widget (Android XML layout + AppWidgetProvider) or Jetpack Glance (Compose for widgets, if min SDK allows). Widget layout: small/medium size: album art (or placeholder), title, artist, play/pause button. Optional: next/previous buttons. Tapping widget opens the app (or opens Player tab).
+2. **Updates**
+   - When playback state or track changes, update widget (e.g. MusicPlayerService calls AppWidgetManager.updateAppWidget). Use RemoteViews (or Glance) to set title, artist, and play/pause drawable (play vs pause icon).
+3. **Actions**
+   - Play/pause (and next/previous if present) send broadcast or start service with action (e.g. ACTION_PLAY, ACTION_PAUSE). Service handles as in existing onStartCommand. Optional: tap artwork to open app.
+4. **Artwork**
+   - If feasible, set widget’s album art from current track thumbnail (load bitmap and set on ImageView in RemoteViews). Fallback: app icon or placeholder.
+
+### Testing:
+- [ ] Widget shows current track and play/pause state; tapping play/pause toggles playback.
+- [ ] Widget updates when track changes or app is in background.
+
+### Deliverables:
+- Working home screen widget (play/pause, optional next/previous); updates with now-playing info.
+
+---
+
+## Phase 23: Preview Before Download
+**Goal:** In Search (YouTube), play a short preview (e.g. 30–60 seconds) from the stream URL without saving; “Download” still saves the full file.
+
+### Tasks:
+1. **Preview playback**
+   - When user taps “Preview” (or similar) on a search result: obtain stream URL via existing getAudioStreamUrl. Play in ExoPlayer (either a temporary/secondary player in the app, or reuse MusicPlayerService with a “preview mode” that stops after N seconds and doesn’t add to queue). Stop after 30–60 s (or when user taps stop). Do not save to disk.
+2. **UI**
+   - Add “Preview” button next to “Download” on YouTube search results. While preview is playing: show “Preview playing…” and a stop button; optional progress for the 30–60 s window.
+3. **Service vs in-app player**
+   - Option A: Use MusicPlayerService with a flag “previewOnly” and a timer; when timer fires or track would exceed 60 s, stop and clear. Option B: Use a separate ExoPlayer instance in the ViewModel/Composable scope for preview only (simpler but doesn’t use notification; user can’t leave app and keep preview). Choose based on desired UX.
+4. **Edge cases**
+   - If user starts a full download while preview is playing, stop preview and start download. If user leaves Search during preview, decide: stop preview or let it play (simpler to stop).
+
+### Testing:
+- [ ] Preview plays for up to 30–60 s then stops; Download still saves full file.
+- [ ] No leftover preview state that breaks normal playback.
+
+### Deliverables:
+- Preview button in Search; short preview playback from stream URL without saving.
+
+---
+
+## Phase 24: Recommendation System (Simple)
+**Goal:** Surface “For you”–style content using simple rules: recent searches and favorites (no ML).
+
+### Tasks:
+1. **Data**
+   - Persist last N search queries (e.g. 10–20) in SharedPreferences or a small JSON file. We already have favorites (DownloadedTrack.isFavorite) and play counts; no new backend.
+2. **“For you” / Home section**
+   - If we have a “Home” or “Listen now” surface (could be part of Phase 21 or a new tab): section “Recent searches” (tappable to run search again or show recent results if cached); section “From your favorites” (tracks that are favorite, or most-played). Alternatively: add “Recommended” or “Quick picks” at top of Library (e.g. “Recently played,” “Favorites,” “Recent searches” as horizontal chips or rows).
+3. **Logic**
+   - “Recently played”: last N tracks played (need to persist “last played” order or timestamps; e.g. add lastPlayedMs to metadata or a separate list). “Favorites”: filter library by isFavorite. “Recent searches”: list of saved query strings; tap opens Search with that query. Keep it simple; no collaborative filtering or external API.
+4. **UI**
+   - Small, scoped UI: e.g. a “Home” tab with 2–3 sections, or a collapsible “For you” block at top of Library. Don’t overwhelm; 1–2 rows of “Quick access” is enough.
+
+### Testing:
+- [ ] Recent searches appear and tapping one re-runs search (or fills search box).
+- [ ] Favorites / recently played section shows correct tracks.
+
+### Deliverables:
+- Simple recommendations: recent searches and “from favorites” (and optionally recently played) surfaced in a dedicated section or Home.
+
+---
+
+## Phase 25: Equalizer
+**Goal:** Let the user adjust bass/treble or a simple multi-band EQ using Android’s AudioEffect APIs.
+
+### Tasks:
+1. **API**
+   - Use Android’s Equalizer (and optionally BassBoost) from android.media.audiofx. Attach to the same audio session as ExoPlayer. ExoPlayer/Media3: obtain audio session ID from the player and attach Equalizer to it. Enable/disable and set levels from UI.
+2. **UI**
+   - Settings or Player: “Equalizer” entry; open a simple screen with presets (Normal, Rock, Pop, etc.) and/or sliders for a few bands (e.g. 5-band). Persist user’s preset or custom levels in SharedPreferences.
+3. **Compatibility**
+   - Not all devices support Equalizer; check Equalizer.isAvailable() and hide or disable UI if not available. Handle cleanup when playback stops (release effect).
+
+### Testing:
+- [ ] When available, equalizer affects playback; settings persist.
+- [ ] No crash when Equalizer is not available.
+
+### Deliverables:
+- Equalizer (and optional BassBoost) in Settings/Player; persisted; graceful fallback when unsupported.
+
+---
+
+## Phase 26: Split Long Compilations (Optional)
+**Goal:** For very long YouTube videos, optionally split by chapters (or fixed time intervals) into separate tracks.
+
+### Tasks:
+1. **Chapters**
+   - Check if NewPipe StreamExtractor (or stream info) provides chapter list (start time, title). If yes: after full download, optionally offer “Split by chapters” and create multiple entries (e.g. one per chapter) that reference the same file with start/end offsets, or split the file (complex). Simpler approach: “virtual” tracks — one file, multiple “tracks” with startMs/endMs; playback uses ExoPlayer.seekTo(startMs) and a listener to stop at endMs and advance to next. That avoids re-encoding or file splitting.
+2. **UI**
+   - Only show “Split by chapters” (or “Add as multiple tracks”) when chapters are available and video is long (e.g. > 10 min). In Library, show these as separate rows (same file path, different start/end); play as queue.
+3. **Scope**
+   - If extractor doesn’t expose chapters, skip or document “future: when extractor supports chapters.” Time-based split (e.g. every 5 min) is possible but less useful; document as optional.
+
+### Testing:
+- [ ] When chapters exist, user can add video as multiple chapter-tracks; playback respects start/end.
+- [ ] Library and queue show chapter-tracks correctly.
+
+### Deliverables:
+- Optional split by chapters when available; virtual tracks with start/end in one file, or document limitation.
+
+---
+
+## Phase 27: Lyrics (Stretch)
+**Goal:** Show lyrics in the Player screen if a source is available.
+
+### Tasks:
+1. **Source**
+   - Options: (1) Embed lyrics in downloaded file (ID3/USLT or similar) and read with a library; (2) Use a third-party lyrics API (e.g. by artist + title); (3) Skip if no reliable free source. Document chosen approach. If no source is feasible, mark phase as “deferred” and do not implement.
+2. **UI**
+   - In Player: expandable “Lyrics” section or a “Lyrics” tab/sheet. Show synchronized lyrics (timestamp + line) if available; otherwise plain text. Scrolling and optional highlight of current line (using playback position) improve UX.
+3. **Storage**
+   - If from API: cache lyrics by (artist, title) in app storage to avoid repeated requests. TTL or versioning optional.
+
+### Testing:
+- [ ] When lyrics are available, they display and (if synced) highlight current line.
+- [ ] No crash when lyrics are missing or API fails.
+
+### Deliverables:
+- Lyrics in Player when source is available; or document “deferred until source identified.”
 
 ---
 
@@ -552,5 +819,7 @@ Begin with **Phase 1** and work through each phase sequentially. After completin
 2. Fix any bugs
 3. Commit code (if using version control)
 4. Move to next phase
+
+**Phases 16–27** (optional features): implement in the recommended order given in the Phase 15 overview, or in any order that fits your priorities. Dependencies: Phase 20 (playlists) reuses Phase 16 queue actions; Phase 21 (UI) may reference Library/Playlists layout from Phase 20.
 
 If you encounter issues in a phase, fix them before proceeding. Don't accumulate technical debt.
