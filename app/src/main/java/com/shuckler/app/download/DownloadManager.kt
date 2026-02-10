@@ -77,6 +77,17 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putInt(KEY_CROSSFADE_DURATION_MS, value.coerceIn(0, 15000)).apply()
         }
 
+    /** Download quality for YouTube: "best", "high", or "data_saver". Affects stream choice (bitrate) and format preference (M4A preferred). */
+    var downloadQuality: String
+        get() = prefs.getString(KEY_DOWNLOAD_QUALITY, "best") ?: "best"
+        set(value) {
+            val v = when (value) {
+                "high", "data_saver" -> value
+                else -> "best"
+            }
+            prefs.edit().putString(KEY_DOWNLOAD_QUALITY, v).apply()
+        }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -272,7 +283,9 @@ class DownloadManager(private val context: Context) {
         if (!fromUrl.isNullOrBlank() && fromUrl.contains(".")) return sanitizeFileName(fromUrl)
         val ext = when {
             contentType?.contains("mpeg") == true -> "mp3"
+            contentType?.contains("mp4") == true || contentType?.contains("m4a") == true || contentType?.contains("aac") == true -> "m4a"
             contentType?.contains("ogg") == true -> "ogg"
+            contentType?.contains("webm") == true -> "webm"
             contentType?.contains("wav") == true -> "wav"
             else -> "mp3"
         }
@@ -402,5 +415,6 @@ class DownloadManager(private val context: Context) {
         private const val PREFS_NAME = "shuckler_settings"
         private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
         private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"
+        private const val KEY_DOWNLOAD_QUALITY = "download_quality"
     }
 }

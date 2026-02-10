@@ -7,6 +7,8 @@ import org.schabi.newpipe.extractor.NewPipe
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.StreamingService
+import org.schabi.newpipe.extractor.MediaFormat
+import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamExtractor
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -100,9 +102,11 @@ object YouTubeRepository {
 
     /**
      * Get a direct audio stream URL for a YouTube video URL. Runs on IO.
+     * [qualityPreference]: "best" = highest bitrate, "high" = second-highest, "data_saver" = lowest bitrate.
+     * When bitrates are comparable, M4A (AAC) is preferred for better compatibility and efficiency.
      * Returns [AudioStreamResult.Success] or [AudioStreamResult.Failure] with an error message.
      */
-    suspend fun getAudioStreamUrl(videoUrl: String): AudioStreamResult = withContext(Dispatchers.IO) {
+    suspend fun getAudioStreamUrl(videoUrl: String, qualityPreference: String = "best"): AudioStreamResult = withContext(Dispatchers.IO) {
         if (videoUrl.isBlank()) return@withContext AudioStreamResult.Failure("No video URL")
         ensureInitialized()
         val normalizedUrl = normalizeYouTubeUrl(videoUrl)
@@ -115,9 +119,8 @@ object YouTubeRepository {
                 Log.w(TAG, "getAudioStreamUrl: $msg $normalizedUrl")
                 return@withContext AudioStreamResult.Failure(msg)
             }
-            // Prefer higher bitrate
-            val best = audioStreams.maxByOrNull { it.averageBitrate } ?: audioStreams.first()
-            val streamUrl = best.content
+            val selected = selectStreamByQuality(audioStreams, qualityPreference)
+            val streamUrl = selected.content
             if (streamUrl.isBlank()) {
                 val msg = "Stream URL was empty."
                 Log.w(TAG, "getAudioStreamUrl: $msg")
@@ -134,6 +137,25 @@ object YouTubeRepository {
             val msg = t.message?.take(200) ?: t.javaClass.simpleName
             Log.e(TAG, "getAudioStreamUrl failed for $normalizedUrl", t)
             AudioStreamResult.Failure(msg)
+        }
+    }
+
+    /**
+     * Select one stream from the list based on quality preference. Prefers M4A (AAC) when bitrate is comparable.
+     */
+    private fun selectStreamByQuality(streams: List<AudioStream>, qualityPreference: String): AudioStream {
+        val byBestFirst = streams.sortedWith(
+            compareByDescending<AudioStream> { it.averageBitrate }
+                .thenBy { if (it.format == MediaFormat.M4A) 0 else 1 }
+        )
+        val byDataSaverFirst = streams.sortedWith(
+            compareBy<AudioStream> { it.averageBitrate }
+                .thenBy { if (it.format == MediaFormat.M4A) 0 else 1 }
+        )
+        return when (qualityPreference) {
+            "data_saver" -> byDataSaverFirst.first()
+            "high" -> byBestFirst.getOrNull(1) ?: byBestFirst.first()
+            else -> byBestFirst.first()
         }
     }
 

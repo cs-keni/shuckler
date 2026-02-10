@@ -186,7 +186,7 @@ fun SearchScreen() {
                         youtubeDownloadError = null
                         downloadingVideoUrl = result.url
                         scope.launch {
-                            val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url)
+                            val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
                             downloadingVideoUrl = null
                             when (resultAudio) {
                                 is YouTubeRepository.AudioStreamResult.Success -> {

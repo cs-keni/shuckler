@@ -81,6 +81,8 @@ fun PlayerScreen(
             onAutoDeleteChange = { downloadManager.autoDeleteAfterPlayback = it },
             crossfadeDurationMs = downloadManager.crossfadeDurationMs,
             onCrossfadeChange = { downloadManager.crossfadeDurationMs = it },
+            downloadQuality = downloadManager.downloadQuality,
+            onDownloadQualityChange = { downloadManager.downloadQuality = it },
             onDismiss = { showSettingsDialog = false }
         )
     }
@@ -227,6 +229,12 @@ private fun formatPlaybackTime(ms: Long): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
+private val DOWNLOAD_QUALITY_OPTIONS = listOf(
+    "best" to "Best",
+    "high" to "High",
+    "data_saver" to "Data saver"
+)
+
 @Composable
 private fun SettingsDialog(
     themeMode: ThemeMode,
@@ -235,6 +243,8 @@ private fun SettingsDialog(
     onAutoDeleteChange: (Boolean) -> Unit,
     crossfadeDurationMs: Int,
     onCrossfadeChange: (Int) -> Unit,
+    downloadQuality: String,
+    onDownloadQualityChange: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
@@ -299,6 +309,40 @@ private fun SettingsDialog(
                     valueRange = 0f..10f,
                     steps = 19,
                     modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "Download quality (YouTube)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DOWNLOAD_QUALITY_OPTIONS.forEach { (value, label) ->
+                        val selected = downloadQuality == value
+                        Button(
+                            onClick = { onDownloadQualityChange(value) },
+                            modifier = Modifier.weight(1f),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "Best = highest bitrate; High = second-highest; Data saver = smallest file. M4A preferred when available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "Delete after playback (except favorites)",

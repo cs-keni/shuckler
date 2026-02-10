@@ -462,8 +462,8 @@ This document breaks down the Shuckler Android music app development into increm
 - Full "video" or rich metadata (e.g. channel art, description) is optional and not required for parity; focus on thumbnail/art for now.
 
 ### Testing:
-- [ ] YouTube-downloaded tracks show thumbnail in Library and Player when available
-- [ ] Notification shows artwork when supported
+- [x] YouTube-downloaded tracks show thumbnail in Library and Player when available
+- [x] Notification shows artwork when supported
 
 ### Deliverables:
 - Thumbnail/art in Search, Library, Player, and notification where we have a source (e.g. YouTube)
@@ -474,26 +474,26 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Offer quality options and explore lossless/compression for storage.
 
 ### Tasks:
-1. Research and document
-   - **Lossless:** Android supports **FLAC** (decode from 3.1+, encode from 4.1+). Good for archival/high fidelity; no quality loss, smaller than raw PCM.
-   - **Opus:** Lossy but efficient; great quality/size; supported on Android 5+ (decode), 10+ (encode). Good alternative to MP3 for smaller files at similar quality.
-   - **MP3:** Current default; widely compatible. Consider configurable bitrate (e.g. 128 / 192 / 320 kbps) if the download pipeline supports it (e.g. yt-dlp format selection).
-2. Quality selector (download / settings)
-   - Let user choose preferred format or bitrate (e.g. "High (320 kbps MP3)", "Normal (192 kbps)", "Save space (Opus or 128 kbps)")
-   - If using yt-dlp or similar, map quality option to format codes
+1. Research and document ✅
+   - **M4A (AAC):** Well supported on Android and in ExoPlayer. Often better compression than MP3 at similar quality; YouTube commonly serves M4A. We prefer M4A when bitrate is comparable (see quality selector).
+   - **Lossless:** Android supports **FLAC** (decode from 3.1+, encode from 4.1+). Good for archival; no quality loss. NewPipe/YouTube rarely offer FLAC; we don’t re-encode.
+   - **Opus:** Lossy but efficient; Android 5+ decode, 10+ encode. YouTube may offer WebM/Opus; we support playback (ExoPlayer); quality selector can pick lower-bitrate streams (data saver).
+   - **MP3:** Widely compatible; we still save as MP3 when content-type is mpeg; otherwise we use stream format (m4a, webm, etc.).
+2. Quality selector (download / settings) ✅
+   - **Settings → Download quality (YouTube):** Best | High | Data saver. Stored in SharedPreferences.
+   - **Best:** Highest bitrate stream; prefer M4A when tied. **High:** Second-highest bitrate; prefer M4A. **Data saver:** Lowest bitrate; prefer M4A. Implemented in YouTubeRepository (selectStreamByQuality) using NewPipe’s audio streams (bitrate + MediaFormat.M4A).
 3. Storage optimization
-   - Show "Storage used" breakdown (e.g. by format or by folder) in Settings or Library
-   - Optional: "Re-encode to lower bitrate" or "Convert to Opus" for existing files to free space
-4. Compression notes
-   - Document in PHASES or README: FLAC for lossless; Opus for best lossy compression; MP3 for compatibility. No change required if current MP3 pipeline is sufficient.
+   - **Storage used** is already shown in Library (Used / Free). Optional: breakdown by format or re-encode later.
+4. Compression notes ✅
+   - **File extension:** suggestFileName now uses content-type to set extension: mpeg→mp3, mp4/m4a/aac→m4a, ogg→ogg, webm→webm, wav→wav. So M4A and WebM downloads keep correct extension and play in ExoPlayer.
 
 ### Testing:
 - [ ] Quality option affects downloaded file format/bitrate when supported
-- [ ] App works with FLAC/Opus if we add support (ExoPlayer supports both)
+- [ ] App works with M4A/WebM (ExoPlayer supports both)
 
 ### Deliverables:
-- Quality/format options in UI (where pipeline supports it)
-- Documentation on lossless (FLAC) and compression (Opus) options
+- Download quality options (Best / High / Data saver) in Settings; M4A preferred when available
+- Correct file extensions for m4a/webm; documentation above
 
 ---
 
