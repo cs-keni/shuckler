@@ -20,11 +20,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -38,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,10 +80,16 @@ fun LibraryScreen(
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     var libraryFilter by remember { mutableStateOf(LibraryFilter.ALL) }
-    val filteredTracks = remember(completedTracks, libraryFilter) {
-        when (libraryFilter) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredTracks = remember(completedTracks, libraryFilter, searchQuery) {
+        val byFilter = when (libraryFilter) {
             LibraryFilter.ALL -> completedTracks
             LibraryFilter.FAVORITES -> completedTracks.filter { it.isFavorite }
+        }
+        val query = searchQuery.trim()
+        if (query.isEmpty()) byFilter
+        else byFilter.filter {
+            it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true)
         }
     }
     var storageUsed by remember { mutableStateOf(0L) }
@@ -148,6 +157,25 @@ fun LibraryScreen(
                 )
             }
         }
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            placeholder = { Text("Search by title or artist") },
+            singleLine = true,
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null)
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear search")
+                    }
+                }
+            }
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -179,9 +207,10 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = when (libraryFilter) {
-                        LibraryFilter.ALL -> "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL."
-                        LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track to add it."
+                    text = when {
+                        searchQuery.isNotBlank() -> "No tracks match \"$searchQuery\". Try a different search or clear it."
+                        libraryFilter == LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track to add it."
+                        else -> "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL."
                     },
                     style = MaterialTheme.typography.bodyMedium
                 )

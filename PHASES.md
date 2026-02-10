@@ -533,12 +533,12 @@ This document breaks down the Shuckler Android music app development into increm
    - Expose “Play next” / “Add to queue” via long-press context menu or icon buttons on Library track items. Optional: show a snackbar “Added to queue” / “Playing next.”
 
 ### Testing:
-- [ ] Play next inserts track after current and it plays when current ends (or when user skips).
-- [ ] Add to queue appends track; queue length updates in Player UI.
-- [ ] When nothing is playing, “Play next” starts playback with that track (or insert + play from current).
+- [x] Play next inserts track after current; add to queue appends; queue length updates.
+- [x] When nothing is playing, "Play next" starts playback with that track.
+- [x] Queue view on Player shows list; tap row jumps to track. Crossfade audible when track nears end. (Was: When nothing is playing, “Play next” starts playback with that track (or insert + play from current).
 
 ### Deliverables:
-- Add to queue (next / end) from Library; queue and playback behavior correct.
+- Add to queue (next / end) from Library; queue view on Player (bottom sheet); crossfade before track end.
 
 ---
 
@@ -556,9 +556,9 @@ This document breaks down the Shuckler Android music app development into increm
    - Filter on main thread is fine for hundreds of tracks; if list is very large, consider debouncing the filter text (e.g. 150–300 ms) to avoid recomposition on every keystroke.
 
 ### Testing:
-- [ ] Typing in search filters Library by title and artist.
-- [ ] Clearing search restores full list. Favorites filter still applies on top of search.
-- [ ] Play / Play next / Add to queue work on filtered results.
+- [x] Typing in search filters Library by title and artist.
+- [x] Clearing search restores full list. Favorites filter still applies on top of search.
+- [x] Play / Play next / Add to queue work on filtered results.
 
 ### Deliverables:
 - Search/filter bar in Library; offline search by title and artist.
