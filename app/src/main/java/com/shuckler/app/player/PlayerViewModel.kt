@@ -34,6 +34,9 @@ class PlayerViewModel(
     val repeatMode: Flow<Int> = serviceConnection.service
         .flatMapLatest { service -> service?.repeatMode ?: flowOf(Player.REPEAT_MODE_OFF) }
 
+    val playbackSpeed: Flow<Float> = serviceConnection.service
+        .flatMapLatest { service -> service?.playbackSpeed ?: flowOf(1f) }
+
     val playbackPositionMs: Flow<Long> = serviceConnection.service
         .flatMapLatest { service -> service?.playbackPositionMs ?: flowOf(0L) }
 
@@ -140,6 +143,10 @@ class PlayerViewModel(
 
     fun cycleLoopMode() {
         serviceConnection.service.value?.cycleRepeatMode()
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        serviceConnection.service.value?.setPlaybackSpeed(speed)
     }
 
     fun seekTo(positionMs: Long) {

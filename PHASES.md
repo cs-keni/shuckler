@@ -570,15 +570,15 @@ This document breaks down the Shuckler Android music app development into increm
 
 ### Tasks:
 1. **Service**
-   - ExoPlayer: `player.setPlaybackSpeed(speed)`. Expose current speed and setter from MusicPlayerService (e.g. StateFlow or method). Persist last chosen speed in SharedPreferences so it can be restored (optional but nice).
+   - [x] ExoPlayer: `player.setPlaybackSpeed(speed)`. StateFlow + setPlaybackSpeed in MusicPlayerService. Persist via DownloadManager (SharedPreferences). Applied in play() and onCreate.
 2. **UI**
-   - In Player screen (or Settings): speed selector. Options e.g. 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2 (or a subset). Chips or dropdown. Display as “1x”, “1.25x”, etc.
+   - [x] Player screen: horizontal FilterChips for 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2x. Display as “1x”, “1.25x”, etc.
 3. **Behavior**
-   - On change, call service setter; playback continues at new speed. No need to change duration display logic (ExoPlayer reports position/duration in media time; speed only affects how fast time advances).
+   - [x] On change, call service setter; playback continues at new speed. Persists across track change and app restart.
 
 ### Testing:
-- [ ] Changing speed updates playback immediately; persists across track change if persisted.
-- [ ] No crash or stuck state when toggling speed.
+- [x] Changing speed updates playback immediately; persists across track change if persisted.
+- [x] No crash or stuck state when toggling speed.
 
 ### Deliverables:
 - Playback speed control in Player (or Settings); ExoPlayer setPlaybackSpeed integrated.

@@ -88,6 +88,13 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putString(KEY_DOWNLOAD_QUALITY, v).apply()
         }
 
+    /** Playback speed (e.g. 1f = normal). Persisted so it survives app restart. */
+    var playbackSpeed: Float
+        get() = prefs.getFloat(KEY_PLAYBACK_SPEED, 1f).coerceIn(0.5f, 2f)
+        set(value) {
+            prefs.edit().putFloat(KEY_PLAYBACK_SPEED, value.coerceIn(0.5f, 2f)).apply()
+        }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -416,5 +423,6 @@ class DownloadManager(private val context: Context) {
         private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
         private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"
         private const val KEY_DOWNLOAD_QUALITY = "download_quality"
+        private const val KEY_PLAYBACK_SPEED = "playback_speed"
     }
 }

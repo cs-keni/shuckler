@@ -22,6 +22,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -71,6 +73,7 @@ fun PlayerScreen(
     val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
     val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
+    val playbackSpeed by viewModel.playbackSpeed.collectAsState(initial = 1f)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
@@ -313,6 +316,32 @@ fun PlayerScreen(
             Text(
                 if (repeatMode == Player.REPEAT_MODE_ONE) "Loop: On" else "Loop: Off"
             )
+        }
+
+        val speedOptions = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+        fun speedLabel(s: Float) =
+            if (s == s.toInt().toFloat()) "${s.toInt()}x" else "${s}x"
+        var speedMenuExpanded by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier.padding(top = 16.dp)
+        ) {
+            Button(onClick = { speedMenuExpanded = true }) {
+                Text(speedLabel(playbackSpeed))
+            }
+            DropdownMenu(
+                expanded = speedMenuExpanded,
+                onDismissRequest = { speedMenuExpanded = false }
+            ) {
+                speedOptions.forEach { speed ->
+                    DropdownMenuItem(
+                        text = { Text(speedLabel(speed)) },
+                        onClick = {
+                            viewModel.setPlaybackSpeed(speed)
+                            speedMenuExpanded = false
+                        }
+                    )
+                }
+            }
         }
     }
 }

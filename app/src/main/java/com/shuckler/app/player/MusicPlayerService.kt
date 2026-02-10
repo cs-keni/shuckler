@@ -119,6 +119,9 @@ class MusicPlayerService : Service() {
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _playbackSpeed = MutableStateFlow(1f)
+    val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
+
     private val _playbackPositionMs = MutableStateFlow(0L)
     val playbackPositionMs: StateFlow<Long> = _playbackPositionMs.asStateFlow()
 
@@ -205,6 +208,16 @@ class MusicPlayerService : Service() {
         _exoPlayer?.seekTo(positionMs.coerceIn(0L, (_durationMs.value).takeIf { it > 0 } ?: Long.MAX_VALUE))
     }
 
+    private fun getStoredPlaybackSpeed(): Float =
+        (applicationContext as? ShucklerApplication)?.downloadManager?.playbackSpeed ?: 1f
+
+    fun setPlaybackSpeed(speed: Float) {
+        val s = speed.coerceIn(0.5f, 2f)
+        _playbackSpeed.value = s
+        _exoPlayer?.setPlaybackSpeed(s)
+        (applicationContext as? ShucklerApplication)?.downloadManager?.playbackSpeed = s
+    }
+
     fun updatePlaybackProgress() {
         _exoPlayer?.let { player ->
             val position = player.currentPosition
@@ -233,6 +246,11 @@ class MusicPlayerService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
+
+    override fun onCreate() {
+        super.onCreate()
+        _playbackSpeed.value = getStoredPlaybackSpeed()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -311,6 +329,7 @@ class MusicPlayerService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
+        exoPlayer.setPlaybackSpeed(_playbackSpeed.value)
         exoPlayer.play()
         updateMediaSession()
     }
