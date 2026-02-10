@@ -10,13 +10,15 @@ data class QueueItem(
     val uri: String,
     val title: String,
     val artist: String,
-    val trackId: String? = null
+    val trackId: String? = null,
+    val thumbnailUrl: String? = null
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put(KEY_URI, uri)
         put(KEY_TITLE, title)
         put(KEY_ARTIST, artist)
         put(KEY_TRACK_ID, trackId ?: JSONObject.NULL)
+        put(KEY_THUMBNAIL_URL, thumbnailUrl ?: JSONObject.NULL)
     }
 
     companion object {
@@ -24,12 +26,14 @@ data class QueueItem(
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"
         private const val KEY_TRACK_ID = "trackId"
+        private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
 
         fun fromJson(obj: JSONObject): QueueItem = QueueItem(
             uri = obj.getString(KEY_URI),
             title = obj.optString(KEY_TITLE, ""),
             artist = obj.optString(KEY_ARTIST, ""),
-            trackId = obj.optString(KEY_TRACK_ID, "").takeIf { it.isNotBlank() }
+            trackId = obj.optString(KEY_TRACK_ID, "").takeIf { it.isNotBlank() },
+            thumbnailUrl = obj.optString(KEY_THUMBNAIL_URL, "").takeIf { it.isNotBlank() }
         )
 
         fun listToJson(list: List<QueueItem>): String {

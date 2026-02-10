@@ -1,11 +1,18 @@
 package com.shuckler.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import coil.compose.AsyncImage
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -187,7 +194,8 @@ fun SearchScreen() {
                                     downloadManager.startDownload(
                                         audio.url,
                                         audio.title.ifBlank { result.title },
-                                        audio.uploaderName.ifBlank { result.uploaderName ?: "" }
+                                        audio.uploaderName.ifBlank { result.uploaderName ?: "" },
+                                        result.thumbnailUrl
                                     )
                                 }
                                 is YouTubeRepository.AudioStreamResult.Failure -> {
@@ -290,6 +298,31 @@ private fun YouTubeResultItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (result.thumbnailUrl != null) {
+                AsyncImage(
+                    model = result.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .padding(end = 12.dp)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .padding(end = 12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .align(Alignment.Center),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = result.title,

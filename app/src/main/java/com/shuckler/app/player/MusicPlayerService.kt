@@ -10,9 +10,13 @@ import android.media.MediaMetadata
 import android.net.Uri
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
@@ -106,6 +110,12 @@ class MusicPlayerService : Service() {
     private val _currentTrackArtist = MutableStateFlow(DefaultTrackInfo.ARTIST)
     val currentTrackArtist: StateFlow<String> = _currentTrackArtist.asStateFlow()
 
+    private val _currentTrackThumbnailUrl = MutableStateFlow<String?>(null)
+    val currentTrackThumbnailUrl: StateFlow<String?> = _currentTrackThumbnailUrl.asStateFlow()
+
+    @Volatile
+    private var currentArtworkBitmap: Bitmap? = null
+
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
@@ -117,6 +127,46 @@ class MusicPlayerService : Service() {
 
     /** When set (play from library), used for auto-delete-after-playback when track ends. */
     private var currentTrackId: String? = null
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private fun getCrossfadeDurationMs(): Int =
+        (applicationContext as? ShucklerApplication)?.downloadManager?.crossfadeDurationMs ?: 0
+
+    private fun startFadeOut(onComplete: () -> Unit) {
+        val durationMs = getCrossfadeDurationMs().coerceAtLeast(100)
+        val steps = (durationMs / 50).coerceAtLeast(2)
+        val stepMs = durationMs / steps
+        var step = 0
+        fun runStep() {
+            if (step > steps) {
+                _exoPlayer?.volume = 0f
+                onComplete()
+                return
+            }
+            _exoPlayer?.volume = 1f - (step.toFloat() / steps)
+            step++
+            mainHandler.postDelayed({ runStep() }, stepMs.toLong())
+        }
+        runStep()
+    }
+
+    private fun startFadeIn() {
+        val durationMs = getCrossfadeDurationMs().coerceAtLeast(100)
+        val steps = (durationMs / 50).coerceAtLeast(2)
+        val stepMs = durationMs / steps
+        var step = 0
+        fun runStep() {
+            if (step > steps) {
+                _exoPlayer?.volume = 1f
+                return
+            }
+            _exoPlayer?.volume = step.toFloat() / steps
+            step++
+            mainHandler.postDelayed({ runStep() }, stepMs.toLong())
+        }
+        runStep()
+    }
 
     private val queue = mutableListOf<QueueItem>()
     private var currentQueueIndex = -1
@@ -174,11 +224,12 @@ class MusicPlayerService : Service() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: ""
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
+                val thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL)
                 if (uriString != null) {
                     queue.clear()
                     currentQueueIndex = -1
                     updateQueueInfo()
-                    setMediaUri(uriString.toUri(), title, artist, trackId)
+                    setMediaUri(uriString.toUri(), title, artist, trackId, thumbnailUrl)
                     play()
                 }
             }
@@ -227,8 +278,16 @@ class MusicPlayerService : Service() {
     private fun skipToNext() {
         if (queue.isEmpty()) return
         if (currentQueueIndex + 1 < queue.size) {
-            currentQueueIndex++
-            playQueueItemAt(currentQueueIndex)
+            val durationMs = getCrossfadeDurationMs()
+            if (durationMs > 0) {
+                startFadeOut {
+                    currentQueueIndex++
+                    playQueueItemAt(currentQueueIndex, fadeIn = true)
+                }
+            } else {
+                currentQueueIndex++
+                playQueueItemAt(currentQueueIndex)
+            }
         } else {
             pause()
         }
@@ -261,16 +320,18 @@ class MusicPlayerService : Service() {
         queue.addAll(list)
         currentQueueIndex = startIndex.coerceIn(0, list.size - 1)
         updateQueueInfo()
-        playQueueItemAt(currentQueueIndex)
+        playQueueItemAt(currentQueueIndex, fadeIn = false)
     }
 
-    private fun playQueueItemAt(index: Int) {
+    private fun playQueueItemAt(index: Int, fadeIn: Boolean = false) {
         if (index !in queue.indices) return
+        if (fadeIn) _exoPlayer?.volume = 0f
         val item = queue[index]
         val uri = Uri.parse(item.uri)
-        setMediaUri(uri, item.title, item.artist, item.trackId)
+        setMediaUri(uri, item.title, item.artist, item.trackId, item.thumbnailUrl)
         updateQueueInfo()
         play()
+        if (fadeIn) startFadeIn()
     }
 
     /**
@@ -282,8 +343,16 @@ class MusicPlayerService : Service() {
         currentTrackId = null
         if (queue.isNotEmpty() && _repeatMode.value != Player.REPEAT_MODE_ONE) {
             if (currentQueueIndex + 1 < queue.size) {
-                currentQueueIndex++
-                playQueueItemAt(currentQueueIndex)
+                val durationMs = getCrossfadeDurationMs()
+                if (durationMs > 0) {
+                    startFadeOut {
+                        currentQueueIndex++
+                        playQueueItemAt(currentQueueIndex, fadeIn = true)
+                    }
+                } else {
+                    currentQueueIndex++
+                    playQueueItemAt(currentQueueIndex)
+                }
             } else {
                 pause()
             }
@@ -293,11 +362,15 @@ class MusicPlayerService : Service() {
     /**
      * Switch playback to a file (e.g. downloaded track). Call before or instead of play().
      * @param trackId Optional library track id for auto-delete-after-playback when track ends.
+     * @param thumbnailUrl Optional artwork URL for notification and UI.
      */
-    fun setMediaUri(uri: Uri, title: String, artist: String, trackId: String? = null) {
+    fun setMediaUri(uri: Uri, title: String, artist: String, trackId: String? = null, thumbnailUrl: String? = null) {
         currentTrackId = trackId
         _currentTrackTitle.value = title
         _currentTrackArtist.value = artist
+        _currentTrackThumbnailUrl.value = thumbnailUrl
+        currentArtworkBitmap = null
+        thumbnailUrl?.let { url -> loadArtworkForNotification(url) }
         val playbackEndedListener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
@@ -406,7 +479,7 @@ class MusicPlayerService : Service() {
         // MediaStyle.setMediaSession() expects MediaSessionCompat.Token; we use platform MediaSession.
         // Notification still shows prev/play/next; lock screen uses platform session from updateMediaSession().
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(_currentTrackTitle.value)
             .setContentText(_currentTrackArtist.value)
             .setSmallIcon(android.R.drawable.ic_media_play)
@@ -417,7 +490,38 @@ class MusicPlayerService : Service() {
             .setStyle(mediaStyle)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .build()
+        currentArtworkBitmap?.let { builder.setLargeIcon(it) }
+        return builder.build()
+    }
+
+    private fun loadArtworkForNotification(url: String) {
+        Thread {
+            try {
+                val connection = java.net.URL(url).openConnection()
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.getInputStream().use { stream ->
+                    val opts = BitmapFactory.Options().apply {
+                        inSampleSize = 4
+                        inJustDecodeBounds = false
+                    }
+                    val bitmap = BitmapFactory.decodeStream(stream, null, opts)
+                    if (bitmap != null && _currentTrackThumbnailUrl.value == url) {
+                        val maxSize = 256
+                        val scale = minOf(
+                            maxSize.toFloat() / bitmap.width,
+                            maxSize.toFloat() / bitmap.height
+                        ).coerceAtMost(1f)
+                        val w = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                        val h = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                        val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
+                        if (scaled != bitmap) bitmap.recycle()
+                        currentArtworkBitmap = scaled
+                        mainHandler.post { updateNotification() }
+                    }
+                }
+            } catch (_: Exception) { }
+        }.start()
     }
 
     private fun getServicePendingIntent(action: String): PendingIntent {
@@ -468,6 +572,7 @@ class MusicPlayerService : Service() {
         const val EXTRA_TRACK_ID = "track_id"
         const val EXTRA_QUEUE_JSON = "queue_json"
         const val EXTRA_START_INDEX = "start_index"
+        const val EXTRA_THUMBNAIL_URL = "thumbnail_url"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }

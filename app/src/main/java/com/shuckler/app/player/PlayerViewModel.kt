@@ -28,6 +28,9 @@ class PlayerViewModel(
     val currentTrackArtist: Flow<String> = serviceConnection.service
         .flatMapLatest { service -> service?.currentTrackArtist ?: flowOf(DEFAULT_TRACK_ARTIST) }
 
+    val currentTrackThumbnailUrl: Flow<String?> = serviceConnection.service
+        .flatMapLatest { service -> service?.currentTrackThumbnailUrl ?: flowOf(null) }
+
     val repeatMode: Flow<Int> = serviceConnection.service
         .flatMapLatest { service -> service?.repeatMode ?: flowOf(Player.REPEAT_MODE_OFF) }
 

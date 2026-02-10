@@ -54,6 +54,7 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.25.1")
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)

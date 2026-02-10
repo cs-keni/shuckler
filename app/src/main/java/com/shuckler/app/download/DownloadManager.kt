@@ -70,6 +70,13 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putBoolean(KEY_AUTO_DELETE_AFTER_PLAYBACK, value).apply()
         }
 
+    /** Crossfade duration in ms when advancing to next track (0 = off). */
+    var crossfadeDurationMs: Int
+        get() = prefs.getInt(KEY_CROSSFADE_DURATION_MS, 0).coerceIn(0, 15000)
+        set(value) {
+            prefs.edit().putInt(KEY_CROSSFADE_DURATION_MS, value.coerceIn(0, 15000)).apply()
+        }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -77,17 +84,17 @@ class DownloadManager(private val context: Context) {
     }
 
     /**
-     * Start downloading from [url]. Optional [title] and [artist] for display.
+     * Start downloading from [url]. Optional [title], [artist], and [thumbnailUrl] for display.
      * Returns the download id; progress and completion are exposed via [progress] and [downloads].
      */
-    fun startDownload(url: String, title: String? = null, artist: String? = null): String {
+    fun startDownload(url: String, title: String? = null, artist: String? = null, thumbnailUrl: String? = null): String {
         _lastDownloadError.value = null
         val id = UUID.randomUUID().toString()
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
 
         val job = scope.launch {
-            runDownload(id, url, safeTitle, safeArtist)
+            runDownload(id, url, safeTitle, safeArtist, thumbnailUrl)
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -176,7 +183,7 @@ class DownloadManager(private val context: Context) {
         }
     }
 
-    private suspend fun runDownload(id: String, urlString: String, title: String, artist: String) {
+    private suspend fun runDownload(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String? = null) {
         withContext(Dispatchers.IO) {
             val maxAttempts = 2
             var lastError: Exception? = null
@@ -238,7 +245,7 @@ class DownloadManager(private val context: Context) {
                     }
 
                     // Complete and persist before close() so we don't lose the track if close() throws
-                    completeDownload(id, file.absolutePath, urlString, title, artist, file.length())
+                    completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
                     outputStream.close()
                     outputStream = null
                     clearProgress(id)
@@ -284,7 +291,7 @@ class DownloadManager(private val context: Context) {
         _progress.value = _progress.value - id
     }
 
-    private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String, fileSizeBytes: Long = 0L) {
+    private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String, fileSizeBytes: Long = 0L, thumbnailUrl: String? = null) {
         Log.d(TAG, "completeDownload: $title -> $filePath")
         val track = DownloadedTrack(
             id = id,
@@ -295,7 +302,8 @@ class DownloadManager(private val context: Context) {
             status = DownloadStatus.COMPLETED,
             downloadProgress = 100,
             fileSizeBytes = fileSizeBytes,
-            downloadDateMs = System.currentTimeMillis()
+            downloadDateMs = System.currentTimeMillis(),
+            thumbnailUrl = thumbnailUrl
         )
         _downloads.value = _downloads.value + track
         saveMetadata(_downloads.value)
@@ -338,6 +346,7 @@ class DownloadManager(private val context: Context) {
                     downloadDateMs = obj.optLong(KEY_DOWNLOAD_DATE_MS, 0L),
                     playCount = obj.optInt(KEY_PLAY_COUNT, 0),
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
+                    thumbnailUrl = obj.optString(KEY_THUMBNAIL_URL, "").takeIf { it.isNotBlank() },
                     status = DownloadStatus.COMPLETED,
                     downloadProgress = 100
                 )
@@ -363,6 +372,7 @@ class DownloadManager(private val context: Context) {
                         put(KEY_DOWNLOAD_DATE_MS, track.downloadDateMs)
                         put(KEY_PLAY_COUNT, track.playCount)
                         put(KEY_IS_FAVORITE, track.isFavorite)
+                        put(KEY_THUMBNAIL_URL, track.thumbnailUrl ?: "")
                     })
                 }
             metadataFile.writeText(arr.toString())
@@ -388,7 +398,9 @@ class DownloadManager(private val context: Context) {
         private const val KEY_DOWNLOAD_DATE_MS = "downloadDateMs"
         private const val KEY_PLAY_COUNT = "playCount"
         private const val KEY_IS_FAVORITE = "isFavorite"
+        private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
         private const val PREFS_NAME = "shuckler_settings"
         private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
+        private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"
     }
 }

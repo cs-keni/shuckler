@@ -406,8 +406,8 @@ This document breaks down the Shuckler Android music app development into increm
 - [x] Theme setting switches between Light, Dark, and Follow system correctly
 - [x] Theme choice persists after app restart
 - [x] App icon shows full Shuckle image (not zoomed into body)
-- [ ] Transitions feel smooth and consistent (tab transitions deferred)
-- [ ] No jank or dropped frames on target device
+- [x] Transitions feel smooth and consistent (sliding tab transitions implemented)
+- [x] No jank or dropped frames on target device
 
 ### Deliverables:
 - Light / Dark / Follow system theme with persisted setting
@@ -421,25 +421,24 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Crossfade between tracks (Spotify-like) and reduce/eliminate static or glitches.
 
 ### Tasks:
-1. Crossfade between tracks
-   - ExoPlayer/Media3 has no built-in crossfade; use **volume-based crossfade** with two player instances (or fade out current, then switch and fade in next)
-   - Optional: configurable crossfade duration (e.g. 3–10 seconds) in Settings
-   - When queue advances: start next track at 0 volume, fade out current while fading in next over N seconds
-2. Static / crackling (research and mitigation)
-   - **Emulator note:** Static and glitches are common on the Android emulator (buffer size, sample rate quirks). Always verify playback on a **real device** (e.g. S22 Ultra) before assuming an app bug.
-   - **Startup static:** Audio may be staticky when playback first starts; it often improves or disappears after the app has been running for a while (pipeline warmup or emulator behavior). If it persists on a real device, investigate buffer sizes or Media3 version.
-   - If static persists on real device: ensure Media3/ExoPlayer is up to date (SilenceSkippingAudioProcessor bugs have been fixed in newer versions)
-   - Optional: try increasing buffer sizes or disabling silence-skipping if using custom pipeline
-   - Add a short "Audio troubleshooting" note in app docs or developer notes
+1. Crossfade between tracks ✅
+   - Volume-based crossfade: fade out current track, then switch to next and fade in (single ExoPlayer).
+   - Configurable duration in Settings: **slider 0–10 s** (Spotify-style; stored in SharedPreferences via DownloadManager). "Off" at 0.
+   - On queue advance (track end or skip next): if crossfade > 0, run fade-out steps then play next at 0 volume and fade in.
+2. Static / crackling (research and mitigation) ✅
+   - **Emulator note:** Static and glitches are common on the Android emulator (buffer size, sample rate quirks). Always verify playback on a **real device** before assuming an app bug.
+   - **Startup static:** Audio may be staticky when playback first starts; it often improves after the app has been running (pipeline warmup or emulator behavior). If it persists on a real device, investigate buffer sizes or Media3 version.
+   - If static persists on real device: ensure Media3/ExoPlayer is up to date (SilenceSkippingAudioProcessor bugs have been fixed in newer versions). Optional: try increasing buffer sizes or disabling silence-skipping if using custom pipeline.
+   - **Audio troubleshooting** (developer note): See Phase 10+ Roadmap and this section; emulator vs real device is the first check; then Media3/ExoPlayer version and buffer settings.
 3. Optional: audio focus and ducking
    - Ensure other apps (e.g. navigation) can take focus and Shuckler ducks correctly
 
 ### Testing:
-- [ ] Crossfade works when moving to next track (no hard cut)
-- [ ] Playback on real device: confirm whether static is emulator-only or needs code fix
+- [x] Crossfade works when moving to next track (no hard cut)
+- [x] Playback on real device: confirm whether static is emulator-only or needs code fix
 
 ### Deliverables:
-- Crossfade option (and setting for duration)
+- Crossfade slider (0–10 s) in Settings
 - Documented approach for static (emulator vs device, Media3 version)
 
 ---
@@ -448,15 +447,16 @@ This document breaks down the Shuckler Android music app development into increm
 **Goal:** Show track art (e.g. thumbnails) in Library, Player, and notification where feasible.
 
 ### Tasks:
-1. Artwork source
-   - **YouTube:** Thumbnail URL is available from search results and from extractor (e.g. NewPipe/yt-dlp). Store thumbnail URL or download and cache a small image per track in metadata.
-   - For direct MP3 URLs: no thumbnail unless we add a separate "artwork URL" field or embed in ID3 (advanced).
-2. Display artwork
-   - Library list: small thumbnail per track (or placeholder icon if none)
-   - Player screen: larger art (e.g. album-art style) with placeholder when missing
-   - Notification: set large icon / artwork in media notification (MediaStyle supports large icon)
-3. Storage
-   - Store thumbnail URL in track metadata, or cache image in app storage (e.g. in files dir by track id) and store path. Cache eviction when track is deleted.
+1. Artwork source ✅
+   - **YouTube:** Thumbnail URL from search results (NewPipe) is passed when starting download and stored in DownloadedTrack metadata.
+   - Direct MP3 URLs: no thumbnail (optional field remains null).
+2. Display artwork ✅
+   - **Search:** Small thumbnail per YouTube result (or placeholder icon).
+   - **Library list:** Small thumbnail per track (Coil AsyncImage) or placeholder icon.
+   - **Player screen:** Larger art (200dp) with placeholder when missing.
+   - **Notification:** Large icon set when artwork is available (bitmap loaded in background from thumbnail URL, scaled to 256px).
+3. Storage ✅
+   - Thumbnail URL stored in track metadata (downloads.json). No local image cache; images loaded from URL via Coil (UI) or URL connection (notification). Cache eviction: track delete removes metadata; no separate art files.
 
 ### Notes:
 - Full "video" or rich metadata (e.g. channel art, description) is optional and not required for parity; focus on thumbnail/art for now.
@@ -466,7 +466,7 @@ This document breaks down the Shuckler Android music app development into increm
 - [ ] Notification shows artwork when supported
 
 ### Deliverables:
-- Thumbnail/art in Library, Player, and notification where we have a source (e.g. YouTube)
+- Thumbnail/art in Search, Library, Player, and notification where we have a source (e.g. YouTube)
 
 ---
 
@@ -511,6 +511,7 @@ This document breaks down the Shuckler Android music app development into increm
 8. **Split long compilations** – For very long YouTube videos, optional split by chapters or time intervals into separate tracks.
 9. **"Play next" / "Add to queue"** – From Search or Library, add one track to queue or insert after current.
 10. **Lyrics** – If a source is available (e.g. some APIs or embedded), show lyrics in Player (stretch goal).
+11. **Recommendation system (optional)** – Track what the user searches and what they favorite; recommend similar content. For 1–2 users, keep it simple: e.g. "Recent searches," "More from your favorites" (same artist or recently played), or a "For you" section that surfaces favorited artists and recent queries. Full ML/collaborative filtering is overkill; simple rules (recent + favorites) can work well and be implemented in a later phase if desired.
 
 ### Implementation notes:
 - Each item can be a small sub-phase or a single task block; no strict order.

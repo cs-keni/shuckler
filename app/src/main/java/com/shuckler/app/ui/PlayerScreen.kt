@@ -1,12 +1,16 @@
 package com.shuckler.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -27,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import com.shuckler.app.download.LocalDownloadManager
@@ -36,6 +41,7 @@ import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.ui.theme.LocalThemeMode
 import com.shuckler.app.ui.theme.LocalThemeModeSetter
 import com.shuckler.app.ui.theme.ThemeMode
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 @Composable
@@ -54,6 +60,7 @@ fun PlayerScreen(
     val positionMs by viewModel.playbackPositionMs.collectAsState(initial = 0L)
     val durationMs by viewModel.durationMs.collectAsState(initial = 0L)
     val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
+    val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -72,6 +79,8 @@ fun PlayerScreen(
             onThemeModeChange = setThemeMode,
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
             onAutoDeleteChange = { downloadManager.autoDeleteAfterPlayback = it },
+            crossfadeDurationMs = downloadManager.crossfadeDurationMs,
+            onCrossfadeChange = { downloadManager.crossfadeDurationMs = it },
             onDismiss = { showSettingsDialog = false }
         )
     }
@@ -91,6 +100,31 @@ fun PlayerScreen(
         ) {
             IconButton(onClick = { showSettingsDialog = true }) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
+            }
+        }
+        if (thumbnailUrl != null) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(200.dp)
+                    .padding(bottom = 16.dp)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .padding(bottom = 16.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         Text(
@@ -199,6 +233,8 @@ private fun SettingsDialog(
     onThemeModeChange: (ThemeMode) -> Unit,
     autoDeleteAfterPlayback: Boolean,
     onAutoDeleteChange: (Boolean) -> Unit,
+    crossfadeDurationMs: Int,
+    onCrossfadeChange: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
@@ -239,6 +275,31 @@ private fun SettingsDialog(
                         }
                     }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Crossfade",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (crossfadeDurationMs == 0) "Off" else "${crossfadeDurationMs / 1000} s",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Slider(
+                    value = (crossfadeDurationMs / 1000f).coerceIn(0f, 10f),
+                    onValueChange = { sec ->
+                        onCrossfadeChange((sec * 1000).roundToInt().coerceIn(0, 10000))
+                    },
+                    valueRange = 0f..10f,
+                    steps = 19,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Text(
                     text = "Delete after playback (except favorites)",
                     style = MaterialTheme.typography.labelMedium,
