@@ -16,16 +16,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -58,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.playlist.LocalPlaylistManager
+import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
@@ -95,6 +102,12 @@ fun LibraryScreen(
     var storageUsed by remember { mutableStateOf(0L) }
     var storageAvailable by remember { mutableStateOf(0L) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showAddToPlaylistTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
+    val playlistManager = LocalPlaylistManager.current
+    val playlists by playlistManager.playlists.collectAsState()
+    val allEntries by playlistManager.allEntries.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -126,6 +139,36 @@ fun LibraryScreen(
         )
     }
 
+    if (selectedPlaylist != null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            PlaylistDetailScreen(
+                playlist = selectedPlaylist!!,
+                onBack = { selectedPlaylist = null },
+                onPlaylistUpdated = { selectedPlaylist = it }
+            )
+        }
+        return
+    }
+
+    if (showCreatePlaylistDialog) {
+        CreateEditPlaylistDialog(
+            playlist = null,
+            onDismiss = { showCreatePlaylistDialog = false },
+            onSave = {
+                showCreatePlaylistDialog = false
+                scope.launch { snackbarHostState.showSnackbar("Playlist \"${it.name}\" created") }
+            }
+        )
+    }
+
+    showAddToPlaylistTrack?.let { track ->
+        AddToPlaylistDialog(
+            track = track,
+            onDismiss = { showAddToPlaylistTrack = null },
+            onAdded = { scope.launch { snackbarHostState.showSnackbar("Added to playlist") } }
+        )
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
@@ -135,6 +178,45 @@ fun LibraryScreen(
             .padding(paddingValues)
             .padding(16.dp)
     ) {
+        Text(
+            text = "Playlists",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Card(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clickable { showCreatePlaylistDialog = true },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Add, contentDescription = "Add playlist")
+                        Text("New", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(playlists, key = { it.id }) { playlist ->
+                    val entries = allEntries.filter { it.playlistId == playlist.id }.sortedBy { it.position }
+                    PlaylistCard(
+                        playlist = playlist,
+                        tracks = completedTracks,
+                        entries = entries,
+                        onClick = { selectedPlaylist = playlist }
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -248,7 +330,8 @@ fun LibraryScreen(
                         onAddToQueueClick = {
                             viewModel.addToQueueEnd(trackToQueueItem(it))
                             scope.launch { snackbarHostState.showSnackbar("Added to queue") }
-                        }
+                        },
+                        onAddToPlaylistClick = { showAddToPlaylistTrack = it }
                     )
                 }
             }
@@ -281,6 +364,66 @@ private fun FilterChip(
 }
 
 @Composable
+private fun PlaylistCard(
+    playlist: Playlist,
+    tracks: List<DownloadedTrack>,
+    entries: List<com.shuckler.app.playlist.PlaylistEntry>,
+    onClick: () -> Unit
+) {
+    val firstTrack = entries.firstOrNull()?.let { e -> tracks.find { it.id == e.trackId } }
+    Card(
+        modifier = Modifier
+            .size(100.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (playlist.coverImagePath != null && java.io.File(playlist.coverImagePath).exists()) {
+                coil.compose.AsyncImage(
+                    model = java.io.File(playlist.coverImagePath),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else if (firstTrack?.thumbnailUrl != null) {
+                coil.compose.AsyncImage(
+                    model = firstTrack.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.PlaylistAdd,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                    .padding(4.dp)
+            ) {
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibraryTrackItem(
     track: DownloadedTrack,
     modifier: Modifier = Modifier,
@@ -288,7 +431,8 @@ private fun LibraryTrackItem(
     onFavoriteClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onPlayNextClick: (DownloadedTrack) -> Unit = {},
-    onAddToQueueClick: (DownloadedTrack) -> Unit = {}
+    onAddToQueueClick: (DownloadedTrack) -> Unit = {},
+    onAddToPlaylistClick: (DownloadedTrack) -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val favoriteScale by animateFloatAsState(
@@ -420,6 +564,13 @@ private fun LibraryTrackItem(
                             text = { Text("Add to queue") },
                             onClick = {
                                 onAddToQueueClick(track)
+                                menuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Add to playlist") },
+                            onClick = {
+                                onAddToPlaylistClick(track)
                                 menuExpanded = false
                             }
                         )

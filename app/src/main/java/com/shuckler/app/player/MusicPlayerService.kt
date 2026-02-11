@@ -133,6 +133,100 @@ class MusicPlayerService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    /** Sleep timer: end time in ms (null = off). When reached, pause playback optionally with fade. */
+    @Volatile
+    private var sleepTimerEndMs: Long? = null
+
+    /** When true, stop at end of current track instead of advancing. */
+    @Volatile
+    private var sleepTimerEndOfTrack: Boolean = false
+
+    private var sleepTimerRunnable: Runnable? = null
+
+    private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
+    val sleepTimerRemainingMs: StateFlow<Long?> = _sleepTimerRemainingMs.asStateFlow()
+
+    private fun getSleepTimerFadeLastMinute(): Boolean =
+        (applicationContext as? ShucklerApplication)?.downloadManager?.sleepTimerFadeLastMinute ?: false
+
+    fun startSleepTimer(durationMs: Long, endOfTrack: Boolean) {
+        cancelSleepTimer()
+        if (endOfTrack) {
+            sleepTimerEndOfTrack = true
+            sleepTimerEndMs = null
+            _sleepTimerRemainingMs.value = SLEEP_TIMER_END_OF_TRACK
+        } else {
+            sleepTimerEndOfTrack = false
+            sleepTimerEndMs = System.currentTimeMillis() + durationMs
+            _sleepTimerRemainingMs.value = durationMs
+            scheduleSleepTimerCheck()
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerEndMs = null
+        sleepTimerEndOfTrack = false
+        sleepTimerRunnable?.let { mainHandler.removeCallbacks(it) }
+        sleepTimerRunnable = null
+        _sleepTimerRemainingMs.value = null
+    }
+
+    private fun scheduleSleepTimerCheck() {
+        val endMs = sleepTimerEndMs ?: return
+        val now = System.currentTimeMillis()
+        val remaining = (endMs - now).coerceAtLeast(0L)
+        _sleepTimerRemainingMs.value = remaining
+        if (remaining <= 0) {
+            onSleepTimerFired()
+            return
+        }
+        sleepTimerRunnable = Runnable {
+            scheduleSleepTimerCheck()
+        }
+        mainHandler.postDelayed(sleepTimerRunnable!!, minOf(remaining, 1000L))
+    }
+
+    private fun onSleepTimerFired() {
+        cancelSleepTimer()
+        val fadeLastMinute = getSleepTimerFadeLastMinute()
+        if (fadeLastMinute) {
+            startSleepTimerFadeOut { pause() }
+        } else {
+            pause()
+        }
+    }
+
+    private fun checkSleepTimerEndOfTrack() {
+        if (sleepTimerEndOfTrack) {
+            cancelSleepTimer()
+            val fadeLastMinute = getSleepTimerFadeLastMinute()
+            if (fadeLastMinute) {
+                startSleepTimerFadeOut { pause() }
+            } else {
+                pause()
+            }
+        }
+    }
+
+    /** Fade out over 60 seconds (sleep timer), then run onComplete. */
+    private fun startSleepTimerFadeOut(onComplete: () -> Unit) {
+        val durationMs = 60_000
+        val steps = (durationMs / 50).coerceAtLeast(2)
+        val stepMs = durationMs / steps
+        var step = 0
+        fun runStep() {
+            if (step > steps) {
+                _exoPlayer?.volume = 0f
+                onComplete()
+                return
+            }
+            _exoPlayer?.volume = 1f - (step.toFloat() / steps)
+            step++
+            mainHandler.postDelayed({ runStep() }, stepMs.toLong())
+        }
+        runStep()
+    }
+
     private fun getCrossfadeDurationMs(): Int =
         (applicationContext as? ShucklerApplication)?.downloadManager?.crossfadeDurationMs ?: 0
 
@@ -219,6 +313,14 @@ class MusicPlayerService : Service() {
     }
 
     fun updatePlaybackProgress() {
+        val endMs = sleepTimerEndMs
+        if (endMs != null) {
+            val remaining = (endMs - System.currentTimeMillis()).coerceAtLeast(0L)
+            _sleepTimerRemainingMs.value = remaining
+            if (remaining <= 0) {
+                onSleepTimerFired()
+            }
+        }
         _exoPlayer?.let { player ->
             val position = player.currentPosition
             val dur = player.duration
@@ -282,6 +384,12 @@ class MusicPlayerService : Service() {
             }
             ACTION_ADD_TO_QUEUE_NEXT -> handleAddToQueue(intent, next = true)
             ACTION_ADD_TO_QUEUE_END -> handleAddToQueue(intent, next = false)
+            ACTION_START_SLEEP_TIMER -> {
+                val durationMs = intent.getLongExtra(EXTRA_SLEEP_DURATION_MS, 0L)
+                val endOfTrack = intent.getBooleanExtra(EXTRA_SLEEP_END_OF_TRACK, false)
+                startSleepTimer(durationMs, endOfTrack)
+            }
+            ACTION_CANCEL_SLEEP_TIMER -> cancelSleepTimer()
         }
         return START_STICKY
     }
@@ -335,6 +443,7 @@ class MusicPlayerService : Service() {
     }
 
     fun pause() {
+        cancelSleepTimer()
         exoPlayer.pause()
         updateMediaSession()
         updateNotification()
@@ -412,6 +521,10 @@ class MusicPlayerService : Service() {
      * Called when the current track ends (STATE_ENDED). Handles auto-delete and queue advance.
      */
     private fun onCurrentTrackEnded() {
+        if (sleepTimerEndOfTrack) {
+            checkSleepTimerEndOfTrack()
+            return
+        }
         (applicationContext as? ShucklerApplication)?.downloadManager
             ?.considerAutoDeleteAfterPlayback(currentTrackId)
         currentTrackId = null
@@ -633,6 +746,8 @@ class MusicPlayerService : Service() {
     }
 
     companion object {
+        /** Sentinel for "end of track" mode: remaining is this value (not a real ms count). */
+        const val SLEEP_TIMER_END_OF_TRACK: Long = -1L
         const val ACTION_PLAY = "com.shuckler.app.PLAY"
         const val ACTION_PAUSE = "com.shuckler.app.PAUSE"
         const val ACTION_TOGGLE = "com.shuckler.app.TOGGLE"
@@ -642,7 +757,11 @@ class MusicPlayerService : Service() {
         const val ACTION_PLAY_WITH_QUEUE = "com.shuckler.app.PLAY_WITH_QUEUE"
         const val ACTION_ADD_TO_QUEUE_NEXT = "com.shuckler.app.ADD_TO_QUEUE_NEXT"
         const val ACTION_ADD_TO_QUEUE_END = "com.shuckler.app.ADD_TO_QUEUE_END"
+        const val ACTION_START_SLEEP_TIMER = "com.shuckler.app.START_SLEEP_TIMER"
+        const val ACTION_CANCEL_SLEEP_TIMER = "com.shuckler.app.CANCEL_SLEEP_TIMER"
         const val EXTRA_URI = "uri"
+        const val EXTRA_SLEEP_DURATION_MS = "sleep_duration_ms"
+        const val EXTRA_SLEEP_END_OF_TRACK = "sleep_end_of_track"
         const val EXTRA_TITLE = "title"
         const val EXTRA_ARTIST = "artist"
         const val EXTRA_TRACK_ID = "track_id"

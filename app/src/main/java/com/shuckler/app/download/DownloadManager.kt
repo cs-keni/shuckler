@@ -1,6 +1,7 @@
 package com.shuckler.app.download
 
 import android.content.Context
+import com.shuckler.app.ShucklerApplication
 import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
@@ -95,6 +96,13 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putFloat(KEY_PLAYBACK_SPEED, value.coerceIn(0.5f, 2f)).apply()
         }
 
+    /** When sleep timer fires (or at end of track), fade out over last 60 seconds instead of abrupt stop. */
+    var sleepTimerFadeLastMinute: Boolean
+        get() = prefs.getBoolean(KEY_SLEEP_TIMER_FADE_LAST_MINUTE, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_SLEEP_TIMER_FADE_LAST_MINUTE, value).apply()
+        }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -170,6 +178,7 @@ class DownloadManager(private val context: Context) {
 
     /**
      * Delete a single track: remove file from disk and from metadata.
+     * Also removes the track from all playlists.
      * No-op if id not found or file already missing.
      */
     fun deleteTrack(id: String) {
@@ -183,6 +192,8 @@ class DownloadManager(private val context: Context) {
                 _downloads.value = list.filter { it.id != id }
                 saveMetadata(_downloads.value)
             }
+            (context.applicationContext as? ShucklerApplication)
+                ?.playlistManager?.removeTrackFromAllPlaylists(id)
         }
     }
 
@@ -424,5 +435,6 @@ class DownloadManager(private val context: Context) {
         private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"
         private const val KEY_DOWNLOAD_QUALITY = "download_quality"
         private const val KEY_PLAYBACK_SPEED = "playback_speed"
+        private const val KEY_SLEEP_TIMER_FADE_LAST_MINUTE = "sleep_timer_fade_last_minute"
     }
 }

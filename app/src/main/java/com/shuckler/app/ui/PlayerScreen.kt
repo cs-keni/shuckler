@@ -74,6 +74,7 @@ fun PlayerScreen(
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
     val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
     val playbackSpeed by viewModel.playbackSpeed.collectAsState(initial = 1f)
+    val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState(initial = null)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
@@ -161,6 +162,11 @@ fun PlayerScreen(
             onCrossfadeChange = { downloadManager.crossfadeDurationMs = it },
             downloadQuality = downloadManager.downloadQuality,
             onDownloadQualityChange = { downloadManager.downloadQuality = it },
+            sleepTimerRemainingMs = sleepTimerRemainingMs,
+            onStartSleepTimer = { durationMs, endOfTrack -> viewModel.startSleepTimer(durationMs, endOfTrack) },
+            onCancelSleepTimer = { viewModel.cancelSleepTimer() },
+            sleepTimerFadeLastMinute = downloadManager.sleepTimerFadeLastMinute,
+            onSleepTimerFadeChange = { downloadManager.sleepTimerFadeLastMinute = it },
             onDismiss = { showSettingsDialog = false }
         )
     }
@@ -318,6 +324,31 @@ fun PlayerScreen(
             )
         }
 
+        if (sleepTimerRemainingMs != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp)
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (sleepTimerRemainingMs == com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK)
+                        "Sleep: at end of track"
+                    else
+                        "Sleep: stops in ${sleepTimerRemainingMs!! / 60_000} min",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.cancelSleepTimer() }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        }
+
         val speedOptions = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
         fun speedLabel(s: Float) =
             if (s == s.toInt().toFloat()) "${s.toInt()}x" else "${s}x"
@@ -361,6 +392,15 @@ private val DOWNLOAD_QUALITY_OPTIONS = listOf(
     "data_saver" to "Data saver"
 )
 
+private val SLEEP_TIMER_OPTIONS = listOf(
+    null to "Off",
+    15 * 60 * 1000L to "15 min",
+    30 * 60 * 1000L to "30 min",
+    45 * 60 * 1000L to "45 min",
+    60 * 60 * 1000L to "60 min",
+    -1L to "When track ends"  // -1 = end of track
+)
+
 @Composable
 private fun SettingsDialog(
     themeMode: ThemeMode,
@@ -371,6 +411,11 @@ private fun SettingsDialog(
     onCrossfadeChange: (Int) -> Unit,
     downloadQuality: String,
     onDownloadQualityChange: (String) -> Unit,
+    sleepTimerRemainingMs: Long?,
+    onStartSleepTimer: (Long, Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
+    sleepTimerFadeLastMinute: Boolean,
+    onSleepTimerFadeChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
@@ -470,6 +515,67 @@ private fun SettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    text = "Sleep timer",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        SLEEP_TIMER_OPTIONS.take(3),
+                        SLEEP_TIMER_OPTIONS.drop(3)
+                    ).forEach { rowOptions ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowOptions.forEach { (durationMs, label) ->
+                                val isSelected = when {
+                                    durationMs == null -> sleepTimerRemainingMs == null
+                                    durationMs == -1L -> sleepTimerRemainingMs == com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK
+                                    durationMs > 0 -> {
+                                        val rem = sleepTimerRemainingMs ?: 0L
+                                        rem > 0 && rem != com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK &&
+                                            kotlin.math.abs(rem - durationMs) < 90_000 // within 1.5 min of option
+                                    }
+                                    else -> false
+                                }
+                                Button(
+                                    onClick = {
+                                        if (durationMs == null) onCancelSleepTimer()
+                                        else if (durationMs == -1L) onStartSleepTimer(0L, true)
+                                        else onStartSleepTimer(durationMs, false)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Text(label, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Fade out last 1 min",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = sleepTimerFadeLastMinute,
+                        onCheckedChange = onSleepTimerFadeChange
+                    )
+                }
                 Text(
                     text = "Delete after playback (except favorites)",
                     style = MaterialTheme.typography.labelMedium,

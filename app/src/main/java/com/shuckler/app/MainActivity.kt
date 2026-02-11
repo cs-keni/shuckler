@@ -26,6 +26,8 @@ import androidx.core.content.ContextCompat
 import com.shuckler.app.download.DownloadManager
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.navigation.ShucklerNavGraph
+import com.shuckler.app.playlist.LocalPlaylistManager
+import com.shuckler.app.playlist.PlaylistManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.MusicServiceConnection
 import com.shuckler.app.ui.theme.ShucklerTheme
@@ -61,7 +63,8 @@ class MainActivity : ComponentActivity() {
                 ShucklerTheme(darkTheme = darkTheme) {
                     CompositionLocalProvider(
                         LocalMusicServiceConnection provides musicServiceConnection,
-                        LocalDownloadManager provides downloadManager
+                        LocalDownloadManager provides downloadManager,
+                        LocalPlaylistManager provides (application as ShucklerApplication).playlistManager
                     ) {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             ShucklerNavGraph()

@@ -599,8 +599,8 @@ This document breaks down the Shuckler Android music app development into increm
    - App killed: timer is lost (acceptable). Optional: persist end time and restore in service onCreate (more complex).
 
 ### Testing:
-- [ ] Timer stops playback after selected duration; fade (if implemented) works.
-- [ ] Turning timer off cancels scheduled stop.
+- [x] Timer stops playback after selected duration; fade (if implemented) works.
+- [x] Turning timer off cancels scheduled stop.
 
 ### Deliverables:
 - Sleep timer with duration options and optional fade-out; playback stops when timer ends.

@@ -49,6 +49,9 @@ class PlayerViewModel(
     val queueItems: Flow<List<QueueItem>> = serviceConnection.service
         .flatMapLatest { service -> service?.queueItems ?: flowOf(emptyList()) }
 
+    val sleepTimerRemainingMs: Flow<Long?> = serviceConnection.service
+        .flatMapLatest { service -> service?.sleepTimerRemainingMs ?: flowOf(null) }
+
     fun playQueueItemAt(index: Int) {
         serviceConnection.service.value?.playQueueItemAt(index)
     }
@@ -155,6 +158,26 @@ class PlayerViewModel(
 
     fun updatePlaybackProgress() {
         serviceConnection.service.value?.updatePlaybackProgress()
+    }
+
+    fun startSleepTimer(durationMs: Long, endOfTrack: Boolean) {
+        applicationContext.startForegroundService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_START_SLEEP_TIMER
+                putExtra(MusicPlayerService.EXTRA_SLEEP_DURATION_MS, durationMs)
+                putExtra(MusicPlayerService.EXTRA_SLEEP_END_OF_TRACK, endOfTrack)
+            }
+        )
+        serviceConnection.service.value?.startSleepTimer(durationMs, endOfTrack)
+    }
+
+    fun cancelSleepTimer() {
+        applicationContext.startService(
+            Intent(applicationContext, MusicPlayerService::class.java).apply {
+                action = MusicPlayerService.ACTION_CANCEL_SLEEP_TIMER
+            }
+        )
+        serviceConnection.service.value?.cancelSleepTimer()
     }
 
     private fun startPlaybackService() {
