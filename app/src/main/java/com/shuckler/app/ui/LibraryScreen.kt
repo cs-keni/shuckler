@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -257,6 +259,7 @@ fun LibraryScreen(
                 onClick = { libraryFilter = LibraryFilter.FAVORITES }
             )
         }
+        var showPlaylistSortMenu by remember { mutableStateOf(false) }
         val filteredPlaylists = remember(playlists, searchQuery, playlistSort, allEntries, completedTracks) {
             val q = searchQuery.trim()
             val filtered = if (q.isEmpty()) playlists else playlists.filter { it.name.contains(q, ignoreCase = true) }
@@ -267,38 +270,42 @@ fun LibraryScreen(
                         .mapNotNull { e -> completedTracks.find { it.id == e.trackId }?.lastPlayedMs ?: 0L }
                         .maxOrNull() ?: 0L
                 }
+                LibraryPlaylistSort.MOST_LISTENED -> filtered.sortedByDescending { p ->
+                    allEntries.filter { it.playlistId == p.id }
+                        .sumOf { e -> completedTracks.find { it.id == e.trackId }?.playCount ?: 0 }
+                }
             }
         }
         if (filteredPlaylists.isNotEmpty()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Sort:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 4.dp)
+                    text = "Playlists",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
                 )
-                FilterChip(
-                    label = "A–Z",
-                    selected = playlistSort == LibraryPlaylistSort.ALPHABETICAL,
-                    onClick = { playlistSort = LibraryPlaylistSort.ALPHABETICAL }
-                )
-                FilterChip(
-                    label = "Recently played",
-                    selected = playlistSort == LibraryPlaylistSort.RECENTLY_PLAYED,
-                    onClick = { playlistSort = LibraryPlaylistSort.RECENTLY_PLAYED }
-                )
+                Box {
+                    IconButton(onClick = { showPlaylistSortMenu = true }) {
+                        Icon(Icons.Default.FilterList, contentDescription = "Sort playlists")
+                    }
+                    DropdownMenu(
+                        expanded = showPlaylistSortMenu,
+                        onDismissRequest = { showPlaylistSortMenu = false }
+                    ) {
+                        LibraryPlaylistSort.entries.forEach { sort ->
+                            DropdownMenuItem(
+                                text = { Text(sort.label) },
+                                onClick = {
+                                    playlistSort = sort
+                                    showPlaylistSortMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
-            Text(
-                text = "Playlists",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 4.dp)
-            )
             LazyRow(
                 modifier = Modifier.padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -314,11 +321,6 @@ fun LibraryScreen(
                 }
             }
         }
-        Text(
-            text = "Your Library",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(vertical = 4.dp)
-        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -363,61 +365,64 @@ fun LibraryScreen(
                         Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
                     }
                 }
-            }
-        }
-        if (filteredTracks.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
                 Text(
-                    text = when {
-                        searchQuery.isNotBlank() -> "No tracks match \"$searchQuery\". Try a different search or clear it."
-                        libraryFilter == LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track to add it."
-                        else -> "No downloaded tracks yet. Use Search to download from YouTube or an MP3 URL."
-                    },
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Your Library",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                 )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredTracks, key = { it.id }) { track ->
-                    fun trackToQueueItem(t: DownloadedTrack) = QueueItem(
-                        uri = Uri.fromFile(File(t.filePath)).toString(),
-                        title = t.title,
-                        artist = t.artist,
-                        trackId = t.id,
-                        thumbnailUrl = t.thumbnailUrl
-                    )
-                    LibraryTrackItem(
-                        track = track,
-                        modifier = Modifier.animateItem(),
-                        onPlayClick = {
-                            downloadManager.incrementPlayCount(track.id)
-                            val queueItems = filteredTracks.map { trackToQueueItem(it) }
-                            val index = filteredTracks.indexOf(track).coerceAtLeast(0)
-                            viewModel.playTrackWithQueue(queueItems, index)
-                        },
-                        onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
-                        onDeleteClick = { downloadManager.deleteTrack(track.id) },
-                        onPlayNextClick = {
-                            viewModel.addToQueueNext(trackToQueueItem(it))
-                            scope.launch { snackbarHostState.showSnackbar("Playing next") }
-                        },
-                        onAddToQueueClick = {
-                            viewModel.addToQueueEnd(trackToQueueItem(it))
-                            scope.launch { snackbarHostState.showSnackbar("Added to queue") }
-                        },
-                        onAddToPlaylistClick = { showAddToPlaylistTrack = it }
-                    )
+                if (filteredTracks.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = when {
+                                searchQuery.isNotBlank() -> "No tracks match \"$searchQuery\"."
+                                libraryFilter == LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track."
+                                else -> "No downloaded tracks yet. Use Search to download."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredTracks, key = { it.id }) { track ->
+                            fun trackToQueueItem(t: DownloadedTrack) = QueueItem(
+                                uri = Uri.fromFile(File(t.filePath)).toString(),
+                                title = t.title,
+                                artist = t.artist,
+                                trackId = t.id,
+                                thumbnailUrl = t.thumbnailUrl
+                            )
+                            LibraryTrackItem(
+                                track = track,
+                                modifier = Modifier.animateItem(),
+                                onPlayClick = {
+                                    downloadManager.incrementPlayCount(track.id)
+                                    val queueItems = filteredTracks.map { trackToQueueItem(it) }
+                                    val index = filteredTracks.indexOf(track).coerceAtLeast(0)
+                                    viewModel.playTrackWithQueue(queueItems, index)
+                                },
+                                onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
+                                onDeleteClick = { downloadManager.deleteTrack(track.id) },
+                                onPlayNextClick = {
+                                    viewModel.addToQueueNext(trackToQueueItem(it))
+                                    scope.launch { snackbarHostState.showSnackbar("Playing next") }
+                                },
+                                onAddToQueueClick = {
+                                    viewModel.addToQueueEnd(trackToQueueItem(it))
+                                    scope.launch { snackbarHostState.showSnackbar("Added to queue") }
+                                },
+                                onAddToPlaylistClick = { showAddToPlaylistTrack = it }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -427,7 +432,11 @@ fun LibraryScreen(
 
 private enum class LibraryFilter { ALL, FAVORITES }
 
-private enum class LibraryPlaylistSort { ALPHABETICAL, RECENTLY_PLAYED }
+private enum class LibraryPlaylistSort(val label: String) {
+    ALPHABETICAL("A–Z"),
+    RECENTLY_PLAYED("Recently played"),
+    MOST_LISTENED("Most listened to")
+}
 
 @Composable
 private fun FilterChip(

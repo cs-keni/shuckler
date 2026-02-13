@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -35,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +46,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.DownloadStatus
@@ -88,6 +97,21 @@ fun PlaylistDetailScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val maxCoverHeightPx = with(density) { (maxHeight / 2).toPx() }
+        val minCoverHeightPx = with(density) { (maxHeight / 4).toPx() }
+        val scrollOffset = derivedStateOf {
+            val idx = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            if (idx == 0) offset.toFloat() else maxCoverHeightPx
+        }
+        val coverHeightPx = derivedStateOf {
+            (maxCoverHeightPx - scrollOffset.value).coerceIn(minCoverHeightPx, maxCoverHeightPx)
+        }
+        val maxCoverHeightDp = with(density) { (maxCoverHeightPx / density.density).toDp() }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -110,100 +134,75 @@ fun PlaylistDetailScreen(
                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
             }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .size(160.dp)
-        ) {
-            if (playlist.coverImagePath != null && File(playlist.coverImagePath).exists()) {
-                AsyncImage(
-                    model = File(playlist.coverImagePath),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else if (tracks.isNotEmpty() && tracks.first().thumbnailUrl != null) {
-                AsyncImage(
-                    model = tracks.first().thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.PlaylistAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        if (playlist.description != null) {
-            Text(
-                text = playlist.description!!,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-        if (tracks.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                TextButton(
-                    onClick = {
-                        val items = tracks.map { t ->
-                            QueueItem(
-                                uri = Uri.fromFile(File(t.filePath)).toString(),
-                                title = t.title,
-                                artist = t.artist,
-                                trackId = t.id,
-                                thumbnailUrl = t.thumbnailUrl
-                            )
-                        }
-                        viewModel.playTrackWithQueue(items, 0)
-                        downloadManager.incrementPlayCount(tracks.first().id)
-                    }
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                    Text("Play")
-                }
-            }
-        }
-        Text(
-            text = "Tracks (${tracks.size})",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-        if (tracks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No tracks yet. Add tracks from Your Library.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
+        Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 content = {
-                    items(tracks, key = { it.id }) { track ->
+                    item {
+                        Spacer(modifier = Modifier.fillMaxWidth().height(maxCoverHeightDp))
+                    }
+                    if (playlist.description != null) {
+                        item {
+                            Text(
+                                text = playlist.description!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                    if (tracks.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        val items = tracks.map { t ->
+                                            QueueItem(
+                                                uri = Uri.fromFile(File(t.filePath)).toString(),
+                                                title = t.title,
+                                                artist = t.artist,
+                                                trackId = t.id,
+                                                thumbnailUrl = t.thumbnailUrl
+                                            )
+                                        }
+                                        viewModel.playTrackWithQueue(items, 0)
+                                        downloadManager.incrementPlayCount(tracks.first().id)
+                                    }
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                                    Text("Play")
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Text(
+                            text = "Tracks (${tracks.size})",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                    if (tracks.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No tracks yet. Add tracks from Your Library.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        items(tracks, key = { it.id }) { track ->
                         fun toQueueItem(t: DownloadedTrack) = QueueItem(
                             uri = Uri.fromFile(File(t.filePath)).toString(),
                             title = t.title,
@@ -261,8 +260,57 @@ fun PlaylistDetailScreen(
                         }
                     }
                 }
+            }
             )
+            val coverHeightDp = with(density) { (coverHeightPx.value / density.density).toDp() }
+            val maxW = this@BoxWithConstraints.maxWidth
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(coverHeightDp)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val size = minOf(coverHeightDp, maxW - 48.dp)
+                Box(
+                    modifier = Modifier
+                        .size(size)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    if (playlist.coverImagePath != null && File(playlist.coverImagePath).exists()) {
+                        AsyncImage(
+                            model = File(playlist.coverImagePath),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else if (tracks.isNotEmpty() && tracks.first().thumbnailUrl != null) {
+                        AsyncImage(
+                            model = tracks.first().thumbnailUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.PlaylistAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
         }
+    }
     }
 
     if (showDeleteConfirm) {
@@ -379,8 +427,62 @@ fun CreateEditPlaylistDialog(
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2
                 )
-                TextButton(onClick = { pickImageLauncher.launch("image/*") }) {
-                    Text(if (coverPath != null || pendingCoverUri != null) "Change cover image" else "Choose cover image")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { pickImageLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        when {
+                            coverPath != null && File(coverPath!!).exists() -> {
+                                AsyncImage(
+                                    model = File(coverPath!!),
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            pendingCoverUri != null -> {
+                                AsyncImage(
+                                    model = android.net.Uri.parse(pendingCoverUri),
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                            else -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.PlaylistAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Change cover",
+                                modifier = Modifier.size(36.dp),
+                                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
                 }
             }
         },
