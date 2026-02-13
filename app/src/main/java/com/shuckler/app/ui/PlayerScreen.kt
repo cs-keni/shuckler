@@ -10,13 +10,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +45,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -48,15 +57,14 @@ import com.shuckler.app.player.DefaultTrackInfo
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
-import com.shuckler.app.ui.theme.LocalThemeMode
-import com.shuckler.app.ui.theme.LocalThemeModeSetter
-import com.shuckler.app.ui.theme.ThemeMode
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
+    onCollapse: (() -> Unit)? = null,
+    fromMiniPlayer: Boolean = false,
     viewModel: PlayerViewModel = viewModel(
         factory = PlayerViewModel.Factory(
             LocalContext.current,
@@ -86,8 +94,6 @@ fun PlayerScreen(
         }
     }
 
-    val themeMode = LocalThemeMode.current
-    val setThemeMode = LocalThemeModeSetter.current
     if (showQueueSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
@@ -154,8 +160,6 @@ fun PlayerScreen(
     }
     if (showSettingsDialog) {
         SettingsDialog(
-            themeMode = themeMode,
-            onThemeModeChange = setThemeMode,
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
             onAutoDeleteChange = { downloadManager.autoDeleteAfterPlayback = it },
             crossfadeDurationMs = downloadManager.crossfadeDurationMs,
@@ -182,8 +186,20 @@ fun PlayerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onCollapse != null) {
+                IconButton(onClick = onCollapse) {
+                    Icon(
+                        Icons.Default.ExpandMore,
+                        contentDescription = "Collapse player",
+                        modifier = Modifier.padding(4.dp)
+                    )
+                }
+            } else {
+                Box(modifier = Modifier.size(48.dp))
+            }
             IconButton(onClick = { showSettingsDialog = true }) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
             }
@@ -192,15 +208,18 @@ fun PlayerScreen(
             AsyncImage(
                 model = thumbnailUrl,
                 contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(200.dp)
                     .padding(bottom = 16.dp)
+                    .size(260.dp)
+                    .clip(RoundedCornerShape(16.dp))
             )
         } else {
             Box(
                 modifier = Modifier
-                    .size(200.dp)
                     .padding(bottom = 16.dp)
+                    .size(260.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Icon(
@@ -294,34 +313,81 @@ fun PlayerScreen(
         )
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.padding(top = 24.dp)
         ) {
-            Button(
-                onClick = { viewModel.skipToPrevious() }
+            IconButton(
+                onClick = { viewModel.skipToPrevious() },
+                modifier = Modifier.size(48.dp)
             ) {
-                Text("Previous")
+                Icon(
+                    Icons.Default.SkipPrevious,
+                    contentDescription = "Previous",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
-            Button(
-                onClick = { viewModel.togglePlayPause() }
+            FilledIconButton(
+                onClick = { viewModel.togglePlayPause() },
+                modifier = Modifier.size(72.dp),
+                shape = MaterialTheme.shapes.extraLarge
             ) {
-                Text(if (isPlaying) "Pause" else "Play")
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
-            Button(
-                onClick = { viewModel.skipToNext() }
+            IconButton(
+                onClick = { viewModel.skipToNext() },
+                modifier = Modifier.size(48.dp)
             ) {
-                Text("Next")
+                Icon(
+                    Icons.Default.SkipNext,
+                    contentDescription = "Next",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
-        Button(
-            onClick = { viewModel.cycleLoopMode() },
-            modifier = Modifier.padding(top = 24.dp)
+        val speedOptions = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+        fun speedLabel(s: Float) =
+            if (s == s.toInt().toFloat()) "${s.toInt()}x" else "${s}x"
+        var speedMenuExpanded by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier.padding(top = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                if (repeatMode == Player.REPEAT_MODE_ONE) "Loop: On" else "Loop: Off"
+            FilterChip(
+                selected = repeatMode == Player.REPEAT_MODE_ONE,
+                onClick = { viewModel.cycleLoopMode() },
+                label = { Text("Loop") }
             )
+            Box {
+                FilterChip(
+                    selected = false,
+                    onClick = { speedMenuExpanded = true },
+                    label = { Text(speedLabel(playbackSpeed)) }
+                )
+                DropdownMenu(
+                    expanded = speedMenuExpanded,
+                    onDismissRequest = { speedMenuExpanded = false }
+                ) {
+                    speedOptions.forEach { speed ->
+                        DropdownMenuItem(
+                            text = { Text(speedLabel(speed)) },
+                            onClick = {
+                                viewModel.setPlaybackSpeed(speed)
+                                speedMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
         }
 
         if (sleepTimerRemainingMs != null) {
@@ -349,31 +415,6 @@ fun PlayerScreen(
             }
         }
 
-        val speedOptions = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
-        fun speedLabel(s: Float) =
-            if (s == s.toInt().toFloat()) "${s.toInt()}x" else "${s}x"
-        var speedMenuExpanded by remember { mutableStateOf(false) }
-        Box(
-            modifier = Modifier.padding(top = 16.dp)
-        ) {
-            Button(onClick = { speedMenuExpanded = true }) {
-                Text(speedLabel(playbackSpeed))
-            }
-            DropdownMenu(
-                expanded = speedMenuExpanded,
-                onDismissRequest = { speedMenuExpanded = false }
-            ) {
-                speedOptions.forEach { speed ->
-                    DropdownMenuItem(
-                        text = { Text(speedLabel(speed)) },
-                        onClick = {
-                            viewModel.setPlaybackSpeed(speed)
-                            speedMenuExpanded = false
-                        }
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -386,231 +427,3 @@ private fun formatPlaybackTime(ms: Long): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
-private val DOWNLOAD_QUALITY_OPTIONS = listOf(
-    "best" to "Best",
-    "high" to "High",
-    "data_saver" to "Data saver"
-)
-
-private val SLEEP_TIMER_OPTIONS = listOf(
-    null to "Off",
-    15 * 60 * 1000L to "15 min",
-    30 * 60 * 1000L to "30 min",
-    45 * 60 * 1000L to "45 min",
-    60 * 60 * 1000L to "60 min",
-    -1L to "When track ends"  // -1 = end of track
-)
-
-@Composable
-private fun SettingsDialog(
-    themeMode: ThemeMode,
-    onThemeModeChange: (ThemeMode) -> Unit,
-    autoDeleteAfterPlayback: Boolean,
-    onAutoDeleteChange: (Boolean) -> Unit,
-    crossfadeDurationMs: Int,
-    onCrossfadeChange: (Int) -> Unit,
-    downloadQuality: String,
-    onDownloadQualityChange: (String) -> Unit,
-    sleepTimerRemainingMs: Long?,
-    onStartSleepTimer: (Long, Boolean) -> Unit,
-    onCancelSleepTimer: () -> Unit,
-    sleepTimerFadeLastMinute: Boolean,
-    onSleepTimerFadeChange: (Boolean) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Settings") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(
-                    text = "App theme",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(ThemeMode.LIGHT, ThemeMode.DARK, ThemeMode.SYSTEM).forEach { mode ->
-                        val selected = themeMode == mode
-                        Button(
-                            onClick = { onThemeModeChange(mode) },
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Text(
-                                text = when (mode) {
-                                    ThemeMode.LIGHT -> "Light"
-                                    ThemeMode.DARK -> "Dark"
-                                    ThemeMode.SYSTEM -> "System"
-                                },
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Crossfade",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (crossfadeDurationMs == 0) "Off" else "${crossfadeDurationMs / 1000} s",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Slider(
-                    value = (crossfadeDurationMs / 1000f).coerceIn(0f, 10f),
-                    onValueChange = { sec ->
-                        onCrossfadeChange((sec * 1000).roundToInt().coerceIn(0, 10000))
-                    },
-                    valueRange = 0f..10f,
-                    steps = 19,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = "Download quality (YouTube)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    DOWNLOAD_QUALITY_OPTIONS.forEach { (value, label) ->
-                        val selected = downloadQuality == value
-                        Button(
-                            onClick = { onDownloadQualityChange(value) },
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = "Best = highest bitrate; High = second-highest; Data saver = smallest file. M4A preferred when available.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Sleep timer",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        SLEEP_TIMER_OPTIONS.take(3),
-                        SLEEP_TIMER_OPTIONS.drop(3)
-                    ).forEach { rowOptions ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowOptions.forEach { (durationMs, label) ->
-                                val isSelected = when {
-                                    durationMs == null -> sleepTimerRemainingMs == null
-                                    durationMs == -1L -> sleepTimerRemainingMs == com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK
-                                    durationMs > 0 -> {
-                                        val rem = sleepTimerRemainingMs ?: 0L
-                                        rem > 0 && rem != com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK &&
-                                            kotlin.math.abs(rem - durationMs) < 90_000 // within 1.5 min of option
-                                    }
-                                    else -> false
-                                }
-                                Button(
-                                    onClick = {
-                                        if (durationMs == null) onCancelSleepTimer()
-                                        else if (durationMs == -1L) onStartSleepTimer(0L, true)
-                                        else onStartSleepTimer(durationMs, false)
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                        else MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                ) {
-                                    Text(label, style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Fade out last 1 min",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Switch(
-                        checked = sleepTimerFadeLastMinute,
-                        onCheckedChange = onSleepTimerFadeChange
-                    )
-                }
-                Text(
-                    text = "Delete after playback (except favorites)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Remove track when it finishes, unless it's a favorite",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Switch(
-                        checked = checked,
-                        onCheckedChange = {
-                            checked = it
-                            onAutoDeleteChange(it)
-                        }
-                    )
-                }
-                Text(
-                    text = "When on, tracks are removed automatically when they finish playing, unless they are marked as favorites.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Done")
-            }
-        }
-    )
-}

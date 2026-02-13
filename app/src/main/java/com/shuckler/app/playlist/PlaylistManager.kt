@@ -1,6 +1,7 @@
 package com.shuckler.app.playlist
 
 import android.content.Context
+import android.graphics.Bitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -199,6 +200,18 @@ class PlaylistManager(private val context: Context) {
     }
 
     fun getCoverFilePath(playlistId: String): String = coversDir.resolve("$playlistId.jpg").absolutePath
+
+    suspend fun saveCoverFromBitmap(playlistId: String, bitmap: Bitmap): String? = withContext(Dispatchers.IO) {
+        try {
+            val destFile = File(getCoverFilePath(playlistId))
+            destFile.outputStream().use {
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it)
+            }
+            destFile.absolutePath
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     suspend fun saveCoverFromUri(playlistId: String, sourceUri: String): String? = withContext(Dispatchers.IO) {
         try {

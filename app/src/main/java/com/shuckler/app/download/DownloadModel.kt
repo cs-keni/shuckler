@@ -23,6 +23,7 @@ data class DownloadedTrack(
     val fileSizeBytes: Long = 0L,
     val downloadDateMs: Long = 0L,
     val playCount: Int = 0,
+    val lastPlayedMs: Long = 0L,
     val isFavorite: Boolean = false,
     val thumbnailUrl: String? = null,
     val status: DownloadStatus = DownloadStatus.COMPLETED,

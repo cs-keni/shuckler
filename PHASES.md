@@ -625,41 +625,137 @@ This document breaks down the Shuckler Android music app development into increm
    - Keep existing list animations (animateItem); optional: smooth transition when opening playlist detail. Avoid large refactors; stick to existing nav pattern (tabs: Search, Library, Player; playlists can live under Library or as a fourth tab).
 
 ### Testing:
-- [ ] Create playlist with name, description, and cover; appears in list.
-- [ ] Add tracks from Library to playlist; remove and reorder; play playlist as queue.
-- [ ] Deleting a library track removes it from playlists (or UI hides it); deleting playlist removes data and cover file.
+- [x] Create playlist with name, description, and cover; appears in list.
+- [x] Add tracks from Library to playlist; remove and reorder; play playlist as queue.
+- [x] Deleting a library track removes it from playlists (or UI hides it); deleting playlist removes data and cover file.
 
 ### Deliverables:
 - Custom playlists with name, description, optional cover image; add/remove/reorder tracks; play as queue; persistent storage.
 
 ---
 
-## Phase 21: Modern UI Refresh (Spotify / YouTube Music / Apple Music Style)
-**Goal:** Update the app’s look and feel to feel more modern and cohesive (Spotify, YouTube Music, or Apple Music inspired), with targeted animations where they don’t require risky refactors.
+## Phase 21: Modern UI Refresh — Polish & Mini-Player
+**Goal:** Make the app feel modern, cohesive, and satisfying to use — inspired by the small details in Spotify, YouTube Music, and Apple Music (without copying them exactly). Focus on the expandable player pattern and polished interactions.
 
 ### Tasks:
-1. **Design direction**
-   - Choose a consistent direction: e.g. **Spotify:** dark accent, rounded cards, bold headings, green CTA. **YouTube Music:** card-heavy, thumbnails prominent, red accent. **Apple Music:** clean, lots of white space, subtle shadows. Apply one consistently: color palette (primary/secondary), card shape (rounded corner radius), typography (title/body scale), spacing (padding/margins).
-2. **Global styling**
+1. **Mini-player (collapsible now-playing bar)**
+   - **Always visible when playing:** On Search and Library tabs, show a compact bar at the bottom with album art, title, artist, play/pause, and skip buttons. User can see what's playing and control playback without leaving the tab.
+   - **Tap to expand:** Tapping the mini-bar opens the full Player screen (full artwork, seek bar, all controls, queue, settings).
+   - **Swipe or tap down to collapse:** From the full Player, swipe down or tap a collapse control to return to the mini-bar. Smooth animation between collapsed and expanded states.
+   - **Implementation options:** Use a ModalBottomSheet that expands to full screen, or a shared layout where the Player content slides up from the bottom; mini-bar is the collapsed state of the same component.
+2. **Design direction**
+   - Choose a consistent direction inspired by (not copying) Spotify, YouTube Music, or Apple Music: e.g. rounded cards, bold headings, cohesive color palette, generous spacing. Apply consistently: ColorScheme, corner radius, typography scale, padding/margins.
+3. **Global styling**
    - Theme: adjust ColorScheme (primary, surface, background), Shape (componentsDefaultCornerSize, cards), Typography (headlineMedium, titleLarge, etc.). Keep existing theme mode (light/dark/system); ensure both look good.
-3. **Screens**
-   - **Search:** search bar prominence; result cards with consistent elevation and corner radius; thumbnail size/spacing. **Library:** section headers (e.g. “Playlists,” “Tracks”); list item height and padding; Favorites chip styling. **Player:** large artwork; title/artist hierarchy; control buttons size and spacing; seek bar style. Optional: “Now playing” bar at bottom of Search/Library that taps through to Player (minimized now-playing strip).
-4. **Navigation**
-   - Current tab bar (Search, Library, Player): restyle with icons and labels; selected state (e.g. primary color). If adding Playlists, add as tab or under Library; keep navigation simple.
-5. **Animations (safe)**
-   - Keep existing: tab transition (slide), list item placement (animateItem), favorite scale. Add only where low-risk: e.g. button press scale (already have ripple), list item fade-in on first load (initial animation), or subtle progress indicator. **Avoid:** broad changes to NavHost/navigation structure, or animations that depend on rewriting entire screens.
-6. **Assets**
+4. **Screens**
+   - **Search:** search bar prominence; result cards with consistent elevation and corner radius; thumbnail size/spacing. **Library:** section headers (e.g. "Playlists," "Your Library"); list item height and padding; Favorites chip styling; clear visual hierarchy.
+   - **Player (full):** large artwork; clear title/artist hierarchy; control buttons size and spacing; seek bar style; collapse affordance.
+5. **Navigation**
+   - Tab bar (Search, Library, Player): restyle with icons and labels; clear selected state (e.g. primary color). Player tab can open the full player directly or focus the mini-bar; ensure tab and mini-bar tap both reach full player.
+6. **Polish & micro-interactions**
+   - Keep existing: tab transition (slide), list item placement (animateItem), favorite scale. Add where appropriate: subtle transitions when expanding/collapsing the player; button press feedback; list item fade-in. Avoid risky refactors of NavHost or entire screen rewrites.
+7. **Assets**
    - No new app icon required; optional: adjust default placeholder for “no artwork” (e.g. gradient or icon). Ensure playlist placeholder (Phase 20) fits the new style.
 
 ### Testing:
-- [ ] Light and dark themes look consistent and modern; no contrast or readability regressions.
+- [ ] Mini-player appears on Search/Library when something is playing; play/pause and skip work from collapsed state.
+- [ ] Tapping mini-player expands to full Player; swiping/tapping down collapses to mini-bar.
+- [ ] Light and dark themes look consistent; no contrast or readability regressions.
 - [ ] All existing flows (search, download, library, play, queue, settings) still work; no layout breaks.
 
 ### Deliverables:
-- Cohesive modern UI (colors, shapes, typography, spacing); optional small animation tweaks; no large structural refactors.
+- Mini-player bar on Search/Library when playing; expandable to full Player with smooth transition.
+- Cohesive modern UI (colors, shapes, typography, spacing).
+- Polished interactions that make the app feel easy and satisfying to use.
 
-### Notes:
-- If a full “bottom sheet now playing” or “mini player” is desired, treat it as a follow-up task after Phase 21 to avoid scope creep.
+### Phase 21 (Spotify-Style Refinements — implemented)
+- **Navigation:** Home, Search, Library, Create (4 tabs). Remove Player tab; full Player only when tapping mini-player.
+- **Bottom bar:** Transparent so content shows underneath; icons for each tab.
+- **Mini-player:** Show for any playing song (queue or single track). Tap expands; swipe/collapse dismisses. Semi-transparent bar.
+- **Search:** YouTube only; remove direct MP3 URL download section.
+- **Theme:** Black + bright yellow (Spotify-style but yellow accent). Single dark theme; remove light/dark/system toggle.
+- **Home tab:** Welcome / Listen now; quick access to Search, Library.
+- **Create tab:** Create playlist flow.
+
+---
+
+## Phase 21d: UI Remodel — Design Notes (Planned)
+
+Design notes for the next UI iteration; implement when ready.
+
+### Consistent Header (Home, Search, Library)
+- **Icon top-left:** User/settings icon (circle), same across all three tabs. Default avatar: Shuckle (same as app icon). Tapping opens Settings.
+- **Title:** Search tab shows "Search" to the right of icon; Library shows "Library"; Home shows "Home" (or equivalent).
+
+### Home Tab
+1. **User icon (top-left):** Circular; default = Shuckle. Taps open Settings.
+2. **Playlist shortcuts:** Mini versions (button-like) of user's playlists; max 8 most recent. Tap navigates to playlist.
+3. **When no playlists yet:** Show recommendations instead. Recommendations based on library + liked songs (see below). Display with thumbnail art.
+4. **Color:** More bright yellow; make it almost neon yellow. Add UI details (accents, borders, highlights) using that color.
+5. **Recommendations vs Search:** Since Search will also have recommendations, consider: Home focuses on playlist shortcuts + quick access; Search has search bar + recommendations. Or: Home has playlist shortcuts + something else (e.g. "Recently played") when no playlists; Search owns the recommendation surface.
+
+### Search Tab
+1. **Search bar:** Primary place to search for music.
+2. **Recommendations:** Show recommendations (e.g. based on recent searches, liked artists, or trending). Thumbnail art.
+3. **Header:** Icon + "Search" title.
+
+### Library Tab
+1. **Playlists included:** No large "Create playlist" block.
+2. **"+" button (top-right):** Create playlist; small icon like Spotify.
+3. **Search bar:** To the LEFT of the "+" icon; lets user search/filter playlists when they have many.
+4. **Filters:** Playlists | Albums | Artists (liked) | Recents | Recently added | Alphabetical | Creator.
+5. **View options:** Grid view, detailed/list view, etc.
+
+### Replace Create Tab → Analytics Tab
+1. **Remove Create tab** from bottom nav.
+2. **Analytics tab instead:** Listening stats — graphs, charts, statistics. "What you've listened to."
+3. **Create playlist:** Triggered from Library's "+" button (modal or slide-up). Options: create playlist; collaborative (skip for now — few users).
+
+### Liked Songs
+- **Favorites = Liked:** Use existing favorites (heart icon) as "liked" — no separate concept.
+- Used for: recommendations, "artists you like," filtering, Search recommendations.
+
+### Albums & Artists
+- **Albums:** Shuckler downloads from YouTube; "album" may be derived from metadata or simplified (e.g. tracks by artist).
+- **Artists:** Filter/section "Artists you like" — derive from liked songs.
+
+### Resolved Clarifications
+1. **Home when no playlists:** Show "Recently played" / "Quick picks" first.
+2. **Search recommendations:** Main drivers: liked genres, trending, or "Try these" for exploring new genres. Recent searches factor in if the user has searched the same thing more than 3 times.
+3. **Albums:** Full album support with metadata when possible.
+4. **Neon yellow:** #E8FF00.
+5. **Favorites = Liked:** Treat favorites as liked for recommendations and filtering.
+
+---
+
+## Phase 21e: UI Refinements (Planned)
+
+Follow-up refinements from Phase 21d implementation.
+
+### Home Tab
+- **Greeting:** Already implemented — changes by time of day: "Good morning" (0–11), "Good afternoon" (12–17), "Good evening" (18–23). Uses `Calendar.HOUR_OF_DAY`.
+- **Recommendations:** Will fill space when recommendation system is added.
+
+### Library Tab
+1. **Downloads section (expandable):**
+   - By default: hide the downloads list, storage used, and storage free.
+   - **Collapsed:** chevron down (tap to expand). **Expanded:** chevron up (tap to collapse).
+   - Animated expand/collapse.
+2. **Truncate long titles:** Two-line truncation with trailing `"..."` (maxLines = 2).
+3. **Playlist cards:**
+   - **Name below art:** Playlist name appears **below** the album/cover art, not overlaid.
+   - **Cover crop:** User sees a rounded-square selection they can drag and resize (always square). Slightly rounded corners on crop region. App does not choose dimensions by default.
+4. **Header layout:**
+   - Search = icon button that opens a search field (not a persistent field).
+   - Top row: `[Shuckle icon] [Library] ... [Search icon] [+ icon]`
+   - Search icon directly to the **left** of the "+" icon; "+" in top-right on same line as "Library".
+5. **Filter/sort for playlists:** Alphabetical, Recently played, etc.
+
+### Analytics Tab
+1. **Content:** Tracks, plays, favorites, most played (tracks), most played playlists (title + cover art).
+2. **Time range:** 24 hours, 7 days, 30 days, all time.
+3. **Graphs and bar charts:** Visuals for stats; users prefer visuals over text-only.
+4. **Sort:** Most played, etc.
 
 ---
 

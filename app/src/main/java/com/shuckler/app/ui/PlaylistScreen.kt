@@ -19,11 +19,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -96,7 +96,7 @@ fun PlaylistDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
             Text(
                 text = playlist.name,
@@ -138,7 +138,7 @@ fun PlaylistDetailScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.PlaylistAdd,
+                        Icons.AutoMirrored.Filled.PlaylistAdd,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -310,6 +310,9 @@ fun CreateEditPlaylistDialog(
     var description by remember(playlist?.id) { mutableStateOf(playlist?.description ?: "") }
     var coverPath by remember(playlist?.id) { mutableStateOf(playlist?.coverImagePath) }
     var pendingCoverUri by remember { mutableStateOf<String?>(null) }
+    var showCropDialog by remember { mutableStateOf(false) }
+    var cropUri by remember { mutableStateOf<String?>(null) }
+    var cropForPlaylist by remember { mutableStateOf<Playlist?>(null) }
     val playlistManager = LocalPlaylistManager.current
     val scope = rememberCoroutineScope()
     val pickImageLauncher = rememberLauncherForActivityResult(
@@ -317,12 +320,43 @@ fun CreateEditPlaylistDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             if (playlist != null) {
-                scope.launch {
-                    coverPath = playlistManager.saveCoverFromUri(playlist.id, uri.toString())
-                }
+                cropUri = uri.toString()
+                cropForPlaylist = playlist
+                showCropDialog = true
             } else {
                 pendingCoverUri = uri.toString()
             }
+        }
+    }
+
+    if (showCropDialog) {
+        val uriToCrop = cropUri
+        val targetPlaylist = cropForPlaylist
+        if (uriToCrop != null && targetPlaylist != null) {
+            CropCoverDialog(
+                imageUri = uriToCrop,
+                onCropComplete = { bitmap ->
+                    scope.launch {
+                        val path = playlistManager.saveCoverFromBitmap(targetPlaylist.id, bitmap)
+                        val updated = if (path != null) {
+                            coverPath = path
+                            playlistManager.updatePlaylist(targetPlaylist.copy(coverImagePath = path))
+                            targetPlaylist.copy(coverImagePath = path)
+                        } else targetPlaylist
+                        showCropDialog = false
+                        cropUri = null
+                        cropForPlaylist = null
+                        if (playlist == null) onSave(updated)
+                    }
+                },
+                onDismiss = {
+                    showCropDialog = false
+                    cropUri = null
+                    val p = cropForPlaylist
+                    cropForPlaylist = null
+                    if (p != null && playlist == null) onSave(p)
+                }
+            )
         }
     }
 
@@ -366,16 +400,12 @@ fun CreateEditPlaylistDialog(
                         description = description.takeIf { it.isNotBlank() },
                         coverImagePath = null
                     )
-                    scope.launch {
-                        pendingCoverUri?.let { uri ->
-                            val path = playlistManager.saveCoverFromUri(p.id, uri)
-                            if (path != null) {
-                                playlistManager.updatePlaylist(p.copy(coverImagePath = path))
-                            }
-                        }
-                        onSave(playlistManager.playlists.value.find { it.id == p.id } ?: p)
-                    }
-                    if (pendingCoverUri == null) {
+                    if (pendingCoverUri != null) {
+                        cropUri = pendingCoverUri
+                        cropForPlaylist = p
+                        showCropDialog = true
+                        pendingCoverUri = null
+                    } else {
                         onSave(p)
                     }
                 }

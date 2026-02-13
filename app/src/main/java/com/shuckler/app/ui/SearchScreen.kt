@@ -1,6 +1,7 @@
 package com.shuckler.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,11 +35,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.ui.SearchPreferences
 import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
 import kotlinx.coroutines.launch
@@ -53,16 +55,14 @@ private fun formatSpeed(bytesPerSecond: Long): String {
 }
 
 @Composable
-fun SearchScreen() {
+fun SearchScreen(onSettingsClick: () -> Unit = {}) {
     var searchQuery by remember { mutableStateOf("") }
-    var downloadUrl by remember { mutableStateOf("") }
-    var title by remember { mutableStateOf("") }
-    var artist by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
     var searchLoading by remember { mutableStateOf(false) }
     var lastSearchedQuery by remember { mutableStateOf("") }
     var downloadingVideoUrl by remember { mutableStateOf<String?>(null) }
     var youtubeDownloadError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val downloadManager = LocalDownloadManager.current
@@ -79,6 +79,7 @@ fun SearchScreen() {
         searchResults = emptyList()
         lastSearchedQuery = q
         youtubeDownloadError = null
+        SearchPreferences.recordSearch(context, q)
         scope.launch {
             searchResults = YouTubeRepository.search(q)
             searchLoading = false
@@ -88,23 +89,19 @@ fun SearchScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Search",
-            style = MaterialTheme.typography.headlineMedium
-        )
+        ScreenHeader(title = "Search", onSettingsClick = onSettingsClick)
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("YouTube search") },
+                label = { Text("Search") },
                 placeholder = { Text("Search for music...") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
@@ -208,68 +205,51 @@ fun SearchScreen() {
             }
         }
 
-        Text(
-            text = "Download from URL",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            text = "Paste a direct link to an MP3 file, or use YouTube search above.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-        OutlinedTextField(
-            value = downloadUrl,
-            onValueChange = { downloadUrl = it },
-            label = { Text("MP3 URL") },
-            placeholder = { Text("https://example.com/audio.mp3") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
-        )
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
-            label = { Text("Title (optional)") },
-            placeholder = { Text("Track title") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = artist,
-            onValueChange = { artist = it },
-            label = { Text("Artist (optional)") },
-            placeholder = { Text("Artist name") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Button(
-            onClick = {
-                val url = downloadUrl.trim()
-                if (url.isNotBlank()) {
-                    downloadManager.startDownload(url, title.takeIf { it.isNotBlank() }, artist.takeIf { it.isNotBlank() })
-                    downloadUrl = ""
-                    title = ""
-                    artist = ""
+        if (!searchLoading && searchResults.isEmpty()) {
+            val frequentSearches = remember { SearchPreferences.getFrequentSearches(context, minCount = 3) }
+            if (frequentSearches.isNotEmpty()) {
+                Text(
+                    "Try these",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+                if (frequentSearches.isNotEmpty()) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        frequentSearches.take(5).forEach { suggestion ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable {
+                                        searchQuery = suggestion
+                                        runSearch()
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                            ) {
+                                Text(
+                                    suggestion,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                    }
                 }
-            },
-            modifier = Modifier.align(Alignment.End),
-            enabled = downloadUrl.trim().isNotBlank()
-        ) {
-            Text("Download")
+            }
         }
 
         if (downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() && !searchLoading) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 24.dp),
+                    .padding(vertical = 24.dp, horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "Search YouTube above or paste a direct MP3 URL below to download.",
+                    "Search YouTube to find and download music.",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

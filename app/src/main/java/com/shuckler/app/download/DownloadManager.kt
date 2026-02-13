@@ -140,7 +140,8 @@ class DownloadManager(private val context: Context) {
             withContext(Dispatchers.IO) {
                 val list = _downloads.value
                 val track = list.find { it.id == id } ?: return@withContext
-                val updated = track.copy(playCount = track.playCount + 1)
+                val now = System.currentTimeMillis()
+                val updated = track.copy(playCount = track.playCount + 1, lastPlayedMs = now)
                 _downloads.value = list.map { if (it.id == id) updated else it }
                 saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
             }
@@ -376,6 +377,7 @@ class DownloadManager(private val context: Context) {
                     fileSizeBytes = if (size > 0) size else runCatching { File(path).length() }.getOrNull() ?: 0L,
                     downloadDateMs = obj.optLong(KEY_DOWNLOAD_DATE_MS, 0L),
                     playCount = obj.optInt(KEY_PLAY_COUNT, 0),
+                    lastPlayedMs = obj.optLong(KEY_LAST_PLAYED_MS, 0L),
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
                     thumbnailUrl = obj.optString(KEY_THUMBNAIL_URL, "").takeIf { it.isNotBlank() },
                     status = DownloadStatus.COMPLETED,
@@ -402,6 +404,7 @@ class DownloadManager(private val context: Context) {
                         put(KEY_FILE_SIZE, track.fileSizeBytes)
                         put(KEY_DOWNLOAD_DATE_MS, track.downloadDateMs)
                         put(KEY_PLAY_COUNT, track.playCount)
+                        put(KEY_LAST_PLAYED_MS, track.lastPlayedMs)
                         put(KEY_IS_FAVORITE, track.isFavorite)
                         put(KEY_THUMBNAIL_URL, track.thumbnailUrl ?: "")
                     })
@@ -428,6 +431,7 @@ class DownloadManager(private val context: Context) {
         private const val KEY_FILE_SIZE = "fileSizeBytes"
         private const val KEY_DOWNLOAD_DATE_MS = "downloadDateMs"
         private const val KEY_PLAY_COUNT = "playCount"
+        private const val KEY_LAST_PLAYED_MS = "lastPlayedMs"
         private const val KEY_IS_FAVORITE = "isFavorite"
         private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
         private const val PREFS_NAME = "shuckler_settings"
