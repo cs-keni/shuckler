@@ -32,6 +32,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,8 +43,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.preview.PreviewPlayer
+import com.shuckler.app.recommendation.RecommendationEngine
 import com.shuckler.app.ui.SearchPreferences
 import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
@@ -77,6 +80,21 @@ fun SearchScreen(
     val downloadManager = LocalDownloadManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val progress by downloadManager.progress.collectAsState(initial = emptyMap())
+    val completedTracks = remember(downloads) {
+        downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+    }
+    var recommendedResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
+    var recommendedLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(completedTracks) {
+        if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
+            recommendedLoading = true
+            recommendedResults = RecommendationEngine.fetchRecommendedYouTubeResults(context, completedTracks)
+            recommendedLoading = false
+        } else {
+            recommendedResults = emptyList()
+        }
+    }
     val lastDownloadError by downloadManager.lastDownloadError.collectAsState(initial = null)
     val scrollState = rememberScrollState()
     val previewingVideoUrl by PreviewPlayer.previewingVideoUrl.collectAsState(initial = null)
@@ -246,43 +264,101 @@ fun SearchScreen(
             }
         }
 
-        if (!searchLoading && searchResults.isEmpty()) {
-            val frequentSearches = remember { SearchPreferences.getFrequentSearches(context, minCount = 3) }
-            if (frequentSearches.isNotEmpty()) {
-                Text(
-                    "Try these",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-                if (frequentSearches.isNotEmpty()) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        frequentSearches.take(5).forEach { suggestion ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable {
-                                        searchQuery = suggestion
-                                        runSearch()
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Text(
-                                    suggestion,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(12.dp)
-                                )
+        if (lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks)) {
+            Text(
+                text = "Recommended for you",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            if (recommendedLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                    Text("Finding recommendations…", modifier = Modifier.padding(8.dp))
+                }
+            } else if (recommendedResults.isNotEmpty()) {
+                recommendedResults.forEach { result ->
+                    YouTubeResultItem(
+                        result = result,
+                        isDownloading = downloadingVideoUrl == result.url,
+                        isPreviewing = previewingVideoUrl == result.url,
+                        previewPositionMs = if (previewingVideoUrl == result.url) previewPositionMs else 0L,
+                        previewDurationMs = PreviewPlayer.previewDurationMs,
+                        onPreviewClick = {
+                            youtubeDownloadError = null
+                            scope.launch {
+                                val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                when (resultAudio) {
+                                    is YouTubeRepository.AudioStreamResult.Success ->
+                                        PreviewPlayer.play(context, result.url, resultAudio.info.url)
+                                    is YouTubeRepository.AudioStreamResult.Failure ->
+                                        youtubeDownloadError = resultAudio.message
+                                }
+                            }
+                        },
+                        onStopPreviewClick = { PreviewPlayer.stop() },
+                        onDownloadClick = {
+                            if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                            youtubeDownloadError = null
+                            downloadingVideoUrl = result.url
+                            downloadManager.startDownloadFromYouTube(
+                                result.url,
+                                result.title,
+                                result.uploaderName ?: "",
+                                result.thumbnailUrl
+                            )
+                            scope.launch {
+                                kotlinx.coroutines.delay(500)
+                                if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
                             }
                         }
+                    )
+                }
+            }
+        }
+
+        val frequentSearches = remember { SearchPreferences.getFrequentSearches(context, minCount = 3) }
+        val showTryThese = !searchLoading && searchResults.isEmpty() && frequentSearches.isNotEmpty() &&
+            !(lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks) && (recommendedLoading || recommendedResults.isNotEmpty()))
+        if (showTryThese) {
+            Text(
+                "Try these",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                frequentSearches.take(5).forEach { suggestion ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable {
+                                searchQuery = suggestion
+                                runSearch()
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Text(
+                            suggestion,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(12.dp)
+                        )
                     }
                 }
             }
         }
 
-        if (downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() && !searchLoading) {
+        val showEmptyState = downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() &&
+            !searchLoading && recommendedResults.isEmpty() &&
+            !(lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks) && recommendedLoading)
+        if (showEmptyState) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

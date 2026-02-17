@@ -803,7 +803,7 @@ Follow-up refinements from Phase 21d implementation.
 
 ---
 
-## Phase 24: Recommendation System (Simple)
+## Phase 24: Recommendation System
 **Goal:** Surface “For you”–style content using simple rules: recent searches and favorites (no ML).
 
 ### Tasks:

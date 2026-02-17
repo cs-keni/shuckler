@@ -14,13 +14,26 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,11 +46,16 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
+import com.shuckler.app.preview.PreviewPlayer
+import com.shuckler.app.recommendation.RecommendationEngine
 import com.shuckler.app.ui.SearchPreferences
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import com.shuckler.app.youtube.YouTubeRepository
+import com.shuckler.app.youtube.YouTubeSearchResult
 import java.io.File
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -54,6 +72,7 @@ fun HomeScreen(
     )
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val downloadManager = LocalDownloadManager.current
     val playlistManager = LocalPlaylistManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
@@ -62,6 +81,20 @@ fun HomeScreen(
     val allEntries by playlistManager.allEntries.collectAsState()
 
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
+    var recommendedResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
+    var recommendedLoading by remember { mutableStateOf(false) }
+    val previewingVideoUrl by PreviewPlayer.previewingVideoUrl.collectAsState(initial = null)
+    var downloadingVideoUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(completedTracks) {
+        if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
+            recommendedLoading = true
+            recommendedResults = RecommendationEngine.fetchRecommendedYouTubeResults(context, completedTracks)
+            recommendedLoading = false
+        } else {
+            recommendedResults = emptyList()
+        }
+    }
     val recentlyPlayed = completedTracks
         .filter { it.lastPlayedMs > 0 }
         .sortedByDescending { it.lastPlayedMs }
@@ -124,6 +157,68 @@ fun HomeScreen(
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
+            Text(
+                text = "Recommended for you",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            if (recommendedLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Text(
+                        text = "Finding recommendations…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            } else if (recommendedResults.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(recommendedResults, key = { it.url }) { result ->
+                        RecommendedYouTubeCard(
+                            result = result,
+                            isDownloading = downloadingVideoUrl == result.url,
+                            isPreviewing = previewingVideoUrl == result.url,
+                            onPreviewClick = {
+                                scope.launch {
+                                    val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                    when (audio) {
+                                        is YouTubeRepository.AudioStreamResult.Success ->
+                                            PreviewPlayer.play(context, result.url, audio.info.url)
+                                        is YouTubeRepository.AudioStreamResult.Failure -> { /* TODO: snackbar */ }
+                                    }
+                                }
+                            },
+                            onStopPreviewClick = { PreviewPlayer.stop() },
+                            onDownloadClick = {
+                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                                downloadingVideoUrl = result.url
+                                downloadManager.startDownloadFromYouTube(
+                                    result.url,
+                                    result.title,
+                                    result.uploaderName ?: "",
+                                    result.thumbnailUrl
+                                )
+                                scope.launch {
+                                    kotlinx.coroutines.delay(500)
+                                    if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                }
+                            }
                         )
                     }
                 }
@@ -297,6 +392,71 @@ private fun TrackShortcutCard(
                 maxLines = 2,
                 modifier = Modifier.padding(top = 4.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun RecommendedYouTubeCard(
+    result: YouTubeSearchResult,
+    isDownloading: Boolean,
+    isPreviewing: Boolean,
+    onPreviewClick: () -> Unit,
+    onStopPreviewClick: () -> Unit,
+    onDownloadClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.size(width = 160.dp, height = 140.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(8.dp)
+        ) {
+            if (result.thumbnailUrl != null) {
+                AsyncImage(
+                    model = result.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                )
+            }
+            Text(
+                text = result.title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isPreviewing) {
+                    IconButton(onClick = onStopPreviewClick) {
+                        Icon(Icons.Default.Stop, contentDescription = "Stop preview", modifier = Modifier.size(20.dp))
+                    }
+                } else {
+                    IconButton(onClick = onPreviewClick) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(20.dp))
+                    }
+                }
+                IconButton(onClick = onDownloadClick, enabled = !isDownloading) {
+                    Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(20.dp))
+                }
+            }
         }
     }
 }
