@@ -64,6 +64,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     var showPlayerSheet by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var selectedPlaylistToOpen by remember { mutableStateOf<Playlist?>(null) }
+    var pendingSearchQuery by remember { mutableStateOf<String?>(null) }
 
     val viewModel: PlayerViewModel = viewModel(
         factory = PlayerViewModel.Factory(
@@ -166,10 +167,18 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                         selectedPlaylistToOpen = it
                         currentScreen = Screen.Library
                     },
+                    onSearchQuerySelected = {
+                        pendingSearchQuery = it
+                        currentScreen = Screen.Search
+                    },
                     onSettingsClick = { showSettingsDialog = true },
                     viewModel = viewModel
                 )
-                Screen.Search -> SearchScreen(onSettingsClick = { showSettingsDialog = true })
+                Screen.Search -> SearchScreen(
+                    onSettingsClick = { showSettingsDialog = true },
+                    initialQuery = pendingSearchQuery,
+                    onInitialQueryConsumed = { pendingSearchQuery = null }
+                )
                 Screen.Library -> LibraryScreen(
                     initialPlaylistToOpen = selectedPlaylistToOpen,
                     onClearInitialPlaylist = { selectedPlaylistToOpen = null },

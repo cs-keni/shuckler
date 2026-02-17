@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +60,11 @@ private fun formatSpeed(bytesPerSecond: Long): String {
 }
 
 @Composable
-fun SearchScreen(onSettingsClick: () -> Unit = {}) {
+fun SearchScreen(
+    onSettingsClick: () -> Unit = {},
+    initialQuery: String? = null,
+    onInitialQueryConsumed: () -> Unit = {}
+) {
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
     var searchLoading by remember { mutableStateOf(false) }
@@ -79,6 +84,22 @@ fun SearchScreen(onSettingsClick: () -> Unit = {}) {
 
     DisposableEffect(Unit) {
         onDispose { PreviewPlayer.stop() }
+    }
+
+    LaunchedEffect(initialQuery) {
+        initialQuery?.let { q ->
+            searchQuery = q
+            onInitialQueryConsumed()
+            // Trigger search - runSearch reads searchQuery which we just set
+            focusManager.clearFocus()
+            searchLoading = true
+            searchResults = emptyList()
+            lastSearchedQuery = q
+            youtubeDownloadError = null
+            SearchPreferences.recordSearch(context, q)
+            searchResults = YouTubeRepository.search(q)
+            searchLoading = false
+        }
     }
 
     fun runSearch() {

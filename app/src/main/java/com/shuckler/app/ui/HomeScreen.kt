@@ -33,6 +33,7 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
+import com.shuckler.app.ui.SearchPreferences
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
@@ -43,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @Composable
 fun HomeScreen(
     onPlaylistSelected: (Playlist) -> Unit,
+    onSearchQuerySelected: (String) -> Unit = {},
     onSettingsClick: () -> Unit,
     viewModel: PlayerViewModel = viewModel(
         factory = PlayerViewModel.Factory(
@@ -51,9 +53,11 @@ fun HomeScreen(
         )
     )
 ) {
+    val context = LocalContext.current
     val downloadManager = LocalDownloadManager.current
     val playlistManager = LocalPlaylistManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
+    val recentSearches = SearchPreferences.getRecentSearches(context)
     val playlists by playlistManager.playlists.collectAsState()
     val allEntries by playlistManager.allEntries.collectAsState()
 
@@ -93,6 +97,38 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+
+        if (recentSearches.isNotEmpty()) {
+            Text(
+                text = "Recent searches",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(recentSearches, key = { it }) { query ->
+                    Card(
+                        modifier = Modifier
+                            .clickable { onSearchQuerySelected(query) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Text(
+                            text = query,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
 
         if (recentPlaylists.isNotEmpty()) {
             Text(

@@ -795,8 +795,8 @@ Follow-up refinements from Phase 21d implementation.
    - If user starts a full download while preview is playing, stop preview and start download. If user leaves Search during preview, decide: stop preview or let it play (simpler to stop).
 
 ### Testing:
-- [ ] Preview plays for up to 30–60 s then stops; Download still saves full file.
-- [ ] No leftover preview state that breaks normal playback.
+- [x] Preview plays for up to 30–60 s then stops; Download still saves full file.
+- [x] No leftover preview state that breaks normal playback.
 
 ### Deliverables:
 - Preview button in Search; short preview playback from stream URL without saving.
@@ -807,13 +807,13 @@ Follow-up refinements from Phase 21d implementation.
 **Goal:** Surface “For you”–style content using simple rules: recent searches and favorites (no ML).
 
 ### Tasks:
-1. **Data**
+1. **Data** ✅
    - Persist last N search queries (e.g. 10–20) in SharedPreferences or a small JSON file. We already have favorites (DownloadedTrack.isFavorite) and play counts; no new backend.
 2. **“For you” / Home section**
    - If we have a “Home” or “Listen now” surface (could be part of Phase 21 or a new tab): section “Recent searches” (tappable to run search again or show recent results if cached); section “From your favorites” (tracks that are favorite, or most-played). Alternatively: add “Recommended” or “Quick picks” at top of Library (e.g. “Recently played,” “Favorites,” “Recent searches” as horizontal chips or rows).
 3. **Logic**
    - “Recently played”: last N tracks played (need to persist “last played” order or timestamps; e.g. add lastPlayedMs to metadata or a separate list). “Favorites”: filter library by isFavorite. “Recent searches”: list of saved query strings; tap opens Search with that query. Keep it simple; no collaborative filtering or external API.
-4. **UI**
+4. **UI** ✅
    - Small, scoped UI: e.g. a “Home” tab with 2–3 sections, or a collapsible “For you” block at top of Library. Don’t overwhelm; 1–2 rows of “Quick access” is enough.
 
 ### Testing:
