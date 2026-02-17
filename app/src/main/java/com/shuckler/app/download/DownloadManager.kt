@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import com.shuckler.app.youtube.YouTubeRepository
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -111,6 +112,7 @@ class DownloadManager(private val context: Context) {
 
     /**
      * Start downloading from [url]. Optional [title], [artist], and [thumbnailUrl] for display.
+     * Use for direct MP3/audio URLs. For YouTube, prefer [startDownloadFromYouTube] (refetches URL on retry).
      * Returns the download id; progress and completion are exposed via [progress] and [downloads].
      */
     fun startDownload(url: String, title: String? = null, artist: String? = null, thumbnailUrl: String? = null): String {
@@ -121,6 +123,25 @@ class DownloadManager(private val context: Context) {
 
         val job = scope.launch {
             runDownload(id, url, safeTitle, safeArtist, thumbnailUrl)
+        }
+        activeJobs[id] = job
+        job.invokeOnCompletion { activeJobs.remove(id) }
+
+        return id
+    }
+
+    /**
+     * Start downloading from YouTube video URL. Fetches a fresh stream URL on each retry attempt,
+     * which helps avoid "unexpected end of stream" when YouTube's temporary URLs expire.
+     */
+    fun startDownloadFromYouTube(videoUrl: String, title: String? = null, artist: String? = null, thumbnailUrl: String? = null): String {
+        _lastDownloadError.value = null
+        val id = UUID.randomUUID().toString()
+        val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
+        val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
+
+        val job = scope.launch {
+            runDownloadFromYouTube(id, videoUrl, safeTitle, safeArtist, thumbnailUrl)
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -213,85 +234,109 @@ class DownloadManager(private val context: Context) {
         }
     }
 
-    private suspend fun runDownload(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String? = null) {
+    private suspend fun runDownloadFromYouTube(id: String, videoUrl: String, title: String, artist: String, thumbnailUrl: String? = null) {
         withContext(Dispatchers.IO) {
-            val maxAttempts = 2
+            val maxAttempts = 3
             var lastError: Exception? = null
             for (attempt in 1..maxAttempts) {
-                var connection: HttpURLConnection? = null
-                var outputStream: FileOutputStream? = null
-                try {
-                    val url = URL(urlString)
-                    connection = url.openConnection() as HttpURLConnection
-                    connection.requestMethod = "GET"
-                    connection.connectTimeout = 15_000
-                    connection.readTimeout = 120_000
-                    connection.setRequestProperty("User-Agent", USER_AGENT)
-                    connection.connect()
-
-                    val responseCode = connection.responseCode
-                    if (responseCode !in 200..299) {
-                        failDownload(id, urlString, title, artist, "HTTP $responseCode")
-                        return@withContext
+                val streamResult = YouTubeRepository.getAudioStreamUrl(videoUrl, downloadQuality)
+                val streamUrl = when (streamResult) {
+                    is YouTubeRepository.AudioStreamResult.Success -> streamResult.info.url
+                    is YouTubeRepository.AudioStreamResult.Failure -> {
+                        lastError = Exception(streamResult.message)
+                        Log.w(TAG, "runDownloadFromYouTube attempt $attempt: failed to get stream URL - ${streamResult.message}")
+                        continue
                     }
-
-                    val contentLength = connection.contentLengthLong.takeIf { it > 0 }
-                    if (contentLength != null && contentLength > 0) {
-                        val available = getAvailableSpace()
-                        if (available < contentLength) {
-                            failDownload(id, urlString, title, artist, "Not enough space. Need ${contentLength / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
-                            return@withContext
-                        }
-                    }
-
-                    val fileName = suggestFileName(urlString, connection.contentType)
-                    val file = File(audioDir, fileName)
-                    file.parentFile?.mkdirs()
-                    outputStream = FileOutputStream(file)
-
-                    val inputStream = connection.inputStream
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    var totalRead: Long = 0
-                    var read: Int
-                    var lastProgressTime = System.currentTimeMillis()
-                    var lastProgressBytes = 0L
-
-                    while (inputStream.read(buffer).also { read = it } != -1) {
-                        outputStream.write(buffer, 0, read)
-                        totalRead += read
-                        val now = System.currentTimeMillis()
-                        val elapsedSec = (now - lastProgressTime) / 1000.0
-                        val bytesPerSecond = if (elapsedSec >= 0.5 && totalRead > lastProgressBytes) {
-                            ((totalRead - lastProgressBytes) / elapsedSec).toLong()
-                        } else 0L
-                        if (elapsedSec >= 0.5) {
-                            lastProgressTime = now
-                            lastProgressBytes = totalRead
-                        }
-                        val percent = if (contentLength != null && contentLength > 0) {
-                            ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
-                        } else null
-                        updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0, bytesPerSecond)
-                    }
-
-                    // Complete and persist before close() so we don't lose the track if close() throws
-                    completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
-                    outputStream.close()
-                    outputStream = null
-                    clearProgress(id)
-                    return@withContext
-                } catch (e: Exception) {
-                    lastError = e
-                    if (attempt < maxAttempts) {
-                        Log.w(TAG, "Download attempt $attempt failed (${e.message}), retrying...")
-                    }
-                } finally {
-                    outputStream?.closeQuietly()
-                    connection?.disconnect()
                 }
+                if (runDownloadAttempt(id, streamUrl, title, artist, thumbnailUrl)) return@withContext
+                lastError = Exception("Download failed")
             }
             clearProgress(id)
-            failDownload(id, urlString, title, artist, lastError?.message ?: "Unknown error")
+            failDownload(id, videoUrl, title, artist, lastError?.message ?: "Failed after $maxAttempts attempts")
+        }
+    }
+
+    /**
+     * Single download attempt. Returns true if success, false if failed (caller may retry with fresh URL).
+     */
+    private fun runDownloadAttempt(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String?): Boolean {
+        var connection: HttpURLConnection? = null
+        var outputStream: FileOutputStream? = null
+        return try {
+            val url = URL(urlString)
+            connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 300_000 // 5 min per read - YouTube can be slow
+            connection.setRequestProperty("User-Agent", USER_AGENT)
+            connection.connect()
+
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                Log.w(TAG, "runDownloadAttempt: HTTP $responseCode for $urlString")
+                return false
+            }
+
+            val contentLength = connection.contentLengthLong.takeIf { it > 0 }
+            if (contentLength != null && contentLength > 0) {
+                val available = getAvailableSpace()
+                if (available < contentLength) {
+                    failDownload(id, urlString, title, artist, "Not enough space. Need ${contentLength / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
+                    return true // Don't retry - space issue
+                }
+            }
+
+            val fileName = suggestFileName(urlString, connection.contentType)
+            val file = File(audioDir, fileName)
+            file.parentFile?.mkdirs()
+            outputStream = FileOutputStream(file)
+
+            val inputStream = connection.inputStream
+            val buffer = ByteArray(BUFFER_SIZE)
+            var totalRead: Long = 0
+            var read: Int
+            var lastProgressTime = System.currentTimeMillis()
+            var lastProgressBytes = 0L
+
+            while (inputStream.read(buffer).also { read = it } != -1) {
+                outputStream.write(buffer, 0, read)
+                totalRead += read
+                val now = System.currentTimeMillis()
+                val elapsedSec = (now - lastProgressTime) / 1000.0
+                val bytesPerSecond = if (elapsedSec >= 0.5 && totalRead > lastProgressBytes) {
+                    ((totalRead - lastProgressBytes) / elapsedSec).toLong()
+                } else 0L
+                if (elapsedSec >= 0.5) {
+                    lastProgressTime = now
+                    lastProgressBytes = totalRead
+                }
+                val percent = if (contentLength != null && contentLength > 0) {
+                    ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
+                } else null
+                updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0, bytesPerSecond)
+            }
+
+            completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
+            outputStream.close()
+            outputStream = null
+            clearProgress(id)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "runDownloadAttempt failed: ${e.message}", e)
+            false
+        } finally {
+            outputStream?.closeQuietly()
+            connection?.disconnect()
+        }
+    }
+
+    private suspend fun runDownload(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String? = null) {
+        withContext(Dispatchers.IO) {
+            val ok = runDownloadAttempt(id, urlString, title, artist, thumbnailUrl)
+            if (!ok) {
+                clearProgress(id)
+                failDownload(id, urlString, title, artist, "Download failed")
+            }
         }
     }
 
@@ -421,7 +466,7 @@ class DownloadManager(private val context: Context) {
         private const val TAG = "DownloadManager"
         private const val METADATA_FILENAME = "downloads.json"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0"
-        private const val DEFAULT_BUFFER_SIZE = 8192
+        private const val BUFFER_SIZE = 65536 // 64KB - larger buffer for faster reads, fewer round-trips
         private const val KEY_ID = "id"
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"

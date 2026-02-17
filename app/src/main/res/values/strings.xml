@@ -6,4 +6,5 @@
     <string name="notification_pause">Pause</string>
     <string name="notification_previous">Previous</string>
     <string name="notification_next">Next</string>
+    <string name="widget_description">Now playing - control music from your home screen</string>
 </resources>

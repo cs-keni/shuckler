@@ -2,6 +2,7 @@ package com.shuckler.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,9 +42,11 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.preview.PreviewPlayer
 import com.shuckler.app.ui.SearchPreferences
 import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private fun formatSpeed(bytesPerSecond: Long): String {
@@ -70,6 +74,12 @@ fun SearchScreen(onSettingsClick: () -> Unit = {}) {
     val progress by downloadManager.progress.collectAsState(initial = emptyMap())
     val lastDownloadError by downloadManager.lastDownloadError.collectAsState(initial = null)
     val scrollState = rememberScrollState()
+    val previewingVideoUrl by PreviewPlayer.previewingVideoUrl.collectAsState(initial = null)
+    val previewPositionMs by PreviewPlayer.positionMs.collectAsState(initial = 0L)
+
+    DisposableEffect(Unit) {
+        onDispose { PreviewPlayer.stop() }
+    }
 
     fun runSearch() {
         val q = searchQuery.trim()
@@ -179,26 +189,36 @@ fun SearchScreen(onSettingsClick: () -> Unit = {}) {
                 YouTubeResultItem(
                     result = result,
                     isDownloading = downloadingVideoUrl == result.url,
-                    onDownloadClick = {
+                    isPreviewing = previewingVideoUrl == result.url,
+                    previewPositionMs = if (previewingVideoUrl == result.url) previewPositionMs else 0L,
+                    previewDurationMs = PreviewPlayer.previewDurationMs,
+                    onPreviewClick = {
                         youtubeDownloadError = null
-                        downloadingVideoUrl = result.url
                         scope.launch {
                             val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                            downloadingVideoUrl = null
                             when (resultAudio) {
-                                is YouTubeRepository.AudioStreamResult.Success -> {
-                                    val audio = resultAudio.info
-                                    downloadManager.startDownload(
-                                        audio.url,
-                                        audio.title.ifBlank { result.title },
-                                        audio.uploaderName.ifBlank { result.uploaderName ?: "" },
-                                        result.thumbnailUrl
-                                    )
-                                }
-                                is YouTubeRepository.AudioStreamResult.Failure -> {
+                                is YouTubeRepository.AudioStreamResult.Success ->
+                                    PreviewPlayer.play(context, result.url, resultAudio.info.url)
+                                is YouTubeRepository.AudioStreamResult.Failure ->
                                     youtubeDownloadError = resultAudio.message
-                                }
                             }
+                        }
+                    },
+                    onStopPreviewClick = { PreviewPlayer.stop() },
+                    onDownloadClick = {
+                        if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                        youtubeDownloadError = null
+                        downloadingVideoUrl = result.url
+                        downloadManager.startDownloadFromYouTube(
+                            result.url,
+                            result.title,
+                            result.uploaderName ?: "",
+                            result.thumbnailUrl
+                        )
+                        scope.launch {
+                            val urlToClear = result.url
+                            kotlinx.coroutines.delay(500)
+                            if (downloadingVideoUrl == urlToClear) downloadingVideoUrl = null
                         }
                     }
                 )
@@ -261,6 +281,11 @@ fun SearchScreen(onSettingsClick: () -> Unit = {}) {
 private fun YouTubeResultItem(
     result: YouTubeSearchResult,
     isDownloading: Boolean,
+    isPreviewing: Boolean,
+    previewPositionMs: Long,
+    previewDurationMs: Long,
+    onPreviewClick: () -> Unit,
+    onStopPreviewClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
     Card(
@@ -271,65 +296,104 @@ private fun YouTubeResultItem(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            if (result.thumbnailUrl != null) {
-                AsyncImage(
-                    model = result.thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .padding(end = 12.dp)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .padding(end = 12.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (result.thumbnailUrl != null) {
+                    AsyncImage(
+                        model = result.thumbnailUrl,
                         contentDescription = null,
                         modifier = Modifier
-                            .size(28.dp)
-                            .align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            .size(56.dp)
+                            .padding(end = 12.dp)
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .padding(end = 12.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .align(Alignment.Center),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = result.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2
+                    )
+                    result.uploaderName?.let { name ->
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (result.durationSeconds > 0) {
+                        Text(
+                            text = result.durationFormatted,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    if (isPreviewing) {
+                        Button(
+                            onClick = onStopPreviewClick,
+                            modifier = Modifier.padding(0.dp)
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text("Stop", modifier = Modifier.padding(start = 4.dp))
+                        }
+                    } else {
+                        Button(
+                            onClick = onPreviewClick,
+                            enabled = !isDownloading,
+                            modifier = Modifier.padding(0.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Text("Preview", modifier = Modifier.padding(start = 4.dp))
+                        }
+                    }
+                    Button(
+                        onClick = onDownloadClick,
+                        enabled = !isDownloading,
+                        modifier = Modifier.padding(0.dp)
+                    ) {
+                        Text(if (isDownloading) "…" else "Download")
+                    }
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = result.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2
-                )
-                result.uploaderName?.let { name ->
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (isPreviewing && previewDurationMs > 0) {
+                val progress = (previewPositionMs.toFloat() / previewDurationMs).coerceIn(0f, 1f)
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                }
-                if (result.durationSeconds > 0) {
                     Text(
-                        text = result.durationFormatted,
+                        text = "Preview: ${previewPositionMs / 1000}s / ${previewDurationMs / 1000}s",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
-            }
-            Button(
-                onClick = onDownloadClick,
-                enabled = !isDownloading,
-                modifier = Modifier.padding(start = 8.dp)
-            ) {
-                Text(if (isDownloading) "…" else "Download")
             }
         }
     }

@@ -658,10 +658,10 @@ This document breaks down the Shuckler Android music app development into increm
    - No new app icon required; optional: adjust default placeholder for “no artwork” (e.g. gradient or icon). Ensure playlist placeholder (Phase 20) fits the new style.
 
 ### Testing:
-- [ ] Mini-player appears on Search/Library when something is playing; play/pause and skip work from collapsed state.
-- [ ] Tapping mini-player expands to full Player; swiping/tapping down collapses to mini-bar.
-- [ ] Light and dark themes look consistent; no contrast or readability regressions.
-- [ ] All existing flows (search, download, library, play, queue, settings) still work; no layout breaks.
+- [x] Mini-player appears on Search/Library when something is playing; play/pause and skip work from collapsed state.
+- [x] Tapping mini-player expands to full Player; swiping/tapping down collapses to mini-bar.
+- [x] Light and dark themes look consistent; no contrast or readability regressions.
+- [x] All existing flows (search, download, library, play, queue, settings) still work; no layout breaks.
 
 ### Deliverables:
 - Mini-player bar on Search/Library when playing; expandable to full Player with smooth transition.
@@ -763,18 +763,18 @@ Follow-up refinements from Phase 21d implementation.
 **Goal:** A home screen widget showing now-playing info and play/pause (and optionally next/previous).
 
 ### Tasks:
-1. **Widget**
+1. **Widget** ✅
    - Use App Widget (Android XML layout + AppWidgetProvider) or Jetpack Glance (Compose for widgets, if min SDK allows). Widget layout: small/medium size: album art (or placeholder), title, artist, play/pause button. Optional: next/previous buttons. Tapping widget opens the app (or opens Player tab).
-2. **Updates**
+2. **Updates** ✅
    - When playback state or track changes, update widget (e.g. MusicPlayerService calls AppWidgetManager.updateAppWidget). Use RemoteViews (or Glance) to set title, artist, and play/pause drawable (play vs pause icon).
-3. **Actions**
+3. **Actions** ✅
    - Play/pause (and next/previous if present) send broadcast or start service with action (e.g. ACTION_PLAY, ACTION_PAUSE). Service handles as in existing onStartCommand. Optional: tap artwork to open app.
-4. **Artwork**
+4. **Artwork** ✅
    - If feasible, set widget’s album art from current track thumbnail (load bitmap and set on ImageView in RemoteViews). Fallback: app icon or placeholder.
 
 ### Testing:
-- [ ] Widget shows current track and play/pause state; tapping play/pause toggles playback.
-- [ ] Widget updates when track changes or app is in background.
+- [x] Widget shows current track and play/pause state; tapping play/pause toggles playback.
+- [x] Widget updates when track changes or app is in background.
 
 ### Deliverables:
 - Working home screen widget (play/pause, optional next/previous); updates with now-playing info.
@@ -785,13 +785,13 @@ Follow-up refinements from Phase 21d implementation.
 **Goal:** In Search (YouTube), play a short preview (e.g. 30–60 seconds) from the stream URL without saving; “Download” still saves the full file.
 
 ### Tasks:
-1. **Preview playback**
+1. **Preview playback** ✅
    - When user taps “Preview” (or similar) on a search result: obtain stream URL via existing getAudioStreamUrl. Play in ExoPlayer (either a temporary/secondary player in the app, or reuse MusicPlayerService with a “preview mode” that stops after N seconds and doesn’t add to queue). Stop after 30–60 s (or when user taps stop). Do not save to disk.
 2. **UI**
    - Add “Preview” button next to “Download” on YouTube search results. While preview is playing: show “Preview playing…” and a stop button; optional progress for the 30–60 s window.
-3. **Service vs in-app player**
+3. **Service vs in-app player** ✅
    - Option A: Use MusicPlayerService with a flag “previewOnly” and a timer; when timer fires or track would exceed 60 s, stop and clear. Option B: Use a separate ExoPlayer instance in the ViewModel/Composable scope for preview only (simpler but doesn’t use notification; user can’t leave app and keep preview). Choose based on desired UX.
-4. **Edge cases**
+4. **Edge cases** ✅
    - If user starts a full download while preview is playing, stop preview and start download. If user leaves Search during preview, decide: stop preview or let it play (simpler to stop).
 
 ### Testing:
@@ -882,6 +882,85 @@ Follow-up refinements from Phase 21d implementation.
 
 ### Deliverables:
 - Lyrics in Player when source is available; or document “deferred until source identified.”
+
+---
+
+## Phase 28: Import Playlists from Spotify (Planned)
+**Goal:** Import existing playlists from Spotify (and optionally other music apps) into Shuckler.
+
+### Tasks:
+1. **Spotify API integration**
+   - Use Spotify Web API (OAuth 2.0) to authenticate and fetch user's playlists.
+   - For each playlist: get track list (title, artist). Spotify doesn't provide downloadable audio; user will need to search YouTube for each track and download. Consider UX: batch "import" that creates a Shuckler playlist and queues YouTube searches for each track.
+2. **Other services** (optional)
+   - YouTube Music, Apple Music, etc. — similar pattern if APIs allow.
+3. **UI**
+   - "Import from Spotify" (or similar) in Library or Settings. OAuth flow; then show list of user's Spotify playlists. User selects which to import. For each track: search YouTube (optional: auto-match by title+artist), add to download queue or "to-download" list.
+
+### Notes:
+- Spotify API requires app registration at Spotify Developer Dashboard; redirect URI, client ID/secret.
+- Spotify ToS: ensure compliance with API usage (non-commercial personal use typically allowed).
+- **Import does not speed up downloads:** We still fetch audio from YouTube for each track. Import saves you from manually searching; download speed is unchanged.
+
+---
+
+## Phase 29: Bug — Download Restarts / Fails with "Unexpected End of Stream" (Planned / In Progress)
+**Goal:** Fix download failures including "unexpected end of stream" (occurs even when staying on Search screen).
+
+### Problem:
+- When downloading a song, it may fail with "unexpected end of stream" — sometimes at 26%, after stalling for minutes.
+- Can occur even when user never leaves the app or Search screen.
+- Root causes: (1) **YouTube stream URLs expire** — they're temporary; if download stalls or slows, the server may close the connection. (2) **No fresh URL on retry** — we retry with the same expired URL. (3) **Network/throttling** — YouTube may throttle or drop slow connections.
+
+### Tasks:
+1. **Investigate** ✅
+   - DownloadManager runs in application scope (CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)); downloads should survive tab switches. Main failure cause: YouTube stream URLs expire or server closes connection.
+2. **Fix (implemented)** ✅
+   - `startDownloadFromYouTube(videoUrl, ...)`: Fetches a **fresh stream URL** on each of 3 retry attempts (was: 2 retries with same expired URL). Increased read timeout to 5 min; 64KB buffer for fewer round-trips. SearchScreen now uses this for YouTube downloads.
+3. **Remaining**
+   - If failures persist: consider WorkManager for resume-after-app-kill; Range requests if YouTube supports resumable downloads. Verify downloads continue when switching tabs (scope should already allow this).
+
+---
+
+## Phase 30: Player Background Gradient from Album Art (Planned)
+**Goal:** Replace the black Player background with a dynamic gradient derived from the current track's album cover.
+
+### Tasks:
+1. **Extract dominant color**
+   - Use the track's thumbnail/album art (bitmap or loaded image) to extract a dominant/primary color (e.g. Palette API, or simple averaging of sampled pixels). Fallback to a default (e.g. dark gray) when no art.
+2. **Gradient**
+   - Top of Player: primary color (or a slightly darkened/saturated variant for readability). Bottom: fade to black (#121212 or full black). Vertical gradient.
+3. **Per-track**
+   - When track changes, recompute color from new artwork and update gradient. Cache color per track if needed for performance.
+4. **UI**
+   - Apply gradient as background behind album cover, seek bar, controls. Ensure text (title, artist) remains readable (contrast).
+
+---
+
+## Phase 22a: Home Widget UI Improvements (Planned)
+**Goal:** Polish the home screen widget appearance.
+
+### Notes:
+- Widget works but "could definitely use some work on the UI."
+- Consider: improved layout, better typography, rounded corners, consistent styling with app theme (yellow accent, dark background). Optional: different widget sizes (e.g. 2x2 compact vs 4x2 full).
+
+---
+
+## Technical Notes: Preview vs Download, Spotify Import
+
+### Why is Preview instant but Download slow?
+
+- **Preview (instant):** Uses ExoPlayer to *stream* the audio. ExoPlayer buffers a few seconds, then plays. It fetches more data as you listen. No full file is saved — we just read chunks on demand from the stream URL.
+- **Download (slow):** Saves the *entire* file to disk. For a 3‑minute song at ~192 kbps, that’s ~4 MB. The app reads every byte from YouTube’s CDN and writes it to storage. Speed depends on your connection and YouTube’s response (they may throttle non-browser downloads).
+- **YouTube Music / Spotify (instant):** They stream from their own servers. When you press play, they send the first chunk right away. They don’t “download” the full file first — they stream chunks like our preview.
+
+### Will Spotify import make downloads faster?
+
+**No.** Spotify import gives you a *list* of tracks (title + artist). To get audio, we still search YouTube and download from YouTube for each track. The source and speed stay the same. Spotify import mainly saves you from manually searching for each song.
+
+### Why can downloads fail with "unexpected end of stream"?
+
+YouTube stream URLs are temporary. If the connection stalls, YouTube throttles, or the URL expires mid-download, the server may close the connection. We then see "unexpected end of stream." The fix: fetch a **fresh stream URL** on each retry instead of reusing the same one.
 
 ---
 

@@ -29,6 +29,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.shuckler.app.MainActivity
 import com.shuckler.app.R
 import com.shuckler.app.ShucklerApplication
+import com.shuckler.app.widget.NowPlayingWidgetProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -623,6 +624,14 @@ class MusicPlayerService : Service() {
     private fun updateNotification() {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, createNotification())
+        // Update home screen widget
+        NowPlayingWidgetProvider.updateAllWidgets(
+            applicationContext,
+            _currentTrackTitle.value,
+            _currentTrackArtist.value,
+            _exoPlayer?.isPlaying == true,
+            currentArtworkBitmap
+        )
     }
 
     private fun createNotification(): Notification {
