@@ -53,7 +53,9 @@ import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.player.DefaultTrackInfo
+import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
@@ -85,7 +87,9 @@ fun PlayerScreen(
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState(initial = null)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showEqualizerDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    val musicService by LocalMusicServiceConnection.current.service.collectAsState(initial = null)
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -171,7 +175,14 @@ fun PlayerScreen(
             onCancelSleepTimer = { viewModel.cancelSleepTimer() },
             sleepTimerFadeLastMinute = downloadManager.sleepTimerFadeLastMinute,
             onSleepTimerFadeChange = { downloadManager.sleepTimerFadeLastMinute = it },
+            onEqualizerClick = { showSettingsDialog = false; showEqualizerDialog = true },
             onDismiss = { showSettingsDialog = false }
+        )
+    }
+    if (showEqualizerDialog) {
+        EqualizerDialog(
+            service = musicService,
+            onDismiss = { showEqualizerDialog = false }
         )
     }
 

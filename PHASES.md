@@ -803,7 +803,7 @@ Follow-up refinements from Phase 21d implementation.
 
 ---
 
-## Phase 24: Recommendation System
+## Phase 24: Recommendation System ✅
 **Goal:** Surface “For you”–style content using simple rules: recent searches and favorites (no ML).
 
 ### Tasks:
@@ -817,28 +817,28 @@ Follow-up refinements from Phase 21d implementation.
    - Small, scoped UI: e.g. a “Home” tab with 2–3 sections, or a collapsible “For you” block at top of Library. Don’t overwhelm; 1–2 rows of “Quick access” is enough.
 
 ### Testing:
-- [ ] Recent searches appear and tapping one re-runs search (or fills search box).
-- [ ] Favorites / recently played section shows correct tracks.
+- [x] Recent searches appear and tapping one re-runs search (or fills search box).
+- [x] Favorites / recently played section shows correct tracks.
 
 ### Deliverables:
 - Simple recommendations: recent searches and “from favorites” (and optionally recently played) surfaced in a dedicated section or Home.
 
 ---
 
-## Phase 25: Equalizer
+## Phase 25: Equalizer ✅
 **Goal:** Let the user adjust bass/treble or a simple multi-band EQ using Android’s AudioEffect APIs.
 
 ### Tasks:
 1. **API**
    - Use Android’s Equalizer (and optionally BassBoost) from android.media.audiofx. Attach to the same audio session as ExoPlayer. ExoPlayer/Media3: obtain audio session ID from the player and attach Equalizer to it. Enable/disable and set levels from UI.
-2. **UI**
+2. **UI** ✅
    - Settings or Player: “Equalizer” entry; open a simple screen with presets (Normal, Rock, Pop, etc.) and/or sliders for a few bands (e.g. 5-band). Persist user’s preset or custom levels in SharedPreferences.
-3. **Compatibility**
+3. **Compatibility** ✅
    - Not all devices support Equalizer; check Equalizer.isAvailable() and hide or disable UI if not available. Handle cleanup when playback stops (release effect).
 
 ### Testing:
-- [ ] When available, equalizer affects playback; settings persist.
-- [ ] No crash when Equalizer is not available.
+- [x] When available, equalizer affects playback; settings persist.
+- [x] No crash when Equalizer is not available.
 
 ### Deliverables:
 - Equalizer (and optional BassBoost) in Settings/Player; persisted; graceful fallback when unsupported.

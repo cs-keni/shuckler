@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.media.MediaMetadata
+import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -17,10 +18,13 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.media.app.NotificationCompat as MediaNotificationCompat
+import androidx.core.graphics.scale
 import androidx.core.net.toUri
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -28,6 +32,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.shuckler.app.MainActivity
 import com.shuckler.app.R
+import com.shuckler.app.equalizer.EqualizerPreferences
 import com.shuckler.app.ShucklerApplication
 import com.shuckler.app.widget.NowPlayingWidgetProvider
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +82,25 @@ class MusicPlayerService : Service() {
         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
         .build()
 
+    private fun attachEqualizerToSession(audioSessionId: Int) {
+        // Session 0 is deprecated on modern devices - only attach when we have a real session from playback
+        if (audioSessionId == 0) return
+        equalizer?.release()
+        equalizer = try {
+            Equalizer(0, audioSessionId)
+        } catch (_: Exception) {
+            null
+        }
+        equalizer?.let { applyEqualizerFromPrefs() }
+    }
+
+    @OptIn(UnstableApi::class)
+    private val audioSessionListener = object : Player.Listener {
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            attachEqualizerToSession(audioSessionId)
+        }
+    }
+
     private var _exoPlayer: ExoPlayer? = null
     private val exoPlayer: ExoPlayer
         get() {
@@ -90,6 +114,7 @@ class MusicPlayerService : Service() {
                         val uri = "android.resource://$packageName/${R.raw.test_song}".toUri()
                         setMediaItem(MediaItem.fromUri(uri))
                         prepare()
+                        addListener(audioSessionListener)
                         addListener(object : Player.Listener {
                             override fun onIsPlayingChanged(playing: Boolean) {
                                 _isPlaying.value = playing
@@ -222,7 +247,7 @@ class MusicPlayerService : Service() {
                 return
             }
             _exoPlayer?.volume = 1f - (step.toFloat() / steps)
-            step++
+            step += 1
             mainHandler.postDelayed({ runStep() }, stepMs.toLong())
         }
         runStep()
@@ -243,7 +268,7 @@ class MusicPlayerService : Service() {
                 return
             }
             _exoPlayer?.volume = 1f - (step.toFloat() / steps)
-            step++
+            step += 1
             mainHandler.postDelayed({ runStep() }, stepMs.toLong())
         }
         runStep()
@@ -260,7 +285,7 @@ class MusicPlayerService : Service() {
                 return
             }
             _exoPlayer?.volume = step.toFloat() / steps
-            step++
+            step += 1
             mainHandler.postDelayed({ runStep() }, stepMs.toLong())
         }
         runStep()
@@ -277,6 +302,34 @@ class MusicPlayerService : Service() {
 
     private val _queueItems = MutableStateFlow<List<QueueItem>>(emptyList())
     val queueItems: StateFlow<List<QueueItem>> = _queueItems.asStateFlow()
+
+    /** Equalizer attached to ExoPlayer audio session. Null if not available or not yet attached. */
+    @Volatile
+    private var equalizer: Equalizer? = null
+
+    /** Call when user changes equalizer settings; reapplies from prefs. */
+    fun applyEqualizerFromPrefs() {
+        equalizer?.let { eq ->
+            val enabled = EqualizerPreferences.isEnabled(this)
+            eq.enabled = enabled
+            if (!enabled) return@let
+            val ourLevelsDb = EqualizerPreferences.getEffectiveBandLevelsDb(this)
+            val range = eq.bandLevelRange
+            val minMb = range[0].toInt()
+            val maxMb = range[1].toInt()
+            val n = eq.numberOfBands.toInt()
+            val ourFreqHz = EqualizerPreferences.BAND_FREQUENCIES_HZ
+            for (i in 0 until n) {
+                val centerMhz = eq.getCenterFreq(i.toShort())
+                val centerHz = (centerMhz / 1000).toInt()
+                val nearest = ourFreqHz.minByOrNull { kotlin.math.abs(it - centerHz) } ?: ourFreqHz[0]
+                val ourIndex = ourFreqHz.indexOf(nearest).coerceIn(0, ourLevelsDb.lastIndex)
+                val db = ourLevelsDb.getOrElse(ourIndex) { 0 }
+                val millibels = (db * 100).coerceIn(minMb, maxMb)
+                eq.setBandLevel(i.toShort(), millibels.toShort())
+            }
+        }
+    }
 
     private fun updateQueueInfo() {
         val total = queue.size
@@ -511,7 +564,7 @@ class MusicPlayerService : Service() {
         crossfadeStartedForCurrentTrack = false
         if (fadeIn) _exoPlayer?.volume = 0f
         val item = queue[index]
-        val uri = Uri.parse(item.uri)
+        val uri = item.uri.toUri()
         setMediaUri(uri, item.title, item.artist, item.trackId, item.thumbnailUrl)
         updateQueueInfo()
         play()
@@ -586,6 +639,7 @@ class MusicPlayerService : Service() {
                 .build()
                 .apply {
                     repeatMode = _repeatMode.value
+                    addListener(audioSessionListener)
                     addListener(playbackEndedListener)
                     setMediaItem(MediaItem.fromUri(uri))
                     prepare()
@@ -710,7 +764,7 @@ class MusicPlayerService : Service() {
                         ).coerceAtMost(1f)
                         val w = (bitmap.width * scale).toInt().coerceAtLeast(1)
                         val h = (bitmap.height * scale).toInt().coerceAtLeast(1)
-                        val scaled = Bitmap.createScaledBitmap(bitmap, w, h, true)
+                        val scaled = bitmap.scale(w, h, true)
                         if (scaled != bitmap) bitmap.recycle()
                         currentArtworkBitmap = scaled
                         mainHandler.post { updateNotification() }
@@ -750,6 +804,8 @@ class MusicPlayerService : Service() {
         mediaSession?.isActive = false
         mediaSession?.release()
         mediaSession = null
+        equalizer?.release()
+        equalizer = null
         _exoPlayer?.release()
         _exoPlayer = null
     }

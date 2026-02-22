@@ -212,7 +212,7 @@ fun CropCoverDialog(
                 )
 
                 drawRect(
-                    color = androidx.compose.ui.graphics.Color(0xFFE8FF00).copy(alpha = 0.25f),
+                    color = androidx.compose.ui.graphics.Color(0xFFE8B323).copy(alpha = 0.25f),
                     topLeft = Offset(cropLeft, cropTop),
                     size = Size(cropW, cropH)
                 )

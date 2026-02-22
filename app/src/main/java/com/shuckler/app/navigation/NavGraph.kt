@@ -39,6 +39,7 @@ import com.shuckler.app.ui.LibraryScreen
 import com.shuckler.app.ui.MiniPlayerBar
 import com.shuckler.app.ui.PlayerScreen
 import com.shuckler.app.ui.SearchScreen
+import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.ui.SettingsDialog
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
@@ -63,6 +64,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     var showPlayerSheet by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showEqualizerDialog by remember { mutableStateOf(false) }
     var selectedPlaylistToOpen by remember { mutableStateOf<Playlist?>(null) }
     var pendingSearchQuery by remember { mutableStateOf<String?>(null) }
 
@@ -80,6 +82,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     val onPlayerCollapse: () -> Unit = { showPlayerSheet = false }
     val downloadManager = LocalDownloadManager.current
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState(initial = null)
+    val musicService by LocalMusicServiceConnection.current.service.collectAsState(initial = null)
 
     if (showSettingsDialog) {
         SettingsDialog(
@@ -94,7 +97,14 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             onCancelSleepTimer = { viewModel.cancelSleepTimer() },
             sleepTimerFadeLastMinute = downloadManager.sleepTimerFadeLastMinute,
             onSleepTimerFadeChange = { downloadManager.sleepTimerFadeLastMinute = it },
+            onEqualizerClick = { showEqualizerDialog = true },
             onDismiss = { showSettingsDialog = false }
+        )
+    }
+    if (showEqualizerDialog) {
+        EqualizerDialog(
+            service = musicService,
+            onDismiss = { showEqualizerDialog = false }
         )
     }
 
