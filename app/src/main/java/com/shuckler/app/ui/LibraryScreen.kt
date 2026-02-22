@@ -398,11 +398,14 @@ fun LibraryScreen(
                                 title = t.title,
                                 artist = t.artist,
                                 trackId = t.id,
-                                thumbnailUrl = t.thumbnailUrl
+                                thumbnailUrl = t.thumbnailUrl,
+                                startMs = t.startMs,
+                                endMs = t.endMs
                             )
-                            LibraryTrackItem(
+                                LibraryTrackItem(
                                 track = track,
                                 modifier = Modifier.animateItem(),
+                                canSplitByChapters = downloadManager.canSplitByChapters(track),
                                 onPlayClick = {
                                     downloadManager.incrementPlayCount(track.id)
                                     val queueItems = filteredTracks.map { trackToQueueItem(it) }
@@ -419,7 +422,16 @@ fun LibraryScreen(
                                     viewModel.addToQueueEnd(trackToQueueItem(it))
                                     scope.launch { snackbarHostState.showSnackbar("Added to queue") }
                                 },
-                                onAddToPlaylistClick = { showAddToPlaylistTrack = it }
+                                onAddToPlaylistClick = { showAddToPlaylistTrack = it },
+                                onSplitByChaptersClick = {
+                                    downloadManager.splitTrackByChapters(it.id) { newIds ->
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (newIds.isNotEmpty()) "Split into ${newIds.size} chapters" else "No chapters found"
+                                            )
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -527,12 +539,14 @@ private fun PlaylistCard(
 private fun LibraryTrackItem(
     track: DownloadedTrack,
     modifier: Modifier = Modifier,
+    canSplitByChapters: Boolean = false,
     onPlayClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onDeleteClick: () -> Unit,
     onPlayNextClick: (DownloadedTrack) -> Unit = {},
     onAddToQueueClick: (DownloadedTrack) -> Unit = {},
-    onAddToPlaylistClick: (DownloadedTrack) -> Unit = {}
+    onAddToPlaylistClick: (DownloadedTrack) -> Unit = {},
+    onSplitByChaptersClick: (DownloadedTrack) -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val favoriteScale by animateFloatAsState(
@@ -678,6 +692,15 @@ private fun LibraryTrackItem(
                                 menuExpanded = false
                             }
                         )
+                        if (canSplitByChapters) {
+                            DropdownMenuItem(
+                                text = { Text("Split by chapters") },
+                                onClick = {
+                                    onSplitByChaptersClick(track)
+                                    menuExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
                 IconButton(

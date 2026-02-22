@@ -6,16 +6,29 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.media3.common.Player
+import com.shuckler.app.ShucklerApplication
+import com.shuckler.app.lyrics.LyricsRepository
+import com.shuckler.app.lyrics.LyricsResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerViewModel(
     private val applicationContext: Context,
-    private val serviceConnection: MusicServiceConnection
+    private val serviceConnection: MusicServiceConnection,
+    private val lyricsRepository: LyricsRepository
 ) : ViewModel() {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val _lyricsResult = MutableStateFlow<LyricsResult>(LyricsResult.NotFound)
+    val lyricsResult = _lyricsResult.asStateFlow()
 
     val isPlaying: Flow<Boolean> = serviceConnection.service
         .flatMapLatest { service ->
@@ -111,6 +124,8 @@ class PlayerViewModel(
                 putExtra(MusicPlayerService.EXTRA_ARTIST, item.artist)
                 item.trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
                 item.thumbnailUrl?.let { putExtra(MusicPlayerService.EXTRA_THUMBNAIL_URL, it) }
+                item.startMs?.let { putExtra(MusicPlayerService.EXTRA_START_MS, it) }
+                item.endMs?.let { putExtra(MusicPlayerService.EXTRA_END_MS, it) }
             }
         )
     }
@@ -124,6 +139,8 @@ class PlayerViewModel(
                 putExtra(MusicPlayerService.EXTRA_ARTIST, item.artist)
                 item.trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
                 item.thumbnailUrl?.let { putExtra(MusicPlayerService.EXTRA_THUMBNAIL_URL, it) }
+                item.startMs?.let { putExtra(MusicPlayerService.EXTRA_START_MS, it) }
+                item.endMs?.let { putExtra(MusicPlayerService.EXTRA_END_MS, it) }
             }
         )
     }
@@ -158,6 +175,17 @@ class PlayerViewModel(
 
     fun updatePlaybackProgress() {
         serviceConnection.service.value?.updatePlaybackProgress()
+    }
+
+    /**
+     * Load lyrics for the current track. Call when track title/artist changes.
+     * Uses LRCLIB API with caching.
+     */
+    fun loadLyrics(artist: String, title: String) {
+        scope.launch {
+            _lyricsResult.value = LyricsResult.Loading
+            _lyricsResult.value = lyricsRepository.getLyrics(artist, title)
+        }
     }
 
     fun startSleepTimer(durationMs: Long, endOfTrack: Boolean) {
@@ -195,7 +223,12 @@ class PlayerViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(PlayerViewModel::class.java)) {
-                return PlayerViewModel(context.applicationContext, serviceConnection) as T
+                val app = context.applicationContext as ShucklerApplication
+                return PlayerViewModel(
+                    context.applicationContext,
+                    serviceConnection,
+                    app.lyricsRepository
+                ) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }

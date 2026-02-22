@@ -166,7 +166,9 @@ fun PlaylistDetailScreen(
                                                 title = t.title,
                                                 artist = t.artist,
                                                 trackId = t.id,
-                                                thumbnailUrl = t.thumbnailUrl
+                                                thumbnailUrl = t.thumbnailUrl,
+                                                startMs = t.startMs,
+                                                endMs = t.endMs
                                             )
                                         }
                                         viewModel.playTrackWithQueue(items, 0)
@@ -208,7 +210,9 @@ fun PlaylistDetailScreen(
                             title = t.title,
                             artist = t.artist,
                             trackId = t.id,
-                            thumbnailUrl = t.thumbnailUrl
+                            thumbnailUrl = t.thumbnailUrl,
+                            startMs = t.startMs,
+                            endMs = t.endMs
                         )
                         Card(
                             modifier = Modifier

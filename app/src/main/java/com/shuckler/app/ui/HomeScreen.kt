@@ -271,7 +271,9 @@ fun HomeScreen(
                                     title = t.title,
                                     artist = t.artist,
                                     trackId = t.id,
-                                    thumbnailUrl = t.thumbnailUrl
+                                    thumbnailUrl = t.thumbnailUrl,
+                                    startMs = t.startMs,
+                                    endMs = t.endMs
                                 )
                             }
                             val idx = displayTracks.indexOf(track).coerceAtLeast(0)

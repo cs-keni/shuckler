@@ -7,13 +7,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -53,9 +57,9 @@ import kotlin.math.roundToInt
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.Player
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.lyrics.LyricsResult
 import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.player.DefaultTrackInfo
-import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
@@ -85,6 +89,7 @@ fun PlayerScreen(
     val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
     val playbackSpeed by viewModel.playbackSpeed.collectAsState(initial = 1f)
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState(initial = null)
+    val lyricsResult by viewModel.lyricsResult.collectAsState(initial = LyricsResult.NotFound)
     val downloadManager = LocalDownloadManager.current
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showEqualizerDialog by remember { mutableStateOf(false) }
@@ -96,6 +101,10 @@ fun PlayerScreen(
             delay(500)
             viewModel.updatePlaybackProgress()
         }
+    }
+    val isDefaultTrack = trackTitle == DefaultTrackInfo.TITLE && trackArtist == DefaultTrackInfo.ARTIST
+    LaunchedEffect(trackTitle, trackArtist) {
+        if (!isDefaultTrack) viewModel.loadLyrics(trackArtist, trackTitle)
     }
 
     if (showQueueSheet) {
@@ -283,6 +292,13 @@ fun PlayerScreen(
             }
         }
 
+        if (!isDefaultTrack) {
+            LyricsSection(
+                lyricsResult = lyricsResult,
+                positionMs = positionMs
+            )
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -426,6 +442,95 @@ fun PlayerScreen(
             }
         }
 
+    }
+}
+
+@Composable
+private fun LyricsSection(
+    lyricsResult: LyricsResult,
+    positionMs: Long
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 16.dp)
+            .clickable { expanded = !expanded },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Lyrics",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Icon(
+            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            modifier = Modifier.padding(start = 4.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+    }
+    if (expanded) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(16.dp)
+        ) {
+            when (lyricsResult) {
+                is LyricsResult.Loading -> {
+                    Text(
+                        text = "Loading lyrics…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                is LyricsResult.NotFound -> {
+                    Text(
+                        text = "No lyrics available",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                is LyricsResult.Plain -> {
+                    val scrollState = rememberScrollState()
+                    Text(
+                        text = lyricsResult.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(scrollState)
+                    )
+                }
+                is LyricsResult.Synced -> {
+                    val lines = lyricsResult.lines
+                    val currentIndex = lines.indexOfLast { it.timestampMs <= positionMs }.coerceAtLeast(0)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        itemsIndexed(lines) { index, line ->
+                            val isCurrent = index == currentIndex
+                            Text(
+                                text = line.text.ifBlank { " " },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (isCurrent)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

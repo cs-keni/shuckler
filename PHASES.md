@@ -865,23 +865,23 @@ Follow-up refinements from Phase 21d implementation.
 
 ---
 
-## Phase 27: Lyrics (Stretch)
+## Phase 27: Lyrics (Stretch) ✅
 **Goal:** Show lyrics in the Player screen if a source is available.
 
 ### Tasks:
-1. **Source**
-   - Options: (1) Embed lyrics in downloaded file (ID3/USLT or similar) and read with a library; (2) Use a third-party lyrics API (e.g. by artist + title); (3) Skip if no reliable free source. Document chosen approach. If no source is feasible, mark phase as “deferred” and do not implement.
-2. **UI**
-   - In Player: expandable “Lyrics” section or a “Lyrics” tab/sheet. Show synchronized lyrics (timestamp + line) if available; otherwise plain text. Scrolling and optional highlight of current line (using playback position) improve UX.
-3. **Storage**
-   - If from API: cache lyrics by (artist, title) in app storage to avoid repeated requests. TTL or versioning optional.
+1. **Source** ✅
+   - Using LRCLIB (https://lrclib.net) — free, no API key. Search API by track_name + artist_name returns synced (LRC) or plain lyrics.
+2. **UI** ✅
+   - Synced lyrics with highlighted current line; plain text with scroll when unsynced.
+3. **Storage** ✅
+   - Lyrics cached by (artist, title) hash in app filesDir/lyrics_cache as JSON.
 
 ### Testing:
-- [ ] When lyrics are available, they display and (if synced) highlight current line.
-- [ ] No crash when lyrics are missing or API fails.
+- [x] When lyrics are available, they display and (if synced) highlight current line.
+- [x] No crash when lyrics are missing or API fails.
 
 ### Deliverables:
-- Lyrics in Player when source is available; or document “deferred until source identified.”
+- Lyrics in Player via LRCLIB API; local cache; expandable section with synced/plain display.
 
 ---
 

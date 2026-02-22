@@ -28,8 +28,13 @@ data class DownloadedTrack(
     val thumbnailUrl: String? = null,
     val status: DownloadStatus = DownloadStatus.COMPLETED,
     val downloadProgress: Int = 100,
-    val errorMessage: String? = null
-)
+    val errorMessage: String? = null,
+    /** When set, this is a virtual/chapter track: play only [startMs..endMs] of the file. */
+    val startMs: Long? = null,
+    val endMs: Long? = null
+) {
+    val isChapterTrack: Boolean get() = startMs != null && endMs != null
+}
 
 /**
  * Progress of an active download.

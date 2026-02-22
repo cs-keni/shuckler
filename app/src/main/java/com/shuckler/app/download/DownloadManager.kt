@@ -198,21 +198,76 @@ class DownloadManager(private val context: Context) {
         }
     }
 
+    private val MIN_DURATION_FOR_CHAPTERS_MS = 10 * 60 * 1000L // 10 minutes
+
+    /** True if track can be split by chapters: YouTube source, long enough (or unknown duration), not already a chapter. */
+    fun canSplitByChapters(track: DownloadedTrack): Boolean {
+        if (track.isChapterTrack) return false
+        if (track.filePath.isBlank() || track.sourceUrl.isBlank()) return false
+        if (!track.sourceUrl.contains("youtube.com") && !track.sourceUrl.contains("youtu.be")) return false
+        if (track.durationMs > 0 && track.durationMs < MIN_DURATION_FOR_CHAPTERS_MS) return false
+        return true
+    }
+
     /**
-     * Delete a single track: remove file from disk and from metadata.
+     * Split a long track into chapter tracks. Fetches chapters from YouTube, creates virtual tracks
+     * (same file, startMs/endMs), removes the original. No-op if no chapters or track ineligible.
+     * Returns the new chapter track IDs, or empty on failure.
+     */
+    fun splitTrackByChapters(trackId: String, onComplete: (List<String>) -> Unit = {}) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == trackId } ?: return@withContext emptyList<String>()
+                if (!canSplitByChapters(track)) return@withContext emptyList<String>()
+                val chapters = YouTubeRepository.getChapters(track.sourceUrl)
+                if (chapters.size < 2) return@withContext emptyList<String>()
+                val filePath = track.filePath
+                val artist = track.artist
+                val thumb = track.thumbnailUrl
+                val newTracks = chapters.mapIndexed { idx, ch ->
+                    DownloadedTrack(
+                        id = UUID.randomUUID().toString(),
+                        title = ch.title,
+                        artist = artist,
+                        filePath = filePath,
+                        sourceUrl = track.sourceUrl,
+                        durationMs = ch.endMs - ch.startMs,
+                        fileSizeBytes = 0L, // Shared file
+                        downloadDateMs = track.downloadDateMs,
+                        thumbnailUrl = thumb,
+                        startMs = ch.startMs,
+                        endMs = ch.endMs
+                    )
+                }
+                val withoutOriginal = list.filter { it.id != trackId }
+                _downloads.value = withoutOriginal + newTracks
+                saveMetadata(_downloads.value)
+                newTracks.map { it.id }
+            }
+            onComplete(result)
+        }
+    }
+
+    /**
+     * Delete a single track: remove from metadata. Deletes file only if no other track references it
+     * (chapter tracks share a file; don't delete until last reference is removed).
      * Also removes the track from all playlists.
-     * No-op if id not found or file already missing.
      */
     fun deleteTrack(id: String) {
         scope.launch {
             withContext(Dispatchers.IO) {
                 val list = _downloads.value
                 val track = list.find { it.id == id } ?: return@withContext
+                val remaining = list.filter { it.id != id }
+                _downloads.value = remaining
+                saveMetadata(remaining)
                 if (track.filePath.isNotBlank()) {
-                    try { File(track.filePath).delete() } catch (_: Exception) { }
+                    val othersShareFile = remaining.any { it.filePath == track.filePath }
+                    if (!othersShareFile) {
+                        try { File(track.filePath).delete() } catch (_: Exception) { }
+                    }
                 }
-                _downloads.value = list.filter { it.id != id }
-                saveMetadata(_downloads.value)
             }
             (context.applicationContext as? ShucklerApplication)
                 ?.playlistManager?.removeTrackFromAllPlaylists(id)
@@ -408,10 +463,12 @@ class DownloadManager(private val context: Context) {
         return try {
             val json = metadataFile.readText()
             val arr = JSONArray(json)
-            List(arr.length()) { i ->
+                List(arr.length()) { i ->
                 val obj = arr.getJSONObject(i)
                 val path = obj.optString(KEY_FILE_PATH, "")
                 val size = obj.optLong(KEY_FILE_SIZE, 0L)
+                val startMs = obj.optLong(KEY_START_MS, -1L).takeIf { it >= 0 }
+                val endMs = obj.optLong(KEY_END_MS, -1L).takeIf { it >= 0 }
                 DownloadedTrack(
                     id = obj.optString(KEY_ID, ""),
                     title = obj.optString(KEY_TITLE, ""),
@@ -426,7 +483,9 @@ class DownloadManager(private val context: Context) {
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
                     thumbnailUrl = obj.optString(KEY_THUMBNAIL_URL, "").takeIf { it.isNotBlank() },
                     status = DownloadStatus.COMPLETED,
-                    downloadProgress = 100
+                    downloadProgress = 100,
+                    startMs = startMs,
+                    endMs = endMs
                 )
             }.filter { it.filePath.isNotBlank() && File(it.filePath).exists() }
         } catch (_: Exception) {
@@ -452,6 +511,8 @@ class DownloadManager(private val context: Context) {
                         put(KEY_LAST_PLAYED_MS, track.lastPlayedMs)
                         put(KEY_IS_FAVORITE, track.isFavorite)
                         put(KEY_THUMBNAIL_URL, track.thumbnailUrl ?: "")
+                        track.startMs?.let { put(KEY_START_MS, it) }
+                        track.endMs?.let { put(KEY_END_MS, it) }
                     })
                 }
             metadataFile.writeText(arr.toString())
@@ -479,6 +540,8 @@ class DownloadManager(private val context: Context) {
         private const val KEY_LAST_PLAYED_MS = "lastPlayedMs"
         private const val KEY_IS_FAVORITE = "isFavorite"
         private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
+        private const val KEY_START_MS = "startMs"
+        private const val KEY_END_MS = "endMs"
         private const val PREFS_NAME = "shuckler_settings"
         private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
         private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"

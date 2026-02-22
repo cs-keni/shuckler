@@ -421,11 +421,13 @@ class MusicPlayerService : Service() {
                 val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
                 val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
                 val thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL)
+                val startMs = intent.getLongExtra(EXTRA_START_MS, -1L).takeIf { it >= 0 }
+                val endMs = intent.getLongExtra(EXTRA_END_MS, -1L).takeIf { it >= 0 }
                 if (uriString != null) {
                     queue.clear()
                     currentQueueIndex = -1
                     updateQueueInfo()
-                    setMediaUri(uriString.toUri(), title, artist, trackId, thumbnailUrl)
+                    setMediaUri(uriString.toUri(), title, artist, trackId, thumbnailUrl, startMs, endMs)
                     play()
                 }
             }
@@ -458,7 +460,9 @@ class MusicPlayerService : Service() {
         val artist = intent.getStringExtra(EXTRA_ARTIST) ?: ""
         val trackId = intent.getStringExtra(EXTRA_TRACK_ID)
         val thumbnailUrl = intent.getStringExtra(EXTRA_THUMBNAIL_URL)
-        val item = QueueItem(uriString, title, artist, trackId, thumbnailUrl)
+        val startMs = intent.getLongExtra(EXTRA_START_MS, -1L).takeIf { it >= 0 }
+        val endMs = intent.getLongExtra(EXTRA_END_MS, -1L).takeIf { it >= 0 }
+        val item = QueueItem(uriString, title, artist, trackId, thumbnailUrl, startMs, endMs)
 
         if (queue.isEmpty()) {
             queue.add(item)
@@ -565,7 +569,7 @@ class MusicPlayerService : Service() {
         if (fadeIn) _exoPlayer?.volume = 0f
         val item = queue[index]
         val uri = item.uri.toUri()
-        setMediaUri(uri, item.title, item.artist, item.trackId, item.thumbnailUrl)
+        setMediaUri(uri, item.title, item.artist, item.trackId, item.thumbnailUrl, item.startMs, item.endMs)
         updateQueueInfo()
         play()
         if (fadeIn) startFadeIn()
@@ -604,14 +608,37 @@ class MusicPlayerService : Service() {
      * Switch playback to a file (e.g. downloaded track). Call before or instead of play().
      * @param trackId Optional library track id for auto-delete-after-playback when track ends.
      * @param thumbnailUrl Optional artwork URL for notification and UI.
+     * @param startMs Optional start position for chapter/virtual tracks.
+     * @param endMs Optional end position for chapter/virtual tracks.
      */
-    fun setMediaUri(uri: Uri, title: String, artist: String, trackId: String? = null, thumbnailUrl: String? = null) {
+    fun setMediaUri(
+        uri: Uri,
+        title: String,
+        artist: String,
+        trackId: String? = null,
+        thumbnailUrl: String? = null,
+        startMs: Long? = null,
+        endMs: Long? = null
+    ) {
         currentTrackId = trackId
         _currentTrackTitle.value = title
         _currentTrackArtist.value = artist
         _currentTrackThumbnailUrl.value = thumbnailUrl
         currentArtworkBitmap = null
         thumbnailUrl?.let { url -> loadArtworkForNotification(url) }
+        val mediaItem = if (startMs != null && endMs != null && startMs >= 0 && endMs > startMs) {
+            MediaItem.Builder()
+                .setUri(uri)
+                .setClippingConfiguration(
+                    MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(startMs)
+                        .setEndPositionMs(endMs)
+                        .build()
+                )
+                .build()
+        } else {
+            MediaItem.fromUri(uri)
+        }
         val playbackEndedListener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
@@ -630,7 +657,7 @@ class MusicPlayerService : Service() {
         _exoPlayer?.let { player ->
             player.addListener(playbackEndedListener)
             player.repeatMode = _repeatMode.value
-            player.setMediaItem(MediaItem.fromUri(uri))
+            player.setMediaItem(mediaItem)
             player.prepare()
         } ?: run {
             _exoPlayer = ExoPlayer.Builder(applicationContext)
@@ -641,7 +668,7 @@ class MusicPlayerService : Service() {
                     repeatMode = _repeatMode.value
                     addListener(audioSessionListener)
                     addListener(playbackEndedListener)
-                    setMediaItem(MediaItem.fromUri(uri))
+                    setMediaItem(mediaItem)
                     prepare()
                 }
         }
@@ -833,6 +860,8 @@ class MusicPlayerService : Service() {
         const val EXTRA_QUEUE_JSON = "queue_json"
         const val EXTRA_START_INDEX = "start_index"
         const val EXTRA_THUMBNAIL_URL = "thumbnail_url"
+        const val EXTRA_START_MS = "start_ms"
+        const val EXTRA_END_MS = "end_ms"
         private const val CHANNEL_ID = "shuckler_playback"
         private const val NOTIFICATION_ID = 1
     }

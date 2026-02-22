@@ -166,4 +166,40 @@ object YouTubeRepository {
         val title: String,
         val uploaderName: String
     )
+
+    /** Chapter info: startMs, endMs, title. Used for splitting long videos by chapters. */
+    data class ChapterInfo(val startMs: Long, val endMs: Long, val title: String)
+
+    /**
+     * Get chapter/segment list for a YouTube video. Returns empty list if no chapters or on error.
+     * Runs on IO. Useful for "Split by chapters" on long compilations.
+     */
+    suspend fun getChapters(videoUrl: String): List<ChapterInfo> = withContext(Dispatchers.IO) {
+        if (videoUrl.isBlank()) return@withContext emptyList()
+        ensureInitialized()
+        val normalizedUrl = normalizeYouTubeUrl(videoUrl)
+        try {
+            val extractor: StreamExtractor = youtube.getStreamExtractor(normalizedUrl)
+            extractor.fetchPage()
+            val segments = extractor.streamSegments ?: return@withContext emptyList()
+            if (segments.isEmpty()) return@withContext emptyList()
+            val durationSec = try { extractor.length } catch (_: Throwable) { 0L }
+            val durationMs = durationSec * 1000
+            segments.mapIndexed { index, seg ->
+                val startMs = (seg.startTimeSeconds * 1000L).coerceAtLeast(0L)
+                val endMs = if (index + 1 < segments.size) {
+                    (segments[index + 1].startTimeSeconds * 1000L).coerceAtLeast(startMs)
+                } else {
+                    durationMs.coerceAtLeast(startMs)
+                }
+                ChapterInfo(
+                    startMs = startMs,
+                    endMs = endMs,
+                    title = seg.title?.takeIf { it.isNotBlank() } ?: "Chapter ${index + 1}"
+                )
+            }
+        } catch (_: Throwable) {
+            emptyList()
+        }
+    }
 }
