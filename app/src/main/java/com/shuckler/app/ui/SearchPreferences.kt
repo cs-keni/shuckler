@@ -43,6 +43,20 @@ object SearchPreferences {
         return raw.split("\n").filter { it.isNotBlank() }.takeLast(10).reversed()
     }
 
+    /** Get recent searches filtered by prefix, for suggestions. Max 8. */
+    fun getSuggestions(context: Context, prefix: String, max: Int = 8): List<String> {
+        val recent = getRecentSearches(context)
+        val p = prefix.trim().lowercase()
+        if (p.length < 2) return emptyList()
+        return recent.filter { it.lowercase().startsWith(p) }
+            .distinct()
+            .take(max)
+    }
+
+    fun clearRecentSearches(context: Context) {
+        prefs(context).edit().putString(KEY_RECENT_QUERIES, "").apply()
+    }
+
     private fun loadCounts(p: SharedPreferences): MutableMap<String, Int> {
         val json = p.getString(KEY_SEARCH_COUNTS, "{}") ?: "{}"
         return try {

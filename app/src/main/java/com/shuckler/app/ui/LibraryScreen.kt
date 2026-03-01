@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.scale
@@ -38,7 +40,10 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -51,14 +56,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,16 +79,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
+import com.shuckler.app.accessibility.LocalAccessibilityPreferences
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import com.shuckler.app.util.shareText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,6 +103,11 @@ fun LibraryScreen(
     initialPlaylistToOpen: Playlist? = null,
     onClearInitialPlaylist: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    savedScrollIndex: Int = 0,
+    savedScrollOffset: Int = 0,
+    onSaveScrollPosition: (index: Int, offset: Int) -> Unit = { _, _ -> },
+    isSheetMode: Boolean = false,
     viewModel: PlayerViewModel = viewModel(
         factory = PlayerViewModel.Factory(
             LocalContext.current,
@@ -95,23 +115,38 @@ fun LibraryScreen(
         )
     )
 ) {
+    val context = LocalContext.current
     val downloadManager = LocalDownloadManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     var libraryFilter by remember { mutableStateOf(LibraryFilter.ALL) }
+    var moodFilter by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearchField by remember { mutableStateOf(false) }
     var downloadsExpanded by remember { mutableStateOf(false) }
     var playlistSort by remember { mutableStateOf(LibraryPlaylistSort.ALPHABETICAL) }
-    val filteredTracks = remember(completedTracks, libraryFilter, searchQuery) {
+    var trackSort by remember { mutableStateOf(LibraryTrackSort.DATE_ADDED) }
+    var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+    var deleteJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val filteredTracks = remember(completedTracks, libraryFilter, moodFilter, searchQuery, trackSort, pendingDeleteId) {
         val byFilter = when (libraryFilter) {
             LibraryFilter.ALL -> completedTracks
             LibraryFilter.FAVORITES -> completedTracks.filter { it.isFavorite }
         }
+        val byMood = if (moodFilter != null) byFilter.filter { it.moodTags.contains(moodFilter) }
+        else byFilter
         val query = searchQuery.trim()
-        if (query.isEmpty()) byFilter
-        else byFilter.filter {
+        val filtered = if (query.isEmpty()) byMood
+        else byMood.filter {
             it.title.contains(query, ignoreCase = true) || it.artist.contains(query, ignoreCase = true)
+        }
+        val excludingDeleted = filtered.filter { it.id != pendingDeleteId }
+        when (trackSort) {
+            LibraryTrackSort.DATE_ADDED -> excludingDeleted.sortedByDescending { it.downloadDateMs }
+            LibraryTrackSort.TITLE -> excludingDeleted.sortedBy { it.title.lowercase() }
+            LibraryTrackSort.ARTIST -> excludingDeleted.sortedBy { it.artist.lowercase() }
+            LibraryTrackSort.DURATION -> excludingDeleted.sortedByDescending { it.durationMs }
+            LibraryTrackSort.PLAY_COUNT -> excludingDeleted.sortedByDescending { it.playCount }
         }
     }
     var storageUsed by remember { mutableStateOf(0L) }
@@ -120,11 +155,20 @@ fun LibraryScreen(
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
+    var showMoodTagTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
+    var selectedSmartPlaylist by remember { mutableStateOf<SmartPlaylistType?>(null) }
+    var showCleanUpDialog by remember { mutableStateOf(false) }
+    val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
+    val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
+    val currentPlayingTrackId = queueItems.getOrNull((queueInfo.first - 1).coerceIn(0, queueItems.size))?.trackId
     val playlistManager = LocalPlaylistManager.current
     val playlists by playlistManager.playlists.collectAsState()
     val allEntries by playlistManager.allEntries.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val reduceMotion by LocalAccessibilityPreferences.current.reduceMotionFlow.collectAsState(
+        initial = LocalAccessibilityPreferences.current.reduceMotion
+    )
 
     LaunchedEffect(downloads) {
         storageUsed = withContext(Dispatchers.IO) { downloadManager.getTotalStorageUsed() }
@@ -190,6 +234,27 @@ fun LibraryScreen(
             onAdded = { scope.launch { snackbarHostState.showSnackbar("Added to playlist") } }
         )
     }
+    if (showCleanUpDialog) {
+        CleanUpDialog(
+            tracks = completedTracks,
+            onDismiss = { showCleanUpDialog = false },
+            onDelete = { id ->
+                downloadManager.deleteTrack(id)
+                scope.launch { snackbarHostState.showSnackbar("Removed") }
+            }
+        )
+    }
+    showMoodTagTrack?.let { track ->
+        MoodTagDialog(
+            track = track,
+            onDismiss = { showMoodTagTrack = null },
+            onSave = { tags ->
+                downloadManager.setMoodTags(track.id, tags)
+                showMoodTagTrack = null
+                scope.launch { snackbarHostState.showSnackbar("Mood tags updated") }
+            }
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -205,11 +270,17 @@ fun LibraryScreen(
             onSettingsClick = onSettingsClick,
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showSearchField = !showSearchField }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    IconButton(
+                        onClick = { showSearchField = !showSearchField },
+                        modifier = Modifier
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = "Search library")
                     }
-                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create playlist")
+                    IconButton(
+                        onClick = { showCreatePlaylistDialog = true },
+                        modifier = Modifier
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create new playlist")
                     }
                 }
             }
@@ -258,6 +329,14 @@ fun LibraryScreen(
                 selected = libraryFilter == LibraryFilter.FAVORITES,
                 onClick = { libraryFilter = LibraryFilter.FAVORITES }
             )
+            val allMoods = completedTracks.flatMap { it.moodTags }.toSet().sorted()
+            allMoods.take(5).forEach { mood ->
+                FilterChip(
+                    label = mood,
+                    selected = moodFilter == mood,
+                    onClick = { moodFilter = if (moodFilter == mood) null else mood }
+                )
+            }
         }
         var showPlaylistSortMenu by remember { mutableStateOf(false) }
         val filteredPlaylists = remember(playlists, searchQuery, playlistSort, allEntries, completedTracks) {
@@ -275,6 +354,71 @@ fun LibraryScreen(
                         .sumOf { e -> completedTracks.find { it.id == e.trackId }?.playCount ?: 0 }
                 }
             }
+        }
+        val smartPlaylistTracks = remember(completedTracks, selectedSmartPlaylist) {
+            when (selectedSmartPlaylist) {
+                SmartPlaylistType.MOST_PLAYED -> completedTracks.sortedByDescending { it.playCount }
+                SmartPlaylistType.RECENTLY_ADDED -> completedTracks.sortedByDescending { it.downloadDateMs }
+                SmartPlaylistType.NEVER_PLAYED -> completedTracks.filter { it.playCount == 0 }
+                SmartPlaylistType.FAVORITES -> completedTracks.filter { it.isFavorite }
+                null -> emptyList()
+            }
+        }
+        if (selectedSmartPlaylist != null) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                SmartPlaylistScreen(
+                    type = selectedSmartPlaylist!!,
+                    tracks = smartPlaylistTracks,
+                    onBack = { selectedSmartPlaylist = null },
+                    viewModel = viewModel,
+                    downloadManager = downloadManager,
+                    currentPlayingTrackId = currentPlayingTrackId,
+                    onAddToPlaylist = { showAddToPlaylistTrack = it },
+                    onMoodTag = { showMoodTagTrack = it },
+                    reduceMotion = reduceMotion,
+                    trackToQueueItem = { t ->
+                        QueueItem(
+                            uri = Uri.fromFile(File(t.filePath)).toString(),
+                            title = t.title,
+                            artist = t.artist,
+                            trackId = t.id,
+                            thumbnailUrl = t.thumbnailUrl,
+                            startMs = t.startMs,
+                            endMs = t.endMs
+                        )
+                    }
+                )
+            }
+            return@Scaffold
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SmartPlaylistType.entries.forEach { type ->
+                val count = when (type) {
+                    SmartPlaylistType.MOST_PLAYED -> completedTracks.count { it.playCount > 0 }
+                    SmartPlaylistType.RECENTLY_ADDED -> completedTracks.size
+                    SmartPlaylistType.NEVER_PLAYED -> completedTracks.count { it.playCount == 0 }
+                    SmartPlaylistType.FAVORITES -> completedTracks.count { it.isFavorite }
+                }
+                if (count > 0 || type == SmartPlaylistType.RECENTLY_ADDED) {
+                    FilterChip(
+                        label = "${type.label} ($count)",
+                        selected = false,
+                        onClick = { selectedSmartPlaylist = type }
+                    )
+                }
+            }
+        }
+        if (filteredPlaylists.isEmpty() && searchQuery.isBlank()) {
+            EmptyState(
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                title = "No playlists yet",
+                subtitle = "Create one to organize your music",
+                actionLabel = "Create playlist",
+                onAction = { showCreatePlaylistDialog = true }
+            )
         }
         if (filteredPlaylists.isNotEmpty()) {
             Row(
@@ -361,35 +505,98 @@ fun LibraryScreen(
                     )
                 }
                 if (completedTracks.isNotEmpty()) {
-                    TextButton(onClick = { showClearAllConfirm = true }) {
-                        Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(onClick = { showCleanUpDialog = true }) {
+                            Text("Clean up suggestions")
+                        }
+                        TextButton(onClick = { showClearAllConfirm = true }) {
+                            Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                Text(
-                    text = "Your Library",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                )
-                if (filteredTracks.isEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = when {
-                                searchQuery.isNotBlank() -> "No tracks match \"$searchQuery\"."
-                                libraryFilter == LibraryFilter.FAVORITES -> "No favorites yet. Tap the heart on a track."
-                                else -> "No downloaded tracks yet. Use Search to download."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Your Library",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    var showTrackSortMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showTrackSortMenu = true }) {
+                            Icon(Icons.Default.FilterList, contentDescription = "Sort tracks")
+                        }
+                        DropdownMenu(
+                            expanded = showTrackSortMenu,
+                            onDismissRequest = { showTrackSortMenu = false }
+                        ) {
+                            LibraryTrackSort.entries.forEach { sort ->
+                                DropdownMenuItem(
+                                    text = { Text(sort.label) },
+                                    onClick = {
+                                        trackSort = sort
+                                        showTrackSortMenu = false
+                                    }
+                                )
+                            }
+                        }
                     }
+                }
+                if (filteredTracks.isEmpty()) {
+                    EmptyState(
+                        icon = when {
+                            searchQuery.isNotBlank() -> Icons.Default.Search
+                            libraryFilter == LibraryFilter.FAVORITES -> Icons.Default.Favorite
+                            else -> Icons.Default.LibraryMusic
+                        },
+                        title = when {
+                            searchQuery.isNotBlank() -> "No tracks match \"$searchQuery\""
+                            libraryFilter == LibraryFilter.FAVORITES -> "No favorites yet"
+                            else -> "Your library is empty"
+                        },
+                        subtitle = when {
+                            searchQuery.isNotBlank() -> "Try a different search."
+                            libraryFilter == LibraryFilter.FAVORITES -> "Tap the heart on any track to add it."
+                            else -> "Search and download to get started"
+                        },
+                        actionLabel = when {
+                            searchQuery.isNotBlank() -> null
+                            libraryFilter == LibraryFilter.FAVORITES -> null
+                            else -> "Open Search"
+                        },
+                        onAction = when {
+                            searchQuery.isNotBlank() -> null
+                            libraryFilter == LibraryFilter.FAVORITES -> null
+                            else -> onOpenSearch
+                        }
+                    )
                 } else {
+                    val listState = rememberLazyListState(
+                        initialFirstVisibleItemIndex = savedScrollIndex,
+                        initialFirstVisibleItemScrollOffset = savedScrollOffset
+                    )
+                    LaunchedEffect(savedScrollIndex, savedScrollOffset) {
+                        if (savedScrollIndex > 0 || savedScrollOffset > 0) {
+                            listState.scrollToItem(savedScrollIndex, savedScrollOffset)
+                        }
+                    }
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            val idx = listState.firstVisibleItemIndex
+                            val off = listState.firstVisibleItemScrollOffset
+                            onSaveScrollPosition(idx, off)
+                        }
+                    }
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 400.dp),
+                        state = listState,
+                        modifier = if (isSheetMode) Modifier.heightIn(min = 500.dp) else Modifier.heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredTracks, key = { it.id }) { track ->
@@ -402,18 +609,97 @@ fun LibraryScreen(
                                 startMs = t.startMs,
                                 endMs = t.endMs
                             )
-                                LibraryTrackItem(
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                confirmValueChange = { value ->
+                                    if (value != SwipeToDismissBoxValue.Settled) {
+                                        pendingDeleteId?.let { id ->
+                                            downloadManager.deleteTrack(id)
+                                        }
+                                        pendingDeleteId = track.id
+                                        deleteJob?.cancel()
+                                        deleteJob = scope.launch {
+                                            kotlinx.coroutines.delay(5000)
+                                            pendingDeleteId?.let { id ->
+                                                downloadManager.deleteTrack(id)
+                                            }
+                                            pendingDeleteId = null
+                                            deleteJob = null
+                                        }
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "\"${track.title}\" removed",
+                                                actionLabel = "Undo",
+                                                duration = SnackbarDuration.Indefinite
+                                            )
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                pendingDeleteId = null
+                                                deleteJob?.cancel()
+                                                deleteJob = null
+                                            }
+                                        }
+                                        true
+                                    } else false
+                                }
+                            )
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                backgroundContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.error)
+                                            .padding(horizontal = 20.dp),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Delete",
+                                            tint = MaterialTheme.colorScheme.onError,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                },
+                                enableDismissFromStartToEnd = false,
+                                enableDismissFromEndToStart = true,
+                                content = {
+                                    LibraryTrackItem(
                                 track = track,
-                                modifier = Modifier.animateItem(),
+                                modifier = if (reduceMotion) Modifier else Modifier.animateItem(),
+                                isCurrentlyPlaying = track.id == currentPlayingTrackId,
                                 canSplitByChapters = downloadManager.canSplitByChapters(track),
                                 onPlayClick = {
-                                    downloadManager.incrementPlayCount(track.id)
                                     val queueItems = filteredTracks.map { trackToQueueItem(it) }
                                     val index = filteredTracks.indexOf(track).coerceAtLeast(0)
                                     viewModel.playTrackWithQueue(queueItems, index)
                                 },
                                 onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
-                                onDeleteClick = { downloadManager.deleteTrack(track.id) },
+                                onDeleteClick = {
+                                    pendingDeleteId?.let { id ->
+                                        downloadManager.deleteTrack(id)
+                                    }
+                                    pendingDeleteId = track.id
+                                    deleteJob?.cancel()
+                                    deleteJob = scope.launch {
+                                        kotlinx.coroutines.delay(5000)
+                                        pendingDeleteId?.let { id ->
+                                            downloadManager.deleteTrack(id)
+                                        }
+                                        pendingDeleteId = null
+                                        deleteJob = null
+                                    }
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"${track.title}\" removed",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Indefinite
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            pendingDeleteId = null
+                                            deleteJob?.cancel()
+                                            deleteJob = null
+                                        }
+                                    }
+                                },
                                 onPlayNextClick = {
                                     viewModel.addToQueueNext(trackToQueueItem(it))
                                     scope.launch { snackbarHostState.showSnackbar("Playing next") }
@@ -423,6 +709,20 @@ fun LibraryScreen(
                                     scope.launch { snackbarHostState.showSnackbar("Added to queue") }
                                 },
                                 onAddToPlaylistClick = { showAddToPlaylistTrack = it },
+                                onMoodTagClick = { showMoodTagTrack = it },
+                                reduceMotion = reduceMotion,
+                                onShareClick = { t ->
+                                    val text = if (t.sourceUrl.isNotBlank()) t.sourceUrl else "${t.title} — ${t.artist}"
+                                    shareText(context, text, "Share track")
+                                },
+                                onExcludeFromShuffle = { t, untilMs ->
+                                    downloadManager.setExcludedFromShuffle(t.id, untilMs)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            if (untilMs != null) "Excluded from shuffle" else "Exclusion removed"
+                                        )
+                                    }
+                                },
                                 onSplitByChaptersClick = {
                                     downloadManager.splitTrackByChapters(it.id) { newIds ->
                                         scope.launch {
@@ -433,6 +733,8 @@ fun LibraryScreen(
                                     }
                                 }
                             )
+                            }
+                        )
                         }
                     }
                 }
@@ -444,10 +746,27 @@ fun LibraryScreen(
 
 private enum class LibraryFilter { ALL, FAVORITES }
 
+private enum class SmartPlaylistType(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    MOST_PLAYED("Most played", Icons.Default.PlayArrow),
+    RECENTLY_ADDED("Recently added", Icons.Default.LibraryMusic),
+    NEVER_PLAYED("Never played", Icons.Default.Clear),
+    FAVORITES("Favorites", Icons.Default.Favorite)
+}
+
+private val PRESET_MOODS = listOf("chill", "workout", "focus", "party", "sleep", "road trip", "sad", "happy")
+
 private enum class LibraryPlaylistSort(val label: String) {
     ALPHABETICAL("A–Z"),
     RECENTLY_PLAYED("Recently played"),
     MOST_LISTENED("Most listened to")
+}
+
+private enum class LibraryTrackSort(val label: String) {
+    DATE_ADDED("Date added"),
+    TITLE("Title A–Z"),
+    ARTIST("Artist"),
+    DURATION("Duration"),
+    PLAY_COUNT("Play count")
 }
 
 @Composable
@@ -539,6 +858,7 @@ private fun PlaylistCard(
 private fun LibraryTrackItem(
     track: DownloadedTrack,
     modifier: Modifier = Modifier,
+    isCurrentlyPlaying: Boolean = false,
     canSplitByChapters: Boolean = false,
     onPlayClick: () -> Unit,
     onFavoriteClick: () -> Unit,
@@ -546,12 +866,16 @@ private fun LibraryTrackItem(
     onPlayNextClick: (DownloadedTrack) -> Unit = {},
     onAddToQueueClick: (DownloadedTrack) -> Unit = {},
     onAddToPlaylistClick: (DownloadedTrack) -> Unit = {},
-    onSplitByChaptersClick: (DownloadedTrack) -> Unit = {}
+    onMoodTagClick: (DownloadedTrack) -> Unit = {},
+    reduceMotion: Boolean = false,
+    onSplitByChaptersClick: (DownloadedTrack) -> Unit = {},
+    onExcludeFromShuffle: (DownloadedTrack, untilMs: Long?) -> Unit = { _, _ -> },
+    onShareClick: (DownloadedTrack) -> Unit = {}
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val favoriteScale by animateFloatAsState(
         targetValue = if (track.isFavorite) 1.15f else 1f,
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = tween(durationMillis = if (reduceMotion) 0 else 150),
         label = "favoriteScale"
     )
     Card(
@@ -569,6 +893,15 @@ private fun LibraryTrackItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            if (isCurrentlyPlaying) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(40.dp)
+                        .padding(end = 8.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                )
+            }
             if (track.thumbnailUrl != null) {
                 AsyncImage(
                     model = track.thumbnailUrl,
@@ -634,12 +967,24 @@ private fun LibraryTrackItem(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        if (track.isExcludedFromShuffle) {
+                            Icon(
+                                Icons.Default.Clear,
+                                contentDescription = "Excluded from shuffle",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
+            val view = LocalView.current
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = onFavoriteClick,
+                    onClick = {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                        onFavoriteClick()
+                    },
                     modifier = Modifier
                         .padding(4.dp)
                         .scale(favoriteScale)
@@ -672,6 +1017,13 @@ private fun LibraryTrackItem(
                         onDismissRequest = { menuExpanded = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = {
+                                onShareClick(track)
+                                menuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("Play next") },
                             onClick = {
                                 onPlayNextClick(track)
@@ -692,6 +1044,33 @@ private fun LibraryTrackItem(
                                 menuExpanded = false
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Mood tags") },
+                            onClick = {
+                                onMoodTagClick(track)
+                                menuExpanded = false
+                            }
+                        )
+                        if (track.isExcludedFromShuffle) {
+                            DropdownMenuItem(
+                                text = { Text("Remove exclusion") },
+                                onClick = {
+                                    onExcludeFromShuffle(track, null)
+                                    menuExpanded = false
+                                }
+                            )
+                        } else {
+                            listOf(7 to "7 days", 30 to "30 days", 90 to "90 days").forEach { (days, label) ->
+                                DropdownMenuItem(
+                                    text = { Text("Don't play for $label") },
+                                    onClick = {
+                                        val untilMs = System.currentTimeMillis() + days * 24L * 60 * 60 * 1000
+                                        onExcludeFromShuffle(track, untilMs)
+                                        menuExpanded = false
+                                    }
+                                )
+                            }
+                        }
                         if (canSplitByChapters) {
                             DropdownMenuItem(
                                 text = { Text("Split by chapters") },
@@ -734,4 +1113,204 @@ private fun formatDurationMs(ms: Long): String {
     val m = (totalSec / 60) % 60
     val h = totalSec / 3600
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+@Composable
+private fun SmartPlaylistScreen(
+    type: SmartPlaylistType,
+    tracks: List<DownloadedTrack>,
+    onBack: () -> Unit,
+    viewModel: PlayerViewModel,
+    downloadManager: com.shuckler.app.download.DownloadManager,
+    currentPlayingTrackId: String?,
+    onAddToPlaylist: (DownloadedTrack) -> Unit,
+    onMoodTag: (DownloadedTrack) -> Unit,
+    reduceMotion: Boolean = false,
+    trackToQueueItem: (DownloadedTrack) -> QueueItem
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ExpandMore, contentDescription = "Back")
+            }
+            Text(
+                text = type.label,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (tracks.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No tracks in this list", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(tracks, key = { it.id }) { track ->
+                    LibraryTrackItem(
+                        track = track,
+                        isCurrentlyPlaying = track.id == currentPlayingTrackId,
+                        onPlayClick = {
+                            val items = tracks.map { trackToQueueItem(it) }
+                            val idx = tracks.indexOf(track).coerceAtLeast(0)
+                            viewModel.playTrackWithQueue(items, idx)
+                        },
+                        onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
+                        onDeleteClick = { downloadManager.deleteTrack(track.id) },
+                        onPlayNextClick = { viewModel.addToQueueNext(trackToQueueItem(it)) },
+                        onAddToQueueClick = { viewModel.addToQueueEnd(trackToQueueItem(it)) },
+                        onAddToPlaylistClick = onAddToPlaylist,
+                        onMoodTagClick = onMoodTag,
+                        reduceMotion = reduceMotion
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoodTagDialog(
+    track: DownloadedTrack,
+    onDismiss: () -> Unit,
+    onSave: (Set<String>) -> Unit
+) {
+    var selectedTags by remember { mutableStateOf(track.moodTags.toSet()) }
+    var customTag by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Mood tags for \"${track.title}\"") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = customTag,
+                        onValueChange = { customTag = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Add custom tag") },
+                        singleLine = true
+                    )
+                    TextButton(onClick = {
+                        val t = customTag.trim().lowercase()
+                        if (t.isNotBlank()) {
+                            selectedTags = selectedTags + t
+                            customTag = ""
+                        }
+                    }) {
+                        Text("Add")
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PRESET_MOODS.chunked(4).forEach { chunk ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            chunk.forEach { mood ->
+                                FilterChip(
+                                    selected = selectedTags.contains(mood),
+                                    onClick = {
+                                        selectedTags = if (selectedTags.contains(mood))
+                                            selectedTags - mood else selectedTags + mood
+                                    },
+                                    label = { Text(mood) }
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = "Selected: ${selectedTags.joinToString(", ").ifEmpty { "None" }}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(selectedTags) }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun CleanUpDialog(
+    tracks: List<DownloadedTrack>,
+    onDismiss: () -> Unit,
+    onDelete: (String) -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val ninetyDaysMs = 90L * 24 * 60 * 60 * 1000
+    val suggested = remember(tracks) {
+        tracks.filter { t ->
+            t.playCount == 0 ||
+            (t.lastPlayedMs > 0 && now - t.lastPlayedMs > ninetyDaysMs && t.playCount < 2)
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clean up suggestions") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Tracks you might want to remove: never played, or not played in 90+ days with fewer than 2 plays.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (suggested.isEmpty()) {
+                    Text("Nothing to suggest! Your library looks tidy.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(suggested.take(20), key = { it.id }) { track ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        "${track.artist} • ${if (track.playCount == 0) "Never played" else "Played ${track.playCount}x"}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                TextButton(onClick = { onDelete(track.id) }) {
+                                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
 }

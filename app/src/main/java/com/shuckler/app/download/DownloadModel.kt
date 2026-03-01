@@ -31,9 +31,17 @@ data class DownloadedTrack(
     val errorMessage: String? = null,
     /** When set, this is a virtual/chapter track: play only [startMs..endMs] of the file. */
     val startMs: Long? = null,
-    val endMs: Long? = null
+    val endMs: Long? = null,
+    /** Last playback position in ms; used to resume from where user left off. */
+    val lastPositionMs: Long = 0L,
+    /** When set, track is excluded from shuffle until this timestamp. Null = not excluded. */
+    val excludedFromShuffleUntilMs: Long? = null,
+    /** User-assigned mood tags (e.g. chill, workout, focus). */
+    val moodTags: Set<String> = emptySet()
 ) {
     val isChapterTrack: Boolean get() = startMs != null && endMs != null
+    val isExcludedFromShuffle: Boolean get() =
+        excludedFromShuffleUntilMs != null && excludedFromShuffleUntilMs!! > System.currentTimeMillis()
 }
 
 /**

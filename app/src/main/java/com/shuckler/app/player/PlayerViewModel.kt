@@ -65,8 +65,15 @@ class PlayerViewModel(
     val sleepTimerRemainingMs: Flow<Long?> = serviceConnection.service
         .flatMapLatest { service -> service?.sleepTimerRemainingMs ?: flowOf(null) }
 
+    val visualizerFftData: Flow<ByteArray?> = serviceConnection.service
+        .flatMapLatest { service -> service?.visualizerFftData ?: flowOf(null) }
+
     fun playQueueItemAt(index: Int) {
         serviceConnection.service.value?.playQueueItemAt(index)
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        serviceConnection.service.value?.reorderQueue(fromIndex, toIndex)
     }
 
     fun togglePlayPause() {
@@ -80,10 +87,10 @@ class PlayerViewModel(
     }
 
     /**
-     * Switch to and play a track from a file URI (e.g. downloaded track).
+     * Switch to and play a track from a file URI or stream URL (e.g. downloaded track or YouTube stream).
      * No queue; Next/Previous will be no-op or seek to 0.
      */
-    fun playTrack(uri: Uri, title: String, artist: String, trackId: String? = null) {
+    fun playTrack(uri: Uri, title: String, artist: String, trackId: String? = null, thumbnailUrl: String? = null) {
         applicationContext.startForegroundService(
             Intent(applicationContext, MusicPlayerService::class.java).apply {
                 action = MusicPlayerService.ACTION_PLAY_URI
@@ -91,6 +98,7 @@ class PlayerViewModel(
                 putExtra(MusicPlayerService.EXTRA_TITLE, title)
                 putExtra(MusicPlayerService.EXTRA_ARTIST, artist)
                 trackId?.let { putExtra(MusicPlayerService.EXTRA_TRACK_ID, it) }
+                thumbnailUrl?.let { putExtra(MusicPlayerService.EXTRA_THUMBNAIL_URL, it) }
             }
         )
     }

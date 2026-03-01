@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.media.MediaMetadata
 import android.media.audiofx.Equalizer
+import android.media.audiofx.Visualizer
 import android.net.Uri
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -94,10 +95,35 @@ class MusicPlayerService : Service() {
         equalizer?.let { applyEqualizerFromPrefs() }
     }
 
+    private val _visualizerFftData = MutableStateFlow<ByteArray?>(null)
+    val visualizerFftData: StateFlow<ByteArray?> = _visualizerFftData.asStateFlow()
+
+    private fun attachVisualizerToSession(audioSessionId: Int) {
+        if (audioSessionId == 0) return
+        try {
+            visualizer?.release()
+        } catch (_: Exception) { }
+        visualizer = try {
+            Visualizer(audioSessionId).apply {
+                captureSize = Visualizer.getCaptureSizeRange()[1]
+                setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
+                    override fun onWaveFormDataCapture(v: Visualizer?, bytes: ByteArray?, rate: Int) {}
+                    override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, rate: Int) {
+                        _visualizerFftData.value = fft?.copyOf()
+                    }
+                }, Visualizer.getMaxCaptureRate() / 2, false, true)
+                enabled = true
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     @OptIn(UnstableApi::class)
     private val audioSessionListener = object : Player.Listener {
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             attachEqualizerToSession(audioSessionId)
+            attachVisualizerToSession(audioSessionId)
         }
     }
 
@@ -158,6 +184,12 @@ class MusicPlayerService : Service() {
     private var currentTrackId: String? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Last time we saved playback position (for periodic save every 5 seconds). */
+    private var lastSavePositionTimeMs: Long = 0L
+
+    private val MIN_POSITION_TO_RESUME_MS = 10_000L
+    private val MIN_REMAINING_TO_RESUME_MS = 5_000L
 
     /** Sleep timer: end time in ms (null = off). When reached, pause playback optionally with fade. */
     @Volatile
@@ -306,6 +338,7 @@ class MusicPlayerService : Service() {
     /** Equalizer attached to ExoPlayer audio session. Null if not available or not yet attached. */
     @Volatile
     private var equalizer: Equalizer? = null
+    private var visualizer: Visualizer? = null
 
     /** Call when user changes equalizer settings; reapplies from prefs. */
     fun applyEqualizerFromPrefs() {
@@ -336,6 +369,133 @@ class MusicPlayerService : Service() {
         val current = if (total > 0 && currentQueueIndex in queue.indices) currentQueueIndex + 1 else 0
         _queueInfo.value = current to total
         _queueItems.value = queue.toList()
+    }
+
+    /** Convert QueueItem to MediaItem for ExoPlayer. Supports chapter tracks (startMs/endMs). */
+    private fun queueItemToMediaItem(item: QueueItem): MediaItem {
+        val uri = item.uri.toUri()
+        return if (item.startMs != null && item.endMs != null && item.startMs >= 0 && item.endMs > item.startMs) {
+            MediaItem.Builder()
+                .setUri(uri)
+                .setClippingConfiguration(
+                    MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(item.startMs)
+                        .setEndPositionMs(item.endMs)
+                        .build()
+                )
+                .build()
+        } else {
+            MediaItem.fromUri(uri)
+        }
+    }
+
+    /** Update metadata (title, artist, etc.) from queue item at index. */
+    private fun updateMetadataFromQueue(index: Int) {
+        if (index !in queue.indices) return
+        val item = queue[index]
+        currentTrackId = item.trackId
+        _currentTrackTitle.value = item.title
+        _currentTrackArtist.value = item.artist
+        _currentTrackThumbnailUrl.value = item.thumbnailUrl
+        currentArtworkBitmap = null
+        item.thumbnailUrl?.let { url -> loadArtworkForNotification(url) }
+    }
+
+    /** Track if we've added the playlist listener (for gapless mode) to avoid duplicates. */
+    private var playlistListenerAdded = false
+
+    /**
+     * Sync queue to ExoPlayer using setMediaItems for gapless playback and preloading.
+     * ExoPlayer will preload the next track and transition seamlessly when current ends.
+     */
+    private fun syncQueueToExoPlayer(startIndex: Int, startPositionMs: Long = 0L) {
+        if (queue.isEmpty()) return
+        val mediaItems = queue.map { queueItemToMediaItem(it) }
+        _exoPlayer?.let { player ->
+            if (!playlistListenerAdded) {
+                player.addListener(createPlaylistListener())
+                playlistListenerAdded = true
+            }
+            player.repeatMode = _repeatMode.value
+            player.setMediaItems(mediaItems, startIndex, startPositionMs)
+            player.prepare()
+        } ?: run {
+            playlistListenerAdded = true
+            _exoPlayer = ExoPlayer.Builder(applicationContext)
+                .setAudioAttributes(audioAttributes, true)
+                .setHandleAudioBecomingNoisy(true)
+                .build()
+                .apply {
+                    repeatMode = _repeatMode.value
+                    addListener(audioSessionListener)
+                    addListener(createPlaylistListener())
+                    setMediaItems(mediaItems, startIndex, startPositionMs)
+                    prepare()
+                }
+        }
+        updateMetadataFromQueue(startIndex)
+        queue[startIndex].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+        (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+        updateQueueInfo()
+    }
+
+    /** Listener for playlist mode: onMediaItemTransition, onPlaybackStateChanged. */
+    private fun createPlaylistListener(): Player.Listener = object : Player.Listener {
+        override fun onIsPlayingChanged(playing: Boolean) {
+            _isPlaying.value = playing
+            updateMediaSession()
+            updateNotification()
+        }
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val idx = _exoPlayer?.currentMediaItemIndex ?: 0
+            if (idx in queue.indices) {
+                val prevTrackId = currentTrackId
+                currentQueueIndex = idx
+                updateMetadataFromQueue(idx)
+                queue[idx].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+                (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+                prevTrackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.considerAutoDeleteAfterPlayback(it) }
+                updateQueueInfo()
+                updateMediaSession()
+                updateNotification()
+            }
+        }
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
+                updatePlaybackProgress()
+            }
+            if (playbackState == Player.STATE_ENDED) {
+                val idx = _exoPlayer?.currentMediaItemIndex ?: 0
+                if (idx in queue.indices) {
+                    (applicationContext as? ShucklerApplication)?.downloadManager?.considerAutoDeleteAfterPlayback(currentTrackId)
+                }
+                currentTrackId = null
+                if (queue.isEmpty() || _exoPlayer?.currentMediaItemIndex == queue.size - 1) {
+                    if (_repeatMode.value != Player.REPEAT_MODE_ONE) pause()
+                }
+            }
+        }
+    }
+
+    /**
+     * Move a queue item from one position to another. Updates currentQueueIndex if it points to a moved item.
+     */
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        if (fromIndex !in queue.indices || toIndex !in queue.indices || fromIndex == toIndex) return
+        val item = queue.removeAt(fromIndex)
+        queue.add(toIndex, item)
+        currentQueueIndex = when {
+            currentQueueIndex == fromIndex -> toIndex
+            currentQueueIndex == toIndex -> fromIndex
+            fromIndex < currentQueueIndex && toIndex >= currentQueueIndex -> currentQueueIndex - 1
+            fromIndex > currentQueueIndex && toIndex <= currentQueueIndex -> currentQueueIndex + 1
+            else -> currentQueueIndex
+        }
+        if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size) {
+            _exoPlayer?.moveMediaItem(fromIndex, toIndex)
+        }
+        updateQueueInfo()
+        updateNotification()
     }
 
     fun setRepeatMode(mode: Int) {
@@ -380,16 +540,23 @@ class MusicPlayerService : Service() {
             val dur = player.duration
             _playbackPositionMs.value = position
             _durationMs.value = if (dur == C.TIME_UNSET) 0L else dur
-            // Start crossfade before track end (fade out over last N ms, then switch to next and fade in)
+            // Periodic save for "Continue listening" (every 5 seconds)
+            val now = System.currentTimeMillis()
+            if (now - lastSavePositionTimeMs >= 5000L) {
+                lastSavePositionTimeMs = now
+                saveCurrentPositionIfNeeded()
+            }
+            // Start crossfade before track end (only when NOT using gapless playlist - ExoPlayer auto-advances)
             val crossfadeMs = getCrossfadeDurationMs()
             val remaining = dur - position
-            if (dur != C.TIME_UNSET && dur > 0 && crossfadeMs > 0 &&
+            if (!useGaplessPlaylist() && dur != C.TIME_UNSET && dur > 0 && crossfadeMs > 0 &&
                 queue.isNotEmpty() && currentQueueIndex + 1 < queue.size &&
                 _repeatMode.value != Player.REPEAT_MODE_ONE && !crossfadeStartedForCurrentTrack &&
                 remaining in 1..crossfadeMs
             ) {
                 crossfadeStartedForCurrentTrack = true
                 startFadeOut {
+                    saveCurrentPositionIfNeeded()
                     currentQueueIndex++
                     playQueueItemAt(currentQueueIndex, fadeIn = true)
                 }
@@ -424,11 +591,21 @@ class MusicPlayerService : Service() {
                 val startMs = intent.getLongExtra(EXTRA_START_MS, -1L).takeIf { it >= 0 }
                 val endMs = intent.getLongExtra(EXTRA_END_MS, -1L).takeIf { it >= 0 }
                 if (uriString != null) {
+                    val item = QueueItem(uriString, title, artist, trackId, thumbnailUrl, startMs, endMs)
                     queue.clear()
-                    currentQueueIndex = -1
+                    queue.add(item)
+                    currentQueueIndex = 0
                     updateQueueInfo()
-                    setMediaUri(uriString.toUri(), title, artist, trackId, thumbnailUrl, startMs, endMs)
-                    play()
+                    lastSavePositionTimeMs = System.currentTimeMillis()
+                    if (useGaplessPlaylist()) {
+                        syncQueueToExoPlayer(0)
+                        play()
+                    } else {
+                        setMediaUri(uriString.toUri(), title, artist, trackId, thumbnailUrl, startMs, endMs)
+                        trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+                        (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+                        play()
+                    }
                 }
             }
             ACTION_PLAY_WITH_QUEUE -> {
@@ -474,8 +651,14 @@ class MusicPlayerService : Service() {
                 val insertAt = (currentQueueIndex + 1).coerceIn(0, queue.size)
                 queue.add(insertAt, item)
                 if (currentQueueIndex >= insertAt) currentQueueIndex++
+                if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size - 1) {
+                    _exoPlayer?.addMediaItem(insertAt, queueItemToMediaItem(item))
+                }
             } else {
                 queue.add(item)
+                if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size - 1) {
+                    _exoPlayer?.addMediaItem(queueItemToMediaItem(item))
+                }
             }
             updateQueueInfo()
             updateNotification()
@@ -501,10 +684,18 @@ class MusicPlayerService : Service() {
     }
 
     fun pause() {
+        saveCurrentPositionIfNeeded()
         cancelSleepTimer()
         exoPlayer.pause()
         updateMediaSession()
         updateNotification()
+    }
+
+    /** Save playback position for "Continue listening" / resume. Called on pause, track change, and periodically. */
+    private fun saveCurrentPositionIfNeeded() {
+        val trackId = currentTrackId ?: return
+        val pos = _exoPlayer?.currentPosition ?: 0L
+        (applicationContext as? ShucklerApplication)?.downloadManager?.updateLastPosition(trackId, pos)
     }
 
     fun togglePlayPause() {
@@ -517,16 +708,26 @@ class MusicPlayerService : Service() {
 
     private fun skipToNext() {
         if (queue.isEmpty()) return
+        saveCurrentPositionIfNeeded()
         if (currentQueueIndex + 1 < queue.size) {
-            val durationMs = getCrossfadeDurationMs()
-            if (durationMs > 0) {
-                startFadeOut {
-                    currentQueueIndex++
-                    playQueueItemAt(currentQueueIndex, fadeIn = true)
-                }
-            } else {
+            if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size) {
                 currentQueueIndex++
-                playQueueItemAt(currentQueueIndex)
+                _exoPlayer?.seekTo(currentQueueIndex, 0L)
+                updateMetadataFromQueue(currentQueueIndex)
+                queue[currentQueueIndex].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+                (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+                updateQueueInfo()
+            } else {
+                val durationMs = getCrossfadeDurationMs()
+                if (durationMs > 0) {
+                    startFadeOut {
+                        currentQueueIndex++
+                        playQueueItemAt(currentQueueIndex, fadeIn = true)
+                    }
+                } else {
+                    currentQueueIndex++
+                    playQueueItemAt(currentQueueIndex)
+                }
             }
         } else {
             pause()
@@ -538,17 +739,35 @@ class MusicPlayerService : Service() {
             _exoPlayer?.seekTo(0)
             return
         }
+        saveCurrentPositionIfNeeded()
         val positionMs = _exoPlayer?.currentPosition ?: 0L
-        if (positionMs < 3000 && currentQueueIndex > 0) {
-            currentQueueIndex--
-            playQueueItemAt(currentQueueIndex)
-        } else if (currentQueueIndex > 0) {
-            currentQueueIndex--
-            playQueueItemAt(currentQueueIndex)
+        if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size) {
+            if (currentQueueIndex > 0 && positionMs < 3000) currentQueueIndex--
+            else if (currentQueueIndex > 0) currentQueueIndex--
+            if (currentQueueIndex >= 0) {
+                _exoPlayer?.seekTo(currentQueueIndex, 0L)
+                updateMetadataFromQueue(currentQueueIndex)
+                queue[currentQueueIndex].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+                (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+                updateQueueInfo()
+            } else {
+                exoPlayer.seekTo(0)
+            }
         } else {
-            exoPlayer.seekTo(0)
+            if (positionMs < 3000 && currentQueueIndex > 0) {
+                currentQueueIndex--
+                playQueueItemAt(currentQueueIndex)
+            } else if (currentQueueIndex > 0) {
+                currentQueueIndex--
+                playQueueItemAt(currentQueueIndex)
+            } else {
+                exoPlayer.seekTo(0)
+            }
         }
     }
+
+    /** Use gapless playlist mode (setMediaItems) when crossfade is off. */
+    private fun useGaplessPlaylist(): Boolean = getCrossfadeDurationMs() == 0
 
     /**
      * Set the play queue and start at the given index. Call from ACTION_PLAY_WITH_QUEUE.
@@ -560,25 +779,45 @@ class MusicPlayerService : Service() {
         queue.addAll(list)
         currentQueueIndex = startIndex.coerceIn(0, list.size - 1)
         updateQueueInfo()
-        playQueueItemAt(currentQueueIndex, fadeIn = false)
+        lastSavePositionTimeMs = System.currentTimeMillis()
+        if (useGaplessPlaylist() && queue.size > 1) {
+            syncQueueToExoPlayer(currentQueueIndex)
+            play()
+        } else {
+            playQueueItemAt(currentQueueIndex, fadeIn = false)
+        }
     }
 
     fun playQueueItemAt(index: Int, fadeIn: Boolean = false) {
         if (index !in queue.indices) return
         crossfadeStartedForCurrentTrack = false
         if (fadeIn) _exoPlayer?.volume = 0f
-        val item = queue[index]
-        val uri = item.uri.toUri()
-        setMediaUri(uri, item.title, item.artist, item.trackId, item.thumbnailUrl, item.startMs, item.endMs)
-        updateQueueInfo()
-        play()
-        if (fadeIn) startFadeIn()
+        if (useGaplessPlaylist() && queue.size > 1 && _exoPlayer?.mediaItemCount == queue.size) {
+            _exoPlayer?.seekTo(index, 0L)
+            currentQueueIndex = index
+            updateMetadataFromQueue(index)
+            queue[index].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+            (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+            updateQueueInfo()
+            play()
+            if (fadeIn) startFadeIn()
+        } else {
+            val item = queue[index]
+            setMediaUri(item.uri.toUri(), item.title, item.artist, item.trackId, item.thumbnailUrl, item.startMs, item.endMs)
+            updateQueueInfo()
+            item.trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
+            (applicationContext as? ShucklerApplication)?.listeningPersonalityManager?.recordPlaySession()
+            play()
+            if (fadeIn) startFadeIn()
+        }
     }
 
     /**
      * Called when the current track ends (STATE_ENDED). Handles auto-delete and queue advance.
+     * When using gapless playlist (setMediaItems), ExoPlayer auto-advances; skip manual advance.
      */
     private fun onCurrentTrackEnded() {
+        saveCurrentPositionIfNeeded()
         if (sleepTimerEndOfTrack) {
             checkSleepTimerEndOfTrack()
             return
@@ -586,6 +825,7 @@ class MusicPlayerService : Service() {
         (applicationContext as? ShucklerApplication)?.downloadManager
             ?.considerAutoDeleteAfterPlayback(currentTrackId)
         currentTrackId = null
+        if (useGaplessPlaylist() && queue.size > 1) return
         if (queue.isNotEmpty() && _repeatMode.value != Player.REPEAT_MODE_ONE) {
             if (currentQueueIndex + 1 < queue.size) {
                 val durationMs = getCrossfadeDurationMs()
@@ -621,6 +861,7 @@ class MusicPlayerService : Service() {
         endMs: Long? = null
     ) {
         currentTrackId = trackId
+        lastSavePositionTimeMs = System.currentTimeMillis()
         _currentTrackTitle.value = title
         _currentTrackArtist.value = artist
         _currentTrackThumbnailUrl.value = thumbnailUrl
@@ -651,6 +892,17 @@ class MusicPlayerService : Service() {
                 }
                 if (playbackState == Player.STATE_ENDED) {
                     onCurrentTrackEnded()
+                }
+                // Resume from last position when ready (Phase 32: Continue listening)
+                if (playbackState == Player.STATE_READY && trackId != null) {
+                    val dm = (applicationContext as? ShucklerApplication)?.downloadManager ?: return
+                    val lastPos = dm.getLastPosition(trackId) ?: return
+                    val dur = _exoPlayer?.duration ?: 0L
+                    val effectiveDur = if (dur != C.TIME_UNSET && dur > 0) dur else Long.MAX_VALUE
+                    if (lastPos >= MIN_POSITION_TO_RESUME_MS && lastPos < effectiveDur - MIN_REMAINING_TO_RESUME_MS) {
+                        _exoPlayer?.seekTo(lastPos)
+                        lastSavePositionTimeMs = System.currentTimeMillis()
+                    }
                 }
             }
         }
@@ -833,6 +1085,8 @@ class MusicPlayerService : Service() {
         mediaSession = null
         equalizer?.release()
         equalizer = null
+        try { visualizer?.release() } catch (_: Exception) { }
+        visualizer = null
         _exoPlayer?.release()
         _exoPlayer = null
     }

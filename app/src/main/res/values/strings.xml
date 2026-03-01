@@ -7,4 +7,10 @@
     <string name="notification_previous">Previous</string>
     <string name="notification_next">Next</string>
     <string name="widget_description">Now playing - control music from your home screen</string>
+    <string name="shortcut_resume">Resume</string>
+    <string name="shortcut_resume_long">Resume playback</string>
+    <string name="shortcut_shuffle">Shuffle</string>
+    <string name="shortcut_shuffle_long">Shuffle library</string>
+    <string name="shortcut_recently">Recently played</string>
+    <string name="shortcut_recently_long">Recently played</string>
 </resources>

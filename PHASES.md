@@ -904,36 +904,35 @@ Follow-up refinements from Phase 21d implementation.
 
 ---
 
-## Phase 29: Bug — Download Restarts / Fails with "Unexpected End of Stream" (Planned / In Progress)
+## Phase 29: Bug — Download Restarts / Fails with "Unexpected End of Stream" ✅
 **Goal:** Fix download failures including "unexpected end of stream" (occurs even when staying on Search screen).
 
 ### Problem:
 - When downloading a song, it may fail with "unexpected end of stream" — sometimes at 26%, after stalling for minutes.
-- Can occur even when user never leaves the app or Search screen.
-- Root causes: (1) **YouTube stream URLs expire** — they're temporary; if download stalls or slows, the server may close the connection. (2) **No fresh URL on retry** — we retry with the same expired URL. (3) **Network/throttling** — YouTube may throttle or drop slow connections.
+- Root causes: (1) **YouTube stream URLs expire** (2) **No fresh URL on retry** (3) **Network/throttling**
 
 ### Tasks:
 1. **Investigate** ✅
-   - DownloadManager runs in application scope (CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)); downloads should survive tab switches. Main failure cause: YouTube stream URLs expire or server closes connection.
-2. **Fix (implemented)** ✅
-   - `startDownloadFromYouTube(videoUrl, ...)`: Fetches a **fresh stream URL** on each of 3 retry attempts (was: 2 retries with same expired URL). Increased read timeout to 5 min; 64KB buffer for fewer round-trips. SearchScreen now uses this for YouTube downloads.
-3. **Remaining**
-   - If failures persist: consider WorkManager for resume-after-app-kill; Range requests if YouTube supports resumable downloads. Verify downloads continue when switching tabs (scope should already allow this).
+   - Main failure cause: YouTube stream URLs expire or server closes connection.
+2. **Fresh URL on retry** ✅
+   - Fetches fresh stream URL on each retry. 5 attempts (up from 3), 2 sec delay between retries.
+3. **Resumable downloads** ✅
+   - HTTP Range header support: when download fails mid-stream, keeps partial file, fetches fresh URL, resumes from last byte via `Range: bytes=N-`. YouTube's googlevideo.com supports 206 Partial Content. Progress is preserved across retries.
 
 ---
 
-## Phase 30: Player Background Gradient from Album Art (Planned)
+## Phase 30: Player Background Gradient from Album Art ✅
 **Goal:** Replace the black Player background with a dynamic gradient derived from the current track's album cover.
 
 ### Tasks:
-1. **Extract dominant color**
-   - Use the track's thumbnail/album art (bitmap or loaded image) to extract a dominant/primary color (e.g. Palette API, or simple averaging of sampled pixels). Fallback to a default (e.g. dark gray) when no art.
-2. **Gradient**
-   - Top of Player: primary color (or a slightly darkened/saturated variant for readability). Bottom: fade to black (#121212 or full black). Vertical gradient.
-3. **Per-track**
-   - When track changes, recompute color from new artwork and update gradient. Cache color per track if needed for performance.
-4. **UI**
-   - Apply gradient as background behind album cover, seek bar, controls. Ensure text (title, artist) remains readable (contrast).
+1. **Extract dominant color** ✅
+   - Using AndroidX Palette API on the track's thumbnail. Fallback to ShucklerBlack when no art.
+2. **Gradient** ✅
+   - Top of Player: darkened dominant color (lerp 40% toward black for readability). Bottom: fade to ShucklerBlack (#121212). Vertical gradient.
+3. **Per-track** ✅
+   - When track changes, LaunchedEffect(thumbnailUrl) recomputes color from new artwork.
+4. **UI** ✅
+   - Gradient applied as Box background behind entire Player content.
 
 ---
 
@@ -943,6 +942,574 @@ Follow-up refinements from Phase 21d implementation.
 ### Notes:
 - Widget works but "could definitely use some work on the UI."
 - Consider: improved layout, better typography, rounded corners, consistent styling with app theme (yellow accent, dark background). Optional: different widget sizes (e.g. 2x2 compact vs 4x2 full).
+
+---
+
+## Phase 31: Stream Without Download (Spotify-Style) ✅
+**Goal:** Play full tracks from YouTube without downloading. Listen instantly; optionally download for offline later.
+
+### Tasks:
+1. **Play button in Search** ✅
+   - Add "Play" button next to Preview and Download on YouTube search results.
+   - On tap: fetch stream URL via `YouTubeRepository.getAudioStreamUrl`, then play via `MusicPlayerService` (ACTION_PLAY_URI) with the stream URL.
+   - No 60-second limit; full track streams until end.
+2. **Play in Home recommendations** ✅
+   - Same "Play" (stream) button on recommended YouTube cards.
+3. **Downloaded indicator** ✅
+   - When a search result is already downloaded (sourceUrl matches), show "Downloaded" and disable the Download button.
+4. **UI** ✅
+   - Play, Preview, and Download as distinct actions. Loading state ("…") while fetching stream URL.
+
+### Notes:
+- Stream URLs expire; we fetch fresh URL on each play. No queue support for stream-only items yet (would require storing videoUrl and resolving when playing).
+- Download remains for offline listening; streaming uses data.
+
+### Testing:
+- [x] Play streams full track without saving
+- [x] Download still works for offline
+- [x] Already-downloaded tracks show "Downloaded"
+
+### Deliverables:
+- Play (stream) from Search and Home; Download for offline; skeleton loaders; Library sort + delete with undo.
+
+---
+
+## Phase 31a: QOL — Library Sort, Delete Undo, Skeleton Loaders ✅
+**Goal:** Quality-of-life improvements from QOL.md.
+
+### Tasks:
+1. **Library sort options** ✅
+   - Sort tracks by: Date added, Title A–Z, Artist, Duration, Play count.
+   - Dropdown in "Your Library" section.
+2. **Delete with Undo** ✅
+   - When user deletes a track: remove from list, show Snackbar "Removed" with "Undo".
+   - If Undo within 5 seconds: restore. Otherwise delete file.
+3. **Skeleton loaders** ✅
+   - Search: placeholder cards (gray boxes) instead of spinner while searching.
+
+### Deliverables:
+- Sort dropdown for Library tracks; delete + Undo snackbar; skeleton loaders in Search.
+
+---
+
+## Phase 32: Continue Listening (Resume Position)
+**Goal:** Resume long tracks (podcasts, compilations) from where the user left off.
+
+### Tasks:
+1. **Persist playback position**
+   - When playback stops (pause, app background, track change): save `(trackId, positionMs)` to metadata or database.
+   - Update position periodically during playback (e.g. every 5–10 seconds) to avoid losing progress on crash.
+2. **Resume on play**
+   - When user plays a track: if we have a saved position and it's reasonable (e.g. track not deleted, position < duration), seek to that position before playing.
+   - Optional: only resume if position is > 10 seconds (avoid resuming from near-start).
+3. **UI hint**
+   - Optional: show "Resume from 12:34" or similar when track has saved position; or just resume silently.
+
+### Testing:
+- [x] Pausing and resuming restores position
+- [x] App kill and reopen: position restored when playing same track
+- [x] Deleting track clears saved position (track removed from metadata)
+
+### Deliverables:
+- Playback position persisted per track; resume from last position when playing. ✅
+
+---
+
+## Phase 33: Haptic Feedback & Double-tap to Seek
+**Goal:** Add tactile feedback and quick seek gestures for a more responsive feel.
+
+### Tasks:
+1. **Haptic feedback**
+   - Light vibration (`HapticFeedbackConstants.CONFIRM` or `performHapticFeedback`) on: play/pause, favorite toggle, skip next/previous, and key button presses.
+   - Optional: different haptic for "favorite" (slightly longer) vs "play" (short).
+   - Respect system "Touch vibration" setting if possible.
+2. **Double-tap to seek**
+   - On seek bar (or area around it): double-tap left = seek backward 10 seconds; double-tap right = seek forward 10 seconds.
+   - Use `Modifier.pointerInput` with `detectTapGestures(onDoubleTap = …)` or similar; determine left/right by tap position relative to seek bar center.
+   - Clamp to 0 and duration; provide haptic on successful seek.
+
+### Testing:
+- [x] Haptic fires on play/pause, favorite, skip
+- [x] Double-tap left seeks back 10 s; double-tap right seeks forward 10 s
+- [x] No crash when double-tapping at track start/end
+
+### Deliverables:
+- Haptic feedback on key actions; double-tap left/right to seek ±10 seconds. ✅
+
+---
+
+## Phase 34: Recently Played Section
+**Goal:** Dedicated "Recently played" section for quick access to what you just listened to.
+
+### Tasks:
+1. **Data**
+   - Persist "recently played" list: ordered by last play time (most recent first). Store track IDs; cap at e.g. 50 items. Update on each play.
+   - Use existing metadata (lastPlayedMs) or a separate list in SharedPreferences/JSON.
+2. **UI**
+   - Add "Recently played" section on Home or Library (or both). Horizontal scroll or vertical list; show thumbnail, title, artist. Tap to play (set queue from this list, play selected).
+   - Hide section when empty.
+3. **Behavior**
+   - "Play" from recently played: set queue to recently played list, current index = selected item, play. Optional: "Play next" / "Add to queue" from items.
+
+### Testing:
+- [x] Playing a track adds it to recently played (or updates order)
+- [x] Tapping item plays it; queue reflects recently played order
+- [x] Section hidden when no plays yet
+
+### Deliverables:
+- Recently played section with quick play; persists across app restarts. ✅
+
+---
+
+## Phase 35: "Surprise me" & "Throwback"
+**Goal:** Fun discovery buttons: random track, or a track you haven't heard in a long time.
+
+### Tasks:
+1. **"Surprise me"**
+   - Button on Home or Library. On tap: pick a random track from library (or optionally bias toward rarely played). Set queue to that single track (or "shuffle library, start with this") and play.
+   - Optional: brief "roulette" animation (e.g. cycling through track names) before revealing and playing.
+2. **"Throwback"**
+   - Button on Home or Library. On tap: filter tracks not played in last N days (e.g. 30). Pick one at random. Play it. If none match, fall back to "Surprise me" or show "No throwbacks yet."
+   - Requires `lastPlayedMs` (or equivalent) in track metadata.
+3. **UI**
+   - Place buttons prominently on Home (e.g. under greeting) or as chips. Clear labels: "Surprise me" and "Throwback."
+
+### Testing:
+- [x] "Surprise me" plays a random library track
+- [x] "Throwback" plays a track not played in 30+ days when available
+- [x] No crash when library is empty
+
+### Deliverables:
+- "Surprise me" and "Throwback" buttons; random/rarely-played discovery. ✅
+
+---
+
+## Phase 36: Up Next Preview & Queue Reorder
+**Goal:** Show next few tracks in mini-player; allow drag-to-reorder queue.
+
+### Tasks:
+1. **Up next preview**
+   - In mini-player (or expandable section): show next 2–3 tracks (thumbnail, title, artist). Tap a row to jump to that track in queue.
+   - Use existing queue from MusicPlayerService; expose via StateFlow or callback.
+2. **Queue reorder**
+   - In full Player queue view (bottom sheet): allow drag-and-drop to reorder. Use `Modifier.draggable` / `Modifier.dragAndDropSource` or a list with reorder support (e.g. `ReorderableLazyList` from accompanist or manual implementation).
+   - Update queue in service when order changes; persist if queue is persisted.
+3. **UI**
+   - Ensure up-next is visible without expanding full player (e.g. 1–2 rows in collapsed state). Full queue view shows full list with drag handles.
+
+### Testing:
+- [x] Up next shows correct next tracks; tap jumps to track
+- [x] Move up/down reorder updates queue; playback follows new order
+- [x] Queue reorder works in queue view
+
+### Deliverables:
+- Up next preview (2–3 tracks) in mini-player; move up/down reorder in queue view. ✅
+
+---
+
+## Phase 37: Gapless Playback & Preload Next
+**Goal:** Seamless transitions between tracks and faster start for next track.
+
+### Tasks:
+1. **Gapless playback**
+   - ExoPlayer supports gapless via `setAudioAttributes` and proper `MediaItem` preparation. Ensure we're not introducing gaps (e.g. avoid unnecessary stop/start). Verify `MediaItem` for next track is prepared before current ends.
+   - Crossfade (Phase 12) may overlap; ensure gapless + crossfade work together (crossfade fades out/in; gapless avoids hard gaps when crossfade is 0).
+2. **Preload next track**
+   - When current track is playing: preload/buffer the next track in queue. ExoPlayer's `ExoPlayer.prepare()` for next MediaItem, or use `MediaSource` preloading. Goal: next track starts instantly (or near-instant) when current ends.
+   - Consider memory: don't preload too far ahead; next 1 track is usually enough.
+3. **Edge cases**
+   - Queue has 1 item: no preload. User skips rapidly: cancel preload if needed. Stream URLs: preload may require fetching URL for next; handle async.
+
+### Testing:
+- [x] No audible gap between tracks when crossfade is 0
+- [x] Next track starts quickly when current ends (preload effective)
+- [x] No memory issues with rapid skips
+
+### Deliverables:
+- Gapless playback; preload next track in queue for instant start. ✅
+
+---
+
+## Phase 38: Achievement Badges
+**Goal:** Gamification — unlock badges for milestones; show in Analytics or profile.
+
+### Tasks:
+1. **Badge definitions**
+   - Define badges: e.g. "First download," "First playlist," "10 favorites," "100 plays," "7-day streak," "Library of 50," "Night owl" (listen after midnight), etc. Each has id, name, description, icon/emoji, unlock condition.
+2. **Tracking**
+   - Check conditions on relevant events (download, play, favorite, playlist create, etc.). Persist unlocked badges (e.g. `Set<badgeId>` in SharedPreferences).
+   - Listening streak: compute from play history (need daily play timestamps).
+3. **UI**
+   - Analytics tab (or Settings): "Achievements" section. Grid of badges; locked = grayed; unlocked = full color with date earned. Optional: toast/snackbar when badge unlocked ("You earned: First playlist!").
+4. **Celebration**
+   - When badge unlocks: brief celebration (e.g. confetti, scale animation, or simple dialog). Don't be intrusive; can be dismissible.
+
+### Testing:
+- [x] Badges unlock when conditions met
+- [x] Unlocked badges persist and display correctly
+- [x] No false unlocks
+
+### Deliverables:
+- Achievement badge system; unlock on milestones; display in Analytics. ✅
+
+---
+
+## Phase 39: Swipe to Delete & Remember Scroll Position
+**Goal:** Swipe-to-delete in Library/Playlists; restore scroll when returning to tab.
+
+### Tasks:
+1. **Swipe to delete**
+   - In Library and Playlist track lists: swipe left (or right) to reveal delete action. On confirm: delete with undo snackbar (reuse Phase 31a pattern). Use `SwipeToDismiss` or `Modifier.swipeable` / custom implementation.
+   - Match existing delete + undo behavior (5 s to undo).
+2. **Remember scroll position**
+   - When user leaves a tab (Library, Search): save scroll position (e.g. first visible index or offset). When returning: restore scroll so user sees same place.
+   - Use `LazyListState` and `rememberSaveable` with `ScrollPosition` saver, or `LaunchedEffect` to restore. Handle list changes (e.g. item deleted) gracefully.
+3. **Scope**
+   - Apply to Library list and Search results. Playlist detail if applicable. Optional: Home if it has scrollable content.
+
+### Testing:
+- [x] Swipe reveals delete; undo restores
+- [x] Scroll position restored when switching tabs and back
+- [x] Deleted item doesn't break scroll restoration
+
+### Deliverables:
+- Swipe to delete in Library/Playlists with undo; scroll position remembered per tab. ✅
+
+---
+
+## Phase 40: Download All from Playlist
+**Goal:** Batch download all tracks in a playlist with one tap.
+
+### Tasks:
+1. **Service**
+   - Add "Download all" action: for each track in playlist, if not already downloaded, queue download. Reuse existing DownloadManager; tracks may be YouTube (search by title+artist) or already have sourceUrl. Handle mixed case: some downloaded, some not.
+2. **UI**
+   - In playlist detail: "Download all" button. Show progress (e.g. "3/12 downloaded") or a progress bar. Disable or show "Downloading…" while in progress.
+   - For YouTube-sourced playlists: need to resolve each track to YouTube URL (search or stored sourceUrl). If track has sourceUrl, use it; else search YouTube and pick best match.
+3. **Edge cases**
+   - Some tracks may fail (e.g. not found on YouTube). Show partial success: "10 of 12 downloaded; 2 failed." Optional: retry failed.
+   - Wi‑Fi only setting (if implemented): respect it; show message if on cellular.
+
+### Testing:
+- [x] Download all queues all non-downloaded tracks
+- [x] Progress visible; completed count correct
+- [x] Already-downloaded tracks skipped
+- [x] Partial failure reported clearly
+
+### Deliverables:
+- "Download all" from playlist; batch download with progress; skip already-downloaded. ✅
+
+---
+
+## Phase 41: Empty State Illustrations
+**Goal:** Friendly, on-brand empty states when Library, Search, or Playlists have no content.
+
+### Tasks:
+1. **Assets**
+   - Create or source simple illustrations for: empty Library, empty Search results, no playlists, no favorites. Can use Shuckle-themed placeholders (e.g. Shuckle with headphones, Shuckle searching). SVG or PNG; place in `res/drawable`.
+2. **UI**
+   - When Library is empty: show illustration + "Your library is empty" + "Search and download to get started" + button to open Search.
+   - When Search returns no results: "No results for [query]" + illustration + "Try a different search."
+   - When no playlists: "No playlists yet" + "Create one to organize your music" + create button.
+   - When no favorites: "No favorites yet" + "Tap the heart on any track to add it."
+3. **Consistency**
+   - Use consistent styling (colors, typography) with app theme. Keep copy short and friendly.
+
+### Testing:
+- [x] Empty states show when appropriate
+- [x] CTA buttons navigate correctly
+- [x] No layout issues on different screen sizes
+
+### Deliverables:
+- Empty state illustrations and copy for Library, Search, Playlists, Favorites. ✅
+
+---
+
+## Phase 42: Default Tab & Wi‑Fi Only Downloads
+**Goal:** Let users choose which tab opens on launch; optionally restrict downloads to Wi‑Fi.
+
+### Tasks:
+1. **Default tab**
+   - Setting: "Open on launch" — Home, Search, Library, or Analytics. Persist in SharedPreferences. On app start (or when MainActivity creates): navigate to selected tab instead of default (e.g. Home).
+   - If Analytics tab doesn't exist yet, hide that option or add when ready.
+2. **Wi‑Fi only downloads**
+   - Setting: "Download only on Wi‑Fi" (default: off). When enabled: before starting a download, check `ConnectivityManager.getActiveNetwork()`. If not Wi‑Fi (e.g. cellular), show snackbar "Downloads are Wi‑Fi only" and don't start. Optionally: queue for later when Wi‑Fi connected (more complex).
+   - For streaming (Play): optionally separate setting "Stream on cellular" (default: allow). Simpler: just downloads for now.
+3. **UI**
+   - Add to Settings: dropdown for default tab; toggle for Wi‑Fi only downloads. Clear labels.
+
+### Testing:
+- [x] App opens to selected default tab
+- [x] Wi‑Fi only: download blocked on cellular; works on Wi‑Fi
+- [x] Settings persist across restarts
+
+### Deliverables:
+- Default tab on launch setting; Wi‑Fi only downloads option. ✅
+
+---
+
+## Phase 43: "Don't Play This Again" (Exclude from Shuffle)
+**Goal:** Let users temporarily exclude tracks from shuffle (e.g. "don't play for 30 days").
+
+### Tasks:
+1. **Data model**
+   - Add `excludedFromShuffleUntilMs` (or similar) to track metadata. When set: track is excluded from shuffle until that timestamp. Null = not excluded.
+2. **Shuffle logic**
+   - When building shuffle queue (e.g. "Shuffle library"): filter out tracks where `excludedFromShuffleUntilMs != null && currentTime < excludedFromShuffleUntilMs`.
+   - Manual queue and "Play" from Library: still include all tracks (exclusion only affects shuffle).
+3. **UI**
+   - Long-press or context menu on track: "Don't play for 30 days" (or "Exclude from shuffle"). Sets exclusion. Optional: "Don't play for 7 days," "Don't play for 90 days," "Remove exclusion."
+   - In Library: optional indicator (e.g. small icon) on excluded tracks. In track detail or metadata: show "Excluded until [date]."
+4. **Clear exclusion**
+   - User can remove exclusion via same menu. Exclusion auto-expires when timestamp passes (no cron needed; check at shuffle time).
+
+### Testing:
+- [x] Excluded tracks don't appear in shuffle
+- [x] Excluded tracks still play when selected directly
+- [x] Exclusion expires after set duration
+- [x] Manual "Remove exclusion" works
+
+### Deliverables:
+- "Don't play this again" / exclude-from-shuffle with configurable duration; filter applied when shuffling. ✅
+
+---
+
+## Phase 44: App Shortcuts (Quick Launch) ✅
+**Goal:** Long-press app icon shows quick actions: Resume playback, Shuffle library, Recently played.
+
+### Tasks:
+1. **Define shortcuts** ✅
+   - Use `ShortcutManager` (Android 7.1+): "Resume playback" (resume last track), "Shuffle library" (shuffle all, play), "Recently played" (open app to recently played / play first). Optional: "Search" (open Search tab).
+2. **Implementation** ✅
+   - Static shortcuts in `res/xml/shortcuts.xml`; meta-data in AndroidManifest. Each shortcut has intent with extra `shortcut_action` (resume, shuffle, recently_played).
+3. **Handle intents** ✅
+   - MainActivity `onCreate` / `onNewIntent`: `AppShortcutHandler.handleShortcutIntent` reads action, starts MusicPlayerService with ACTION_PLAY_WITH_QUEUE (resume = most recent track; shuffle = shuffled library; recently_played = recently played list or shuffle fallback).
+4. **Icons** ✅
+   - Resume: `@android:drawable/ic_media_play`; Shuffle/Recently played: custom vector drawables.
+
+### Testing:
+- [ ] Long-press app icon shows shortcuts
+- [ ] Each shortcut performs correct action
+- [ ] Works when app is cold start vs already running
+
+### Deliverables:
+- App shortcuts: Resume, Shuffle library, Recently played. ✅
+
+---
+
+## Phase 45: First Launch / Onboarding ✅
+**Goal:** Friendly first-time experience: brief welcome and tips so new users know what to do.
+
+### Tasks:
+1. **First launch detection** ✅
+   - `OnboardingPreferences` checks SharedPreferences `has_completed_onboarding`. If false, show onboarding; set true when done.
+2. **Onboarding flow** ✅
+   - 4 screens: (1) Welcome with Shuckle icon; (2) Search & download; (3) Library & playlists; (4) "You're all set!" with Get started.
+   - Compose `HorizontalPager`; dots indicator; Skip (top-right) and Next/Get started buttons.
+3. **Content** ✅
+   - Short copy, Shuckle icon on first screen. No account required.
+4. **Skip** ✅
+   - "Skip" always available; completes onboarding immediately.
+5. **Show tutorial in Settings** ✅
+   - "Show tutorial" button in Settings; walks through the same onboarding flow anytime.
+
+### Testing:
+- [ ] Onboarding shows on first install
+- [ ] Skip and Get started both complete onboarding
+- [ ] Onboarding does not show again after completion
+
+### Deliverables:
+- 4-screen onboarding for first launch; skip option; sets flag so it doesn't show again. ✅
+
+---
+
+## Phase 46: Share Track & Playlist ✅
+**Goal:** Share a track (YouTube link or track info) or export a playlist as text/file.
+
+### Tasks:
+1. **Share track** ✅
+   - From track context menu: "Share" action. If we have `sourceUrl` (YouTube): share that URL. Else: share "Title — Artist" as text. Uses `ShareUtil.shareText` with `Intent.ACTION_SEND`.
+2. **Share playlist** ✅
+   - From playlist detail header: Share icon. Export as plain text: playlist name + list of "Title — Artist" (one per line). Share via `Intent.ACTION_SEND` (text/plain).
+3. **UI** ✅
+   - "Share" in long-press context menu on LibraryTrackItem; Share icon in PlaylistDetailScreen header.
+
+### Testing:
+- [ ] Share track sends correct URL or text
+- [ ] Share playlist sends readable list
+- [ ] Share intent opens system share sheet
+
+### Deliverables:
+- Share track (URL or text); share playlist (text list); both via system share sheet. ✅
+
+---
+
+## Phase 47: Error Handling & Retry UX ✅
+**Goal:** Friendly error states and retry when streams fail or downloads error out.
+
+### Tasks:
+1. **Stream failures** ✅
+   - Play (stream) fails: snackbar "Couldn't play — check connection" with "Retry" action; retry fetches fresh URL and plays. SearchScreen and HomeScreen.
+2. **Download failures** ✅
+   - Download fails: "Download failed: $msg" with inline "Retry" button; calls `retryDownload(id)`. `lastFailedDownloadId` in DownloadManager.
+3. **Search failures** ✅
+   - Search throws on error; SearchScreen catches, shows "Search failed" with "Retry" button. Retry re-runs search.
+4. **Empty / error states**
+   - No network hint: optional. Downloaded badge: already shown.
+5. **Consistency** ✅
+   - Snackbar with Retry for stream; inline Retry for download and search.
+
+### Testing:
+- [ ] Stream failure shows retry; retry works
+- [ ] Download failure shows retry; retry works
+- [ ] Search failure shows retry
+- [ ] Offline state is clear
+
+### Deliverables:
+- Retry UX for stream, download, and search failures; clear error messages; offline hint.
+
+---
+
+## Phase 48: Now Playing Indicator & Search Suggestions ✅
+**Goal:** Clear visual indicator for current track in lists; suggest recent searches as you type.
+
+### Tasks:
+1. **Now playing indicator** ✅
+   - Library and Playlist: yellow accent bar (4×40dp) on left of row when track.id == currentPlayingTrackId. Queue in PlayerScreen already had "Now playing" highlight.
+2. **Search suggestions** ✅
+   - When user types 2+ chars: show suggestions filtered by prefix from getRecentSearches. Max 8. Tap runs search. "Clear history" when recent searches exist.
+3. **UI** ✅
+   - Accent bar on left; suggestions as TextButtons below search field.
+
+### Testing:
+- [ ] Now playing indicator appears on correct track in all relevant lists
+- [ ] Indicator updates when track changes
+- [ ] Search suggestions show recent searches; tap runs search
+- [ ] Clear history removes suggestions
+
+### Deliverables:
+- Now playing indicator in Library, Playlist, Queue; search suggestions from recent searches.
+
+---
+
+## Phase 32+: Roadmap — Analytics, Fun & Polish
+
+Brainstorm of features to make Shuckler more satisfying, fun, and smooth to use. Implement in any order; each can become its own phase when ready.
+
+---
+
+### Analytics & Stats (beyond Phase 21e)
+
+| Feature | Description |
+|---------|-------------|
+| **Listening time by day of week** | Bar chart (Mon–Sun) showing which days you listen most |
+| **Time-of-day heatmap** | Morning / afternoon / evening listening patterns |
+| **Listening streak** | "You've listened for X days in a row" |
+| **Listening personality** | Labels like "Night owl," "Weekend warrior," "Morning listener" based on patterns |
+| **Total listening time milestones** | "You've listened for 100 hours!" celebrations |
+| **Achievement badges** | "First playlist," "10 favorites," "100 plays," "7-day streak," etc. |
+| **Shareable stats cards** | "My top 5 this month" or "Listening time" as shareable image (Instagram-style) |
+| **Library completion rate** | % of downloaded tracks you've actually played |
+| **Skip vs finish rate** | How often you finish tracks vs skip |
+| **"Rediscover" stat** | Tracks you haven't played in 30+ days |
+| **Year-in-review / Wrapped-style** | Annual recap: top tracks, artists, playlists, total time, "first song of the year" |
+| **Monthly recap** | Same idea, monthly |
+| **"First song of the day" history** | What was your first track each day |
+| **This week vs last week** | Comparison of listening time |
+| **Most played time of day** | When you listen most (e.g. 9pm) |
+
+---
+
+### Fun & Satisfying Features
+
+| Feature | Description |
+|---------|-------------|
+| **"Surprise me"** | Random track from library (or rarely played) |
+| **"Throwback"** | Something you haven't played in months |
+| **"On this day"** | What you listened to on this date last year (if history exists) |
+| **"Shuffle roulette"** | Random track with a brief animation before it plays |
+| **Listening goals** | "Listen 30 minutes today" with progress bar |
+| **Achievement unlocks** | Badges for milestones (first download, first playlist, etc.) |
+| **Mood/vibe tags** | Tag tracks or playlists (chill, workout, focus) and filter by mood |
+| **Track notes** | Optional personal notes per track |
+| **Audio visualizer** | Waveform or spectrum visualizer in Player screen |
+| **Animated progress ring** | Circular progress around album art (in addition to seek bar) |
+| **"Daily mix"** | Auto-generated mix based on listening habits (Spotify-style) |
+| **Focus mode** | Timer + playlist for focus sessions (Pomodoro-style) |
+
+---
+
+### Ease of Use & Smoothness
+
+| Feature | Description |
+|---------|-------------|
+| **"Continue listening"** | Resume long tracks from last position (especially for podcasts/long compilations) |
+| **"Play this again"** | Add entire recent listening session to queue |
+| **"Recently played"** | Dedicated section with quick play |
+| **"Download all" from playlist** | Batch download all tracks in a playlist |
+| **"Add all to playlist"** | Add all search results to a playlist in one tap |
+| **"Up next" preview** | Show next 2–3 tracks in mini-player |
+| **Preload next track** | Buffer next track in queue while current plays |
+| **Gapless playback** | Seamless transition between tracks (ExoPlayer supports) |
+| **Haptic feedback** | Light vibration on play/pause, favorite toggle, key actions |
+| **Double-tap to seek** | Double-tap left/right of seek bar to skip ±10 seconds |
+| **Queue reorder** | Drag to reorder queue items |
+| **Search in queue** | Filter current queue by title/artist |
+| **Quick playlist create** | "Add to new playlist" creates playlist and adds track in one tap |
+| **Auto-playlist cover** | Collage from first 4 track thumbnails for playlist cover |
+| **"Don't play this again"** | Temporarily exclude from shuffle (e.g. 30 days) |
+| **Auto-play when queue ends** | Option: "Shuffle library" or "Play similar" when queue finishes |
+| **Quick filters in Library** | "Downloaded only," "Recently added," "Never played" |
+| **"Clean up" suggestion** | Suggest tracks to delete (never played, very old, etc.) |
+| **Remember scroll position** | Restore scroll in Library/Search when returning to tab |
+| **Swipe to delete** | Swipe Library/Playlist items to delete (with undo snackbar) |
+
+---
+
+### Notifications & Widgets
+
+| Feature | Description |
+|---------|-------------|
+| **Widget: seekable progress** | Progress bar on widget (tap to seek) |
+| **Notification: lyrics preview** | Show current lyric line in notification when space allows |
+| **Notification: progress bar** | Seekable progress in media notification |
+| **Widget: compact vs full** | Different sizes (2x2, 4x2) with more/less info |
+
+---
+
+### Settings & Preferences
+
+| Feature | Description |
+|---------|-------------|
+| **Default tab** | Choose which tab opens on app launch (Home, Search, Library, Analytics) |
+| **Stream vs download default** | Prefer "Play" (stream) or "Download" as primary action |
+| **Wi‑Fi only downloads** | Option to only download when on Wi‑Fi |
+| **Cache stream buffer** | How much to buffer when streaming (e.g. 30 s, 60 s) |
+| **Data usage hint** | When streaming: "Streaming uses data" tooltip or setting |
+
+---
+
+### Suggested Implementation Order
+
+**High impact, lower effort:**
+1. Listening streak + day-of-week chart
+2. "Surprise me" / "Throwback"
+3. "Continue listening" (resume position)
+4. Haptic feedback
+5. Double-tap to seek
+
+**Medium effort, high satisfaction:**
+6. Achievement badges
+7. Shareable stats cards
+8. "Up next" preview in mini-player
+9. Queue reorder (drag)
+10. Gapless playback + preload next
+
+**Larger features:**
+11. Year-in-review / Wrapped-style
+12. Mood/vibe tags
+13. Focus mode (Pomodoro + playlist)
+14. "Daily mix" auto-playlist
 
 ---
 
@@ -996,5 +1563,58 @@ Begin with **Phase 1** and work through each phase sequentially. After completin
 4. Move to next phase
 
 **Phases 16–27** (optional features): implement in the recommended order given in the Phase 15 overview, or in any order that fits your priorities. Dependencies: Phase 20 (playlists) reuses Phase 16 queue actions; Phase 21 (UI) may reference Library/Playlists layout from Phase 20.
+
+**Phases 32–43** (feel-good features): Continue listening, haptics, double-tap seek, recently played, Surprise me/Throwback, up next & queue reorder, gapless & preload, achievements, swipe-to-delete & scroll memory, download all from playlist, empty states, default tab & Wi‑Fi only, exclude from shuffle.
+
+**Phases 44–48** (polish & first-run): App shortcuts, onboarding, share track/playlist, error handling & retry, now playing indicator & search suggestions.
+
+**Phase 32+** (roadmap): Additional analytics, fun features, and polish ideas. Each item can become its own phase when ready; see suggested implementation order in that section.
+
+---
+
+## Phase 49: Listening Personality, Mood Tags, Smart Playlists, Clean Up, Animations & Accessibility ✅
+
+**Goal:** Add listening personality labels, mood tags for tracks, smart playlists, clean-up suggestions, animated progress ring, and accessibility options (reduced motion, high contrast, TalkBack).
+
+### Tasks:
+1. **Listening personality** ✅
+   - `ListeningPersonalityManager` records play session timestamps; computes label (Night owl, Morning listener, Weekend warrior, etc.) from time-of-day and weekday/weekend patterns.
+   - Displayed in Analytics screen as a card with emoji, label, and description.
+2. **Mood tags** ✅
+   - Add `moodTags: Set<String>` to `DownloadedTrack`; persist in metadata.
+   - Mood tag dialog: preset moods (chill, workout, focus, etc.) + custom tags.
+   - Filter chips in Library for mood filtering.
+3. **Smart playlists** ✅
+   - Virtual playlists: Most played, Recently added, Never played, Favorites.
+   - Tappable chips in Library; `SmartPlaylistScreen` shows filtered list with full track actions.
+4. **Clean up suggestions** ✅
+   - "Clean up suggestions" in storage section opens dialog.
+   - Suggests: never played, or last played > 90 days ago with play count < 2.
+   - Remove button per track.
+5. **Animated progress ring** ✅
+   - Circular progress around album art in Player screen; shows playback progress.
+6. **Accessibility** ✅
+   - **Reduce motion:** Setting toggles; when on, disables list item placement animation and shortens favorite scale animation.
+   - **High contrast:** Setting toggles; applies high-contrast color scheme (white on black, bright yellow accent).
+   - **TalkBack:** contentDescription added to key icons (album art, queue, settings, search, create playlist).
+
+### Testing:
+- [ ] Listening personality appears in Analytics after 5+ plays
+- [ ] Mood tags persist; filter works
+- [ ] Smart playlists show correct counts and play
+- [ ] Clean up suggests appropriate tracks
+- [ ] Progress ring animates with playback
+- [ ] Reduce motion disables animations
+- [ ] High contrast applies immediately
+
+### Deliverables:
+- Listening personality in Analytics
+- Mood tags with filter in Library
+- Smart playlists (Most played, Recently added, Never played, Favorites)
+- Clean up suggestions dialog
+- Animated progress ring in Player
+- Accessibility settings (reduce motion, high contrast) and TalkBack support
+
+---
 
 If you encounter issues in a phase, fix them before proceeding. Don't accumulate technical debt.

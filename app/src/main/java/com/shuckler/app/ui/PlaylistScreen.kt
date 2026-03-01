@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,11 +26,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,6 +70,8 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
+import com.shuckler.app.ui.LocalOnWifiOnlyBlocked
+import com.shuckler.app.util.shareText
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.playlist.PlaylistEntry
 import com.shuckler.app.player.LocalMusicServiceConnection
@@ -83,10 +96,16 @@ fun PlaylistDetailScreen(
         )
     )
 ) {
+    val context = LocalContext.current
     val playlistManager = LocalPlaylistManager.current
     val downloadManager = LocalDownloadManager.current
+    val onWifiOnlyBlocked = LocalOnWifiOnlyBlocked.current
+    val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
+    val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
+    val currentPlayingTrackId = queueItems.getOrNull((queueInfo.first - 1).coerceIn(0, queueItems.size))?.trackId
     val allEntries by playlistManager.allEntries.collectAsState()
     val downloads by downloadManager.downloads.collectAsState()
+    val progress by downloadManager.progress.collectAsState(initial = emptyMap())
     val completedTracks = downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     val entries = remember(playlist.id, allEntries) {
         allEntries.filter { it.playlistId == playlist.id }.sortedBy { it.position }
@@ -95,6 +114,8 @@ fun PlaylistDetailScreen(
     val tracks = entries.mapNotNull { e -> completedTracks.find { it.id == e.trackId } }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var pendingRemoveTrackId by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val listState = rememberLazyListState()
@@ -112,7 +133,14 @@ fun PlaylistDetailScreen(
         }
         val maxCoverHeightDp = with(density) { (maxCoverHeightPx / density.density).toDp() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    androidx.compose.material3.Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,6 +155,12 @@ fun PlaylistDetailScreen(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f)
             )
+            IconButton(onClick = {
+                val lines = listOf(playlist.name) + tracks.map { "${it.title} — ${it.artist}" }
+                shareText(context, lines.joinToString("\n"), "Share playlist")
+            }) {
+                Icon(Icons.Default.Share, contentDescription = "Share playlist")
+            }
             IconButton(onClick = { showEditDialog = true }) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit")
             }
@@ -156,7 +190,9 @@ fun PlaylistDetailScreen(
                     if (tracks.isNotEmpty()) {
                         item {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 TextButton(
                                     onClick = {
@@ -172,11 +208,42 @@ fun PlaylistDetailScreen(
                                             )
                                         }
                                         viewModel.playTrackWithQueue(items, 0)
-                                        downloadManager.incrementPlayCount(tracks.first().id)
                                     }
                                 ) {
                                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                                     Text("Play")
+                                }
+                                val entriesForPlaylist = allEntries.filter { it.playlistId == playlist.id }
+                                val toDownload = entriesForPlaylist.mapNotNull { e ->
+                                    downloads.find { it.id == e.trackId }
+                                }.filter { t ->
+                                    (t.status != DownloadStatus.COMPLETED || t.filePath.isBlank()) && t.sourceUrl.isNotBlank()
+                                }
+                                val inLibrary = entriesForPlaylist.count { e ->
+                                    val t = downloads.find { it.id == e.trackId }
+                                    t != null && t.status == DownloadStatus.COMPLETED && t.filePath.isNotBlank()
+                                }
+                                val total = entriesForPlaylist.size
+                                val downloadingCount = progress.keys.count { id ->
+                                    entriesForPlaylist.any { it.trackId == id }
+                                }
+                                val downloadAllEnabled = toDownload.isNotEmpty() && downloadingCount == 0
+                                TextButton(
+                                    onClick = {
+                                        toDownload.forEach { t ->
+                                            downloadManager.retryDownload(t.id, onWifiOnlyBlocked = onWifiOnlyBlocked)
+                                        }
+                                    },
+                                    enabled = downloadAllEnabled
+                                ) {
+                                    Text(
+                                        when {
+                                            downloadingCount > 0 -> "Downloading $downloadingCount…"
+                                            toDownload.isNotEmpty() -> "Download ${toDownload.size} missing"
+                                            inLibrary == total && total > 0 -> "All $total in library"
+                                            else -> "Download all"
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -190,21 +257,14 @@ fun PlaylistDetailScreen(
                     }
                     if (tracks.isEmpty()) {
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "No tracks yet. Add tracks from Your Library.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            EmptyState(
+                                icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.PlaylistAdd,
+                                title = "No tracks yet",
+                                subtitle = "Add tracks from Your Library to get started."
+                            )
                         }
                     } else {
-                        items(tracks, key = { it.id }) { track ->
+                        items(tracks.filter { it.id != pendingRemoveTrackId }, key = { it.id }) { track ->
                         fun toQueueItem(t: DownloadedTrack) = QueueItem(
                             uri = Uri.fromFile(File(t.filePath)).toString(),
                             title = t.title,
@@ -214,54 +274,122 @@ fun PlaylistDetailScreen(
                             startMs = t.startMs,
                             endMs = t.endMs
                         )
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val idx = tracks.indexOf(track)
-                                    val items = tracks.map { toQueueItem(it) }
-                                    viewModel.playTrackWithQueue(items, idx)
-                                    downloadManager.incrementPlayCount(track.id)
-                                },
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (track.thumbnailUrl != null) {
-                                    AsyncImage(
-                                        model = track.thumbnailUrl,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(40.dp)
-                                    )
-                                } else {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp).align(Alignment.Center),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        val displayTracks = tracks.filter { it.id != pendingRemoveTrackId }
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value != SwipeToDismissBoxValue.Settled) {
+                                    pendingRemoveTrackId = track.id
+                                    playlistManager.removeTrackFromPlaylist(playlist.id, track.id)
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "Removed \"${track.title}\" from playlist",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Indefinite
                                         )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            playlistManager.addTrackToPlaylist(playlist.id, track.id)
+                                            pendingRemoveTrackId = null
+                                        } else {
+                                            pendingRemoveTrackId = null
+                                        }
+                                    }
+                                    true
+                                } else false
+                            }
+                        )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.error)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.onError,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            },
+                            enableDismissFromStartToEnd = false,
+                            enableDismissFromEndToStart = true,
+                            content = {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val idx = displayTracks.indexOf(track)
+                                            val items = displayTracks.map { toQueueItem(it) }
+                                            viewModel.playTrackWithQueue(items, idx)
+                                        },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (track.id == currentPlayingTrackId) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(4.dp)
+                                                    .height(32.dp)
+                                                    .padding(end = 8.dp)
+                                                    .background(MaterialTheme.colorScheme.primary)
+                                            )
+                                        }
+                                        if (track.thumbnailUrl != null) {
+                                            AsyncImage(
+                                                model = track.thumbnailUrl,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(40.dp)
+                                            )
+                                        } else {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.PlayArrow,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp).align(Alignment.Center),
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                            Text(text = track.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                                            Text(text = track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                pendingRemoveTrackId = track.id
+                                                playlistManager.removeTrackFromPlaylist(playlist.id, track.id)
+                                                scope.launch {
+                                                    val result = snackbarHostState.showSnackbar(
+                                                        message = "Removed \"${track.title}\" from playlist",
+                                                        actionLabel = "Undo",
+                                                        duration = SnackbarDuration.Indefinite
+                                                    )
+                                                    if (result == SnackbarResult.ActionPerformed) {
+                                                        playlistManager.addTrackToPlaylist(playlist.id, track.id)
+                                                    }
+                                                    pendingRemoveTrackId = null
+                                                }
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
-                                Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                    Text(text = track.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                                    Text(text = track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                }
-                                IconButton(
-                                    onClick = { playlistManager.removeTrackFromPlaylist(playlist.id, track.id) }
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
-                                }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -343,12 +471,13 @@ fun PlaylistDetailScreen(
         CreateEditPlaylistDialog(
             playlist = playlist,
             onDismiss = { showEditDialog = false },
-            onSave = {
-                playlistManager.updatePlaylist(it)
-                onPlaylistUpdated?.invoke(it)
+            onSave = { updated ->
+                playlistManager.updatePlaylist(updated)
+                onPlaylistUpdated?.invoke(updated)
                 showEditDialog = false
             }
         )
+    }
     }
 }
 

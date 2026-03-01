@@ -40,6 +40,13 @@ private val SLEEP_TIMER_OPTIONS = listOf(
     -1L to "When track ends"
 )
 
+private val DEFAULT_TAB_OPTIONS = listOf(
+    "home" to "Home",
+    "search" to "Search",
+    "library" to "Library",
+    "analytics" to "Analytics"
+)
+
 @Composable
 fun SettingsDialog(
     autoDeleteAfterPlayback: Boolean,
@@ -53,7 +60,16 @@ fun SettingsDialog(
     onCancelSleepTimer: () -> Unit,
     sleepTimerFadeLastMinute: Boolean,
     onSleepTimerFadeChange: (Boolean) -> Unit,
+    defaultTab: String = "home",
+    onDefaultTabChange: (String) -> Unit = {},
+    wifiOnlyDownloads: Boolean = false,
+    onWifiOnlyDownloadsChange: (Boolean) -> Unit = {},
     onEqualizerClick: () -> Unit = {},
+    onShowTutorial: () -> Unit = {},
+    reduceMotion: Boolean = false,
+    onReduceMotionChange: (Boolean) -> Unit = {},
+    highContrast: Boolean = false,
+    onHighContrastChange: (Boolean) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
@@ -207,6 +223,59 @@ fun SettingsDialog(
                     )
                 }
                 Text(
+                    text = "Open on launch",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        DEFAULT_TAB_OPTIONS.take(2),
+                        DEFAULT_TAB_OPTIONS.drop(2)
+                    ).forEach { rowOptions ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowOptions.forEach { (value, label) ->
+                                val selected = defaultTab == value
+                                Button(
+                                    onClick = { onDefaultTabChange(value) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                        containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                        else MaterialTheme.colorScheme.surfaceVariant,
+                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Text(label, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Download only on Wi‑Fi",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = wifiOnlyDownloads,
+                        onCheckedChange = onWifiOnlyDownloadsChange
+                    )
+                }
+                Text(
+                    text = "When on, downloads won't start on cellular. Connect to Wi‑Fi to download.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
                     text = "Delete after playback (except favorites)",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -235,6 +304,74 @@ fun SettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    text = "Accessibility",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 24.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Reduce motion",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = reduceMotion,
+                        onCheckedChange = onReduceMotionChange
+                    )
+                }
+                Text(
+                    text = "Minimize or disable animations for a simpler experience.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "High contrast",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Switch(
+                        checked = highContrast,
+                        onCheckedChange = onHighContrastChange
+                    )
+                }
+                Text(
+                    text = "Use higher contrast colors for better visibility.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = {
+                            onDismiss()
+                            onShowTutorial()
+                        })
+                        .padding(top = 24.dp, bottom = 12.dp, start = 0.dp, end = 0.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Show tutorial",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Walk through how to use the app",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {

@@ -5,6 +5,7 @@ import com.shuckler.app.ShucklerApplication
 import android.content.SharedPreferences
 import android.os.Environment
 import android.util.Log
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,6 +40,9 @@ class DownloadManager(private val context: Context) {
 
     private val _lastDownloadError = MutableStateFlow<String?>(null)
     val lastDownloadError: StateFlow<String?> = _lastDownloadError.asStateFlow()
+
+    private val _lastFailedDownloadId = MutableStateFlow<String?>(null)
+    val lastFailedDownloadId: StateFlow<String?> = _lastFailedDownloadId.asStateFlow()
 
     private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
 
@@ -104,6 +108,30 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putBoolean(KEY_SLEEP_TIMER_FADE_LAST_MINUTE, value).apply()
         }
 
+    /** Default tab on launch: "home", "search", "library", "analytics". */
+    var defaultTab: String
+        get() = prefs.getString(KEY_DEFAULT_TAB, "home") ?: "home"
+        set(value) {
+            prefs.edit().putString(KEY_DEFAULT_TAB, value).apply()
+        }
+
+    /** When true, downloads only start when connected to Wi-Fi. */
+    var wifiOnlyDownloads: Boolean
+        get() = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
+        }
+
+    /** Returns true if connected to Wi-Fi (or Ethernet). Used for wifiOnlyDownloads check. */
+    fun isConnectedToWifi(): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            ?: return true
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
     init {
         scope.launch {
             _downloads.value = withContext(Dispatchers.IO) { loadMetadata() }
@@ -133,8 +161,19 @@ class DownloadManager(private val context: Context) {
     /**
      * Start downloading from YouTube video URL. Fetches a fresh stream URL on each retry attempt,
      * which helps avoid "unexpected end of stream" when YouTube's temporary URLs expire.
+     * When wifiOnlyDownloads is on and not on Wi-Fi, invokes onWifiOnlyBlocked and returns empty string.
      */
-    fun startDownloadFromYouTube(videoUrl: String, title: String? = null, artist: String? = null, thumbnailUrl: String? = null): String {
+    fun startDownloadFromYouTube(
+        videoUrl: String,
+        title: String? = null,
+        artist: String? = null,
+        thumbnailUrl: String? = null,
+        onWifiOnlyBlocked: (() -> Unit)? = null
+    ): String {
+        if (wifiOnlyDownloads && !isConnectedToWifi()) {
+            onWifiOnlyBlocked?.invoke()
+            return ""
+        }
         _lastDownloadError.value = null
         val id = UUID.randomUUID().toString()
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
@@ -151,6 +190,76 @@ class DownloadManager(private val context: Context) {
 
     fun cancelDownload(id: String) {
         activeJobs[id]?.cancel()
+    }
+
+    /**
+     * Retry a failed download. Uses existing track id and metadata.
+     * No-op if track is not FAILED or has no sourceUrl.
+     * When wifiOnlyDownloads is on and not on Wi-Fi, invokes onWifiOnlyBlocked and returns.
+     */
+    fun retryDownload(id: String, onWifiOnlyBlocked: (() -> Unit)? = null) {
+        if (wifiOnlyDownloads && !isConnectedToWifi()) {
+            onWifiOnlyBlocked?.invoke()
+            return
+        }
+        val track = _downloads.value.find { it.id == id } ?: return
+        if (track.status != DownloadStatus.FAILED || track.sourceUrl.isBlank()) return
+        _lastDownloadError.value = null
+        _lastFailedDownloadId.value = null
+        _lastFailedDownloadId.value = null
+        val job = scope.launch {
+            runDownloadFromYouTube(id, track.sourceUrl, track.title, track.artist, track.thumbnailUrl)
+        }
+        activeJobs[id] = job
+        job.invokeOnCompletion { activeJobs.remove(id) }
+    }
+
+    /**
+     * Update last playback position for a track. Used for "Continue listening" / resume from position.
+     * Persists metadata.
+     */
+    fun updateLastPosition(id: String, positionMs: Long) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                val updated = track.copy(lastPositionMs = positionMs.coerceAtLeast(0L))
+                _downloads.value = list.map { if (it.id == id) updated else it }
+                saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
+    }
+
+    /**
+     * Get last playback position for a track, or null if none or track not found.
+     */
+    fun getLastPosition(trackId: String): Long? =
+        _downloads.value.find { it.id == trackId }?.lastPositionMs?.takeIf { it > 0 }
+
+    /**
+     * Set or clear shuffle exclusion for a track. When untilMs is null, removes exclusion.
+     * When untilMs > 0, track is excluded from shuffle until that timestamp.
+     */
+    fun setExcludedFromShuffle(id: String, untilMs: Long?) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                val updated = track.copy(excludedFromShuffleUntilMs = untilMs)
+                _downloads.value = list.map { if (it.id == id) updated else it }
+                saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
+    }
+
+    /**
+     * Filter tracks for shuffle: exclude those with excludedFromShuffleUntilMs in the future.
+     */
+    fun filterForShuffle(tracks: List<DownloadedTrack>): List<DownloadedTrack> {
+        val now = System.currentTimeMillis()
+        return tracks.filter { t ->
+            t.excludedFromShuffleUntilMs == null || t.excludedFromShuffleUntilMs!! <= now
+        }
     }
 
     /**
@@ -291,9 +400,12 @@ class DownloadManager(private val context: Context) {
 
     private suspend fun runDownloadFromYouTube(id: String, videoUrl: String, title: String, artist: String, thumbnailUrl: String? = null) {
         withContext(Dispatchers.IO) {
-            val maxAttempts = 3
+            val maxAttempts = 5
             var lastError: Exception? = null
+            var partialFile: File? = null
+            var resumeFromByte: Long = 0L
             for (attempt in 1..maxAttempts) {
+                if (attempt > 1) delay(2000L) // 2 sec between retries to avoid hammering
                 val streamResult = YouTubeRepository.getAudioStreamUrl(videoUrl, downloadQuality)
                 val streamUrl = when (streamResult) {
                     is YouTubeRepository.AudioStreamResult.Success -> streamResult.info.url
@@ -303,55 +415,110 @@ class DownloadManager(private val context: Context) {
                         continue
                     }
                 }
-                if (runDownloadAttempt(id, streamUrl, title, artist, thumbnailUrl)) return@withContext
-                lastError = Exception("Download failed")
+                val result = runDownloadAttempt(id, streamUrl, title, artist, thumbnailUrl, partialFile, resumeFromByte)
+                when (result) {
+                    is DownloadAttemptResult.Success -> return@withContext
+                    is DownloadAttemptResult.Failure -> {
+                        lastError = Exception(result.message)
+                        partialFile = result.partialFile
+                        resumeFromByte = result.bytesDownloaded
+                        if (partialFile == null || resumeFromByte <= 0) {
+                            partialFile = null
+                            resumeFromByte = 0L
+                        }
+                        Log.w(TAG, "runDownloadFromYouTube attempt $attempt failed: ${result.message}, bytes so far: $resumeFromByte")
+                    }
+                }
             }
+            // Clean up orphaned partial file on final failure
+            partialFile?.let { try { it.delete() } catch (_: Exception) { } }
             clearProgress(id)
             failDownload(id, videoUrl, title, artist, lastError?.message ?: "Failed after $maxAttempts attempts")
         }
     }
 
+    private sealed class DownloadAttemptResult {
+        data object Success : DownloadAttemptResult()
+        data class Failure(val message: String, val partialFile: File?, val bytesDownloaded: Long) : DownloadAttemptResult()
+    }
+
     /**
-     * Single download attempt. Returns true if success, false if failed (caller may retry with fresh URL).
+     * Single download attempt. Supports resumable download via Range header when [resumeFromByte] > 0.
+     * Returns Success, or Failure with partialFile/bytesDownloaded for resume on next retry.
      */
-    private fun runDownloadAttempt(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String?): Boolean {
+    private fun runDownloadAttempt(
+        id: String,
+        urlString: String,
+        title: String,
+        artist: String,
+        thumbnailUrl: String?,
+        existingPartialFile: File? = null,
+        resumeFromByte: Long = 0L
+    ): DownloadAttemptResult {
         var connection: HttpURLConnection? = null
         var outputStream: FileOutputStream? = null
+        var outFile: File? = null
+        val isResume = resumeFromByte > 0L && existingPartialFile != null && existingPartialFile.exists()
         return try {
             val url = URL(urlString)
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 20_000
-            connection.readTimeout = 300_000 // 5 min per read - YouTube can be slow
+            connection.readTimeout = 300_000 // 5 min - YouTube can be slow
             connection.setRequestProperty("User-Agent", USER_AGENT)
+            if (isResume) {
+                connection.setRequestProperty("Range", "bytes=$resumeFromByte-")
+            }
             connection.connect()
 
             val responseCode = connection.responseCode
-            if (responseCode !in 200..299) {
-                Log.w(TAG, "runDownloadAttempt: HTTP $responseCode for $urlString")
-                return false
-            }
-
-            val contentLength = connection.contentLengthLong.takeIf { it > 0 }
-            if (contentLength != null && contentLength > 0) {
-                val available = getAvailableSpace()
-                if (available < contentLength) {
-                    failDownload(id, urlString, title, artist, "Not enough space. Need ${contentLength / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
-                    return true // Don't retry - space issue
+            when {
+                responseCode == 416 -> {
+                    // Range not satisfiable - server might have changed; retry from scratch
+                    Log.w(TAG, "runDownloadAttempt: 416 Range not satisfiable, will retry from scratch")
+                    DownloadAttemptResult.Failure("Range not satisfiable", null, 0L)
+                }
+                responseCode in 200..299 -> { /* OK or 206 Partial Content */ }
+                else -> {
+                    Log.w(TAG, "runDownloadAttempt: HTTP $responseCode for $urlString")
+                    return DownloadAttemptResult.Failure("HTTP $responseCode", if (isResume) existingPartialFile else null, if (isResume) resumeFromByte else 0L)
                 }
             }
 
-            val fileName = suggestFileName(urlString, connection.contentType)
-            val file = File(audioDir, fileName)
+            val is206 = responseCode == 206
+            if (isResume && !is206) {
+                // Server ignored Range, sent full content - cannot append; retry from scratch
+                Log.w(TAG, "runDownloadAttempt: requested Range but got $responseCode, retry from scratch")
+                return DownloadAttemptResult.Failure("Server sent full content instead of partial", null, 0L)
+            }
+
+            outFile = if (isResume) existingPartialFile!! else {
+                File(audioDir, suggestFileName(urlString, connection.contentType))
+            }
+            val file = outFile!!
+            val contentRange = connection.getHeaderField("Content-Range")
+            val totalSize = parseTotalFromContentRange(contentRange)
+            val contentLength = connection.contentLengthLong.takeIf { it > 0 }
+                ?: totalSize?.minus(resumeFromByte)?.takeIf { it > 0 }
+            val totalExpected = if (totalSize != null) totalSize else (contentLength?.plus(resumeFromByte))
+
+            if (!isResume && totalExpected != null && totalExpected > 0) {
+                val available = getAvailableSpace()
+                if (available < totalExpected) {
+                    failDownload(id, urlString, title, artist, "Not enough space. Need ${totalExpected / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
+                    return DownloadAttemptResult.Success
+                }
+            }
+
             file.parentFile?.mkdirs()
-            outputStream = FileOutputStream(file)
+            outputStream = FileOutputStream(file, isResume)
 
             val inputStream = connection.inputStream
             val buffer = ByteArray(BUFFER_SIZE)
-            var totalRead: Long = 0
+            var totalRead: Long = resumeFromByte
             var read: Int
             var lastProgressTime = System.currentTimeMillis()
-            var lastProgressBytes = 0L
+            var lastProgressBytes = totalRead
 
             while (inputStream.read(buffer).also { read = it } != -1) {
                 outputStream.write(buffer, 0, read)
@@ -365,32 +532,44 @@ class DownloadManager(private val context: Context) {
                     lastProgressTime = now
                     lastProgressBytes = totalRead
                 }
-                val percent = if (contentLength != null && contentLength > 0) {
-                    ((totalRead * 100) / contentLength).toInt().coerceIn(0, 100)
+                val percent = if (totalExpected != null && totalExpected > 0) {
+                    ((totalRead * 100) / totalExpected).toInt().coerceIn(0, 99)
                 } else null
-                updateProgress(id, totalRead, contentLength ?: totalRead, percent ?: 0, bytesPerSecond)
+                updateProgress(id, totalRead, totalExpected ?: totalRead, percent ?: 0, bytesPerSecond)
             }
 
             completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
             outputStream.close()
             outputStream = null
             clearProgress(id)
-            true
+            DownloadAttemptResult.Success
         } catch (e: Exception) {
             Log.w(TAG, "runDownloadAttempt failed: ${e.message}", e)
-            false
+            val partial = outFile ?: existingPartialFile
+            val bytes = partial?.takeIf { it.exists() }?.length() ?: 0L
+            DownloadAttemptResult.Failure(e.message ?: "Unknown error", partial.takeIf { bytes > 0 }, bytes)
         } finally {
             outputStream?.closeQuietly()
             connection?.disconnect()
         }
     }
 
+    /** Parse "bytes 100-499/5000" -> 5000L */
+    private fun parseTotalFromContentRange(header: String?): Long? {
+        if (header.isNullOrBlank()) return null
+        val slash = header.indexOf('/')
+        if (slash < 0) return null
+        return header.substring(slash + 1).trim().toLongOrNull()
+    }
+
     private suspend fun runDownload(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String? = null) {
         withContext(Dispatchers.IO) {
-            val ok = runDownloadAttempt(id, urlString, title, artist, thumbnailUrl)
-            if (!ok) {
-                clearProgress(id)
-                failDownload(id, urlString, title, artist, "Download failed")
+            when (val result = runDownloadAttempt(id, urlString, title, artist, thumbnailUrl, null, 0L)) {
+                is DownloadAttemptResult.Success -> { }
+                is DownloadAttemptResult.Failure -> {
+                    clearProgress(id)
+                    failDownload(id, urlString, title, artist, result.message)
+                }
             }
         }
     }
@@ -444,6 +623,7 @@ class DownloadManager(private val context: Context) {
     private fun failDownload(id: String, sourceUrl: String, title: String, artist: String, errorMessage: String) {
         Log.e(TAG, "failDownload: $title - $errorMessage")
         _lastDownloadError.value = errorMessage
+        _lastFailedDownloadId.value = id
         val track = DownloadedTrack(
             id = id,
             title = title,
@@ -485,7 +665,10 @@ class DownloadManager(private val context: Context) {
                     status = DownloadStatus.COMPLETED,
                     downloadProgress = 100,
                     startMs = startMs,
-                    endMs = endMs
+                    endMs = endMs,
+                    lastPositionMs = obj.optLong(KEY_LAST_POSITION_MS, 0L),
+                    excludedFromShuffleUntilMs = obj.optLong(KEY_EXCLUDED_FROM_SHUFFLE_MS, -1L).takeIf { it > 0 },
+                    moodTags = parseMoodTags(obj.optJSONArray(KEY_MOOD_TAGS))
                 )
             }.filter { it.filePath.isNotBlank() && File(it.filePath).exists() }
         } catch (_: Exception) {
@@ -513,10 +696,41 @@ class DownloadManager(private val context: Context) {
                         put(KEY_THUMBNAIL_URL, track.thumbnailUrl ?: "")
                         track.startMs?.let { put(KEY_START_MS, it) }
                         track.endMs?.let { put(KEY_END_MS, it) }
+                        if (track.lastPositionMs > 0) put(KEY_LAST_POSITION_MS, track.lastPositionMs)
+                        track.excludedFromShuffleUntilMs?.let { put(KEY_EXCLUDED_FROM_SHUFFLE_MS, it) }
+                        if (track.moodTags.isNotEmpty()) {
+                            put(KEY_MOOD_TAGS, JSONArray(track.moodTags.toList()))
+                        }
                     })
                 }
             metadataFile.writeText(arr.toString())
         } catch (_: Exception) { }
+    }
+
+    private fun parseMoodTags(arr: org.json.JSONArray?): Set<String> {
+        if (arr == null) return emptySet()
+        return try {
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optString(i, "").takeIf { it.isNotBlank() }
+            }.toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    /**
+     * Set mood tags for a track. Persists metadata.
+     */
+    fun setMoodTags(id: String, tags: Set<String>) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value
+                val track = list.find { it.id == id } ?: return@withContext
+                val updated = track.copy(moodTags = tags)
+                _downloads.value = list.map { if (it.id == id) updated else it }
+                saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
     }
 
     private fun FileOutputStream.closeQuietly() {
@@ -542,11 +756,16 @@ class DownloadManager(private val context: Context) {
         private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
         private const val KEY_START_MS = "startMs"
         private const val KEY_END_MS = "endMs"
+        private const val KEY_LAST_POSITION_MS = "lastPositionMs"
+        private const val KEY_EXCLUDED_FROM_SHUFFLE_MS = "excludedFromShuffleUntilMs"
+        private const val KEY_MOOD_TAGS = "moodTags"
         private const val PREFS_NAME = "shuckler_settings"
         private const val KEY_AUTO_DELETE_AFTER_PLAYBACK = "auto_delete_after_playback"
         private const val KEY_CROSSFADE_DURATION_MS = "crossfade_duration_ms"
         private const val KEY_DOWNLOAD_QUALITY = "download_quality"
         private const val KEY_PLAYBACK_SPEED = "playback_speed"
         private const val KEY_SLEEP_TIMER_FADE_LAST_MINUTE = "sleep_timer_fade_last_minute"
+        private const val KEY_DEFAULT_TAB = "default_tab"
+        private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     }
 }

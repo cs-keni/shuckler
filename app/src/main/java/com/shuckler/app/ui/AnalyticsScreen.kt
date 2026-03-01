@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -37,6 +39,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.runtime.LaunchedEffect
+import com.shuckler.app.achievement.AchievementBadge
+import com.shuckler.app.achievement.AchievementDefinitions
+import com.shuckler.app.achievement.LocalAchievementManager
+import com.shuckler.app.personality.LocalListeningPersonalityManager
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
@@ -54,6 +61,8 @@ private enum class AnalyticsTimeRange(val label: String, val ms: Long?) {
 fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     val downloadManager = LocalDownloadManager.current
     val playlistManager = LocalPlaylistManager.current
+    val achievementManager = LocalAchievementManager.current
+    val personalityManager = LocalListeningPersonalityManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val playlists by playlistManager.playlists.collectAsState()
     val allEntries by playlistManager.allEntries.collectAsState()
@@ -69,6 +78,12 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     val favoriteCount = filteredTracks.count { it.isFavorite }
     val topPlayed = filteredTracks.sortedByDescending { it.playCount }.take(8)
     val maxPlays = topPlayed.maxOfOrNull { it.playCount } ?: 1
+
+    LaunchedEffect(completed, playlists, totalPlayCount) {
+        achievementManager.checkAndUnlock(completed, playlists, totalPlayCount)
+    }
+
+    val unlockedIds = achievementManager.getUnlockedIds()
 
     val playlistPlayCounts = playlists.map { p ->
         val entries = allEntries.filter { it.playlistId == p.id }
@@ -91,6 +106,44 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(vertical = 8.dp)
         )
+        val personality = personalityManager.computePersonality()
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = personality.emoji,
+                    style = MaterialTheme.typography.headlineLarge
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Listening personality",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = personality.label,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = personality.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -116,6 +169,29 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             StatCard(label = "Tracks", value = "${filteredTracks.size}")
             StatCard(label = "Plays", value = "$totalPlayCount")
             StatCard(label = "Favorites", value = "$favoriteCount")
+        }
+        Text(
+            text = "Achievements",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
+        )
+        val badges = AchievementDefinitions.ALL
+        val cols = 4
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            badges.chunked(cols).forEach { rowBadges ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowBadges.forEach { badge ->
+                        AchievementBadgeCard(
+                            badge = badge,
+                            unlocked = unlockedIds.contains(badge.id)
+                        )
+                    }
+                }
+            }
         }
         if (topPlayed.isNotEmpty()) {
             Text(
@@ -158,6 +234,39 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boolean) {
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (unlocked)
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                else
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            )
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = badge.emoji,
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Text(
+            text = badge.name,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (unlocked)
+                MaterialTheme.colorScheme.onPrimaryContainer
+            else
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

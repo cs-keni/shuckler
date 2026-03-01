@@ -28,6 +28,7 @@ class LyricsRepository(private val context: Context) {
     /**
      * Fetch lyrics for the given track. Uses cache first; on cache miss, fetches from API.
      * Returns [LyricsResult.Synced], [LyricsResult.Plain], or [LyricsResult.NotFound].
+     * Tries multiple search strategies (exact artist+title, then broader keyword search) for better matches.
      */
     suspend fun getLyrics(artist: String, title: String): LyricsResult = withContext(Dispatchers.IO) {
         if (artist.isBlank() && title.isBlank()) return@withContext LyricsResult.NotFound
@@ -35,7 +36,27 @@ class LyricsRepository(private val context: Context) {
         val cached = readCache(cacheKey)
         if (cached != null) return@withContext cached
 
-        val result = fetchFromApi(artist, title)
+        var result = fetchFromApi(artist, title)
+        if (result is LyricsResult.NotFound) {
+            // Fallback 1: if title looks like "Artist - Song", try split
+            if (artist.isBlank() && title.contains(" - ")) {
+                val parts = title.split(" - ", limit = 2)
+                if (parts.size == 2) {
+                    result = fetchFromApi(parts[0].trim(), parts[1].trim())
+                }
+            }
+        }
+        if (result is LyricsResult.NotFound) {
+            // Fallback 2: broader keyword search (q= searches in ANY field)
+            val combined = listOf("$artist $title".trim(), "$title $artist".trim())
+                .filter { it.isNotBlank() }
+                .distinct()
+            for (query in combined) {
+                if (query.isBlank()) continue
+                result = fetchFromApiByQ(query)
+                if (result is LyricsResult.Synced || result is LyricsResult.Plain) break
+            }
+        }
         if (result is LyricsResult.Synced || result is LyricsResult.Plain) {
             writeCache(cacheKey, result)
         }
@@ -47,6 +68,24 @@ class LyricsRepository(private val context: Context) {
             val encodedTitle = URLEncoder.encode(title, "UTF-8")
             val encodedArtist = URLEncoder.encode(artist, "UTF-8")
             val url = "https://lrclib.net/api/search?track_name=$encodedTitle&artist_name=$encodedArtist"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Shuckler/1.0 (https://github.com/shuckler)")
+                .get()
+                .build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return LyricsResult.NotFound
+            val body = response.body?.string() ?: return LyricsResult.NotFound
+            parseSearchResponse(body)
+        } catch (_: Exception) {
+            LyricsResult.NotFound
+        }
+    }
+
+    private fun fetchFromApiByQ(query: String): LyricsResult {
+        return try {
+            val encodedQ = URLEncoder.encode(query, "UTF-8")
+            val url = "https://lrclib.net/api/search?q=$encodedQ"
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "Shuckler/1.0 (https://github.com/shuckler)")

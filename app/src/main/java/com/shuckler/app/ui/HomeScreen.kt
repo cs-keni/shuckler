@@ -19,6 +19,9 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,6 +47,8 @@ import coil.compose.AsyncImage
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
+import com.shuckler.app.ui.LocalOnWifiOnlyBlocked
+import com.shuckler.app.ui.LocalSnackbarHostState
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.preview.PreviewPlayer
@@ -74,6 +79,8 @@ fun HomeScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val downloadManager = LocalDownloadManager.current
+    val onWifiOnlyBlocked = LocalOnWifiOnlyBlocked.current
+    val snackbarHostState = LocalSnackbarHostState.current
     val playlistManager = LocalPlaylistManager.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val recentSearches = SearchPreferences.getRecentSearches(context)
@@ -85,6 +92,7 @@ fun HomeScreen(
     var recommendedLoading by remember { mutableStateOf(false) }
     val previewingVideoUrl by PreviewPlayer.previewingVideoUrl.collectAsState(initial = null)
     var downloadingVideoUrl by remember { mutableStateOf<String?>(null) }
+    var streamingVideoUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(completedTracks) {
         if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
@@ -98,9 +106,8 @@ fun HomeScreen(
     val recentlyPlayed = completedTracks
         .filter { it.lastPlayedMs > 0 }
         .sortedByDescending { it.lastPlayedMs }
-        .take(8)
-    val quickPicks = completedTracks
-        .filter { it.isFavorite }
+        .take(50)
+    val quickPicks = downloadManager.filterForShuffle(completedTracks.filter { it.isFavorite })
         .shuffled()
         .take(8)
     val displayTracks = if (recentlyPlayed.isNotEmpty()) recentlyPlayed else quickPicks
@@ -130,6 +137,61 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
+
+        if (completedTracks.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val shuffleable = downloadManager.filterForShuffle(completedTracks)
+                        val track = shuffleable.randomOrNull() ?: return@Button
+                        val items = listOf(
+                            QueueItem(
+                                uri = Uri.fromFile(File(track.filePath)).toString(),
+                                title = track.title,
+                                artist = track.artist,
+                                trackId = track.id,
+                                thumbnailUrl = track.thumbnailUrl,
+                                startMs = track.startMs,
+                                endMs = track.endMs
+                            )
+                        )
+                        viewModel.playTrackWithQueue(items, 0)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Text("Surprise me")
+                }
+                val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+                val shuffleable = downloadManager.filterForShuffle(completedTracks)
+                val throwbacks = shuffleable.filter { it.lastPlayedMs < thirtyDaysAgo || it.lastPlayedMs == 0L }
+                Button(
+                    onClick = {
+                        val track = if (throwbacks.isNotEmpty()) throwbacks.random()
+                        else shuffleable.randomOrNull() ?: return@Button
+                        val items = listOf(
+                            QueueItem(
+                                uri = Uri.fromFile(File(track.filePath)).toString(),
+                                title = track.title,
+                                artist = track.artist,
+                                trackId = track.id,
+                                thumbnailUrl = track.thumbnailUrl,
+                                startMs = track.startMs,
+                                endMs = track.endMs
+                            )
+                        )
+                        viewModel.playTrackWithQueue(items, 0)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                ) {
+                    Text("Throwback")
+                }
+            }
+        }
 
         if (recentSearches.isNotEmpty()) {
             Text(
@@ -190,33 +252,78 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(recommendedResults, key = { it.url }) { result ->
+                        val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
                         RecommendedYouTubeCard(
                             result = result,
                             isDownloading = downloadingVideoUrl == result.url,
+                            isStreaming = streamingVideoUrl == result.url,
                             isPreviewing = previewingVideoUrl == result.url,
+                            isDownloaded = isDownloaded,
+                            onPlayClick = {
+                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                                streamingVideoUrl = result.url
+                                scope.launch {
+                                    val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                    when (audio) {
+                                        is YouTubeRepository.AudioStreamResult.Success -> {
+                                            viewModel.playTrack(
+                                                Uri.parse(audio.info.url),
+                                                result.title,
+                                                result.uploaderName ?: "Unknown",
+                                                thumbnailUrl = result.thumbnailUrl
+                                            )
+                                        }
+                                        is YouTubeRepository.AudioStreamResult.Failure -> {
+                                            snackbarHostState?.let { host ->
+                                                scope.launch {
+                                                    val r = host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short)
+                                                    if (r == SnackbarResult.ActionPerformed) {
+                                                        streamingVideoUrl = result.url
+                                                        val retryAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                                        when (retryAudio) {
+                                                            is YouTubeRepository.AudioStreamResult.Success -> viewModel.playTrack(
+                                                                Uri.parse(retryAudio.info.url), result.title, result.uploaderName ?: "Unknown", thumbnailUrl = result.thumbnailUrl
+                                                            )
+                                                            is YouTubeRepository.AudioStreamResult.Failure -> { /* already showed snackbar */ }
+                                                        }
+                                                        streamingVideoUrl = null
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    streamingVideoUrl = null
+                                }
+                            },
                             onPreviewClick = {
                                 scope.launch {
                                     val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
                                     when (audio) {
                                         is YouTubeRepository.AudioStreamResult.Success ->
                                             PreviewPlayer.play(context, result.url, audio.info.url)
-                                        is YouTubeRepository.AudioStreamResult.Failure -> { /* TODO: snackbar */ }
+                                        is YouTubeRepository.AudioStreamResult.Failure ->
+                                            snackbarHostState?.let { host ->
+                                                scope.launch { host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short) }
+                                            }
                                     }
                                 }
                             },
                             onStopPreviewClick = { PreviewPlayer.stop() },
                             onDownloadClick = {
                                 if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
-                                downloadingVideoUrl = result.url
-                                downloadManager.startDownloadFromYouTube(
+                                val id = downloadManager.startDownloadFromYouTube(
                                     result.url,
                                     result.title,
                                     result.uploaderName ?: "",
-                                    result.thumbnailUrl
+                                    result.thumbnailUrl,
+                                    onWifiOnlyBlocked = onWifiOnlyBlocked
                                 )
-                                scope.launch {
-                                    kotlinx.coroutines.delay(500)
-                                    if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                if (id.isNotEmpty()) {
+                                    downloadingVideoUrl = result.url
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(500)
+                                        if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                    }
                                 }
                             }
                         )
@@ -278,7 +385,6 @@ fun HomeScreen(
                             }
                             val idx = displayTracks.indexOf(track).coerceAtLeast(0)
                             viewModel.playTrackWithQueue(items, idx)
-                            downloadManager.incrementPlayCount(track.id)
                         }
                     )
                 }
@@ -402,7 +508,10 @@ private fun TrackShortcutCard(
 private fun RecommendedYouTubeCard(
     result: YouTubeSearchResult,
     isDownloading: Boolean,
+    isStreaming: Boolean,
     isPreviewing: Boolean,
+    isDownloaded: Boolean,
+    onPlayClick: () -> Unit,
     onPreviewClick: () -> Unit,
     onStopPreviewClick: () -> Unit,
     onDownloadClick: () -> Unit
@@ -451,11 +560,18 @@ private fun RecommendedYouTubeCard(
                         Icon(Icons.Default.Stop, contentDescription = "Stop preview", modifier = Modifier.size(20.dp))
                     }
                 } else {
-                    IconButton(onClick = onPreviewClick) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(20.dp))
+                    IconButton(onClick = onPlayClick, enabled = !isDownloading && !isStreaming) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = if (isStreaming) "Loading…" else "Play (stream)",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(onClick = onPreviewClick, enabled = !isDownloading) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Preview 60s", modifier = Modifier.size(16.dp))
                     }
                 }
-                IconButton(onClick = onDownloadClick, enabled = !isDownloading) {
+                IconButton(onClick = onDownloadClick, enabled = !isDownloading && !isDownloaded) {
                     Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(20.dp))
                 }
             }

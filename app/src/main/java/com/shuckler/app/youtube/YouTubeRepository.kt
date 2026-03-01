@@ -68,8 +68,9 @@ object YouTubeRepository {
                         uploaderName = item.uploaderName
                     )
                 }
-        } catch (_: Throwable) {
-            emptyList()
+        } catch (e: Throwable) {
+            Log.e("YouTubeRepository", "search failed", e)
+            throw e
         }
     }
 
