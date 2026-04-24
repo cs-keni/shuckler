@@ -1,6 +1,12 @@
 package com.shuckler.app.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
@@ -22,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.layout.onSizeChanged
 import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -47,8 +56,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.alpha
@@ -71,6 +79,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -238,6 +249,25 @@ fun PlayerScreen(
     }
     val accessibilityPrefs = LocalAccessibilityPreferences.current
     val reduceMotion by accessibilityPrefs.reduceMotionFlow.collectAsState(initial = accessibilityPrefs.reduceMotion)
+    val vinylRotation = remember { Animatable(0f) }
+    LaunchedEffect(isPlaying, reduceMotion) {
+        if (isPlaying && !reduceMotion) {
+            while (true) {
+                vinylRotation.animateTo(
+                    targetValue = vinylRotation.value + 360f,
+                    animationSpec = tween(durationMillis = 8000, easing = LinearEasing)
+                )
+                vinylRotation.snapTo(vinylRotation.value % 360f)
+            }
+        } else {
+            vinylRotation.stop()
+        }
+    }
+    val artScale by animateFloatAsState(
+        targetValue = if (!reduceMotion && isPlaying) 1.03f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "artScale"
+    )
     if (showSettingsDialog) {
         SettingsDialog(
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
@@ -267,12 +297,17 @@ fun PlayerScreen(
     }
 
     val topGradientColor = albumColor?.let { lerp(it, Color.Black, 0.4f) } ?: ShucklerBlack
+    val animatedTopColor by animateColorAsState(
+        targetValue = topGradientColor,
+        animationSpec = tween(if (reduceMotion) 0 else 600),
+        label = "bgGradient"
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(topGradientColor, ShucklerBlack),
+                    colors = listOf(animatedTopColor, ShucklerBlack),
                     startY = 0f,
                     endY = Float.POSITIVE_INFINITY
                 )
@@ -310,7 +345,8 @@ fun PlayerScreen(
         Box(
             modifier = Modifier
                 .padding(bottom = 16.dp)
-                .size(280.dp),
+                .size(280.dp)
+                .scale(artScale),
             contentAlignment = Alignment.Center
         ) {
             if (!reduceMotion) {
@@ -331,14 +367,17 @@ fun PlayerScreen(
                     modifier = Modifier
                         .size(260.dp)
                         .padding(10.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .shadow(elevation = 12.dp, shape = CircleShape, clip = false)
+                        .clip(CircleShape)
+                        .rotate(if (!reduceMotion) vinylRotation.value else 0f)
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(260.dp)
                         .padding(10.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .shadow(elevation = 12.dp, shape = CircleShape, clip = false)
+                        .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Icon(
@@ -416,15 +455,24 @@ fun PlayerScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        var isSeekDragging by remember { mutableStateOf(false) }
-        var seekPosition by remember { mutableStateOf(0f) }
+        var isScrubbing by remember { mutableStateOf(false) }
+        var scrubPositionMs by remember { mutableStateOf(0f) }
         val maxDuration = (durationMs.takeIf { it > 0 } ?: 1L).toFloat()
         var seekBarWidthPx by remember { mutableStateOf(0) }
-        Box(
+        val scrubThumbAlpha by animateFloatAsState(
+            targetValue = if (isScrubbing) 1f else 0f,
+            animationSpec = tween(if (isScrubbing) 100 else 400),
+            label = "scrubThumb"
+        )
+        val scrubPrimaryColor = MaterialTheme.colorScheme.primary
+        val scrubTrackColor = MaterialTheme.colorScheme.onSurface
+        Canvas(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(40.dp)
+                .padding(horizontal = 16.dp)
                 .onSizeChanged { seekBarWidthPx = it.width }
-                .pointerInput(seekBarWidthPx) {
+                .pointerInput(seekBarWidthPx, durationMs) {
                     if (seekBarWidthPx <= 0) return@pointerInput
                     detectTapGestures(
                         onDoubleTap = { offset ->
@@ -436,26 +484,52 @@ fun PlayerScreen(
                         }
                     )
                 }
+                .pointerInput(seekBarWidthPx, durationMs) {
+                    if (seekBarWidthPx <= 0) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            scrubPositionMs = (offset.x / seekBarWidthPx).coerceIn(0f, 1f) * maxDuration
+                            isScrubbing = true
+                        },
+                        onDragEnd = {
+                            viewModel.seekTo(scrubPositionMs.toLong())
+                            isScrubbing = false
+                        },
+                        onDragCancel = { isScrubbing = false },
+                        onHorizontalDrag = { change, _ ->
+                            change.consume()
+                            scrubPositionMs = (change.position.x / seekBarWidthPx).coerceIn(0f, 1f) * maxDuration
+                        }
+                    )
+                }
         ) {
-            Slider(
-                value = if (isSeekDragging) seekPosition else positionMs.toFloat().coerceIn(0f, maxDuration),
-                onValueChange = {
-                    seekPosition = it
-                    isSeekDragging = true
-                },
-                onValueChangeFinished = {
-                    viewModel.seekTo(seekPosition.toLong())
-                    isSeekDragging = false
-                },
-                valueRange = 0f..maxDuration,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary
-                )
+            val progress = if (isScrubbing) scrubPositionMs / maxDuration else positionMs.toFloat() / maxDuration
+            val clampedProgress = progress.coerceIn(0f, 1f)
+            val barH = 4.dp.toPx()
+            val barY = size.height / 2f
+            val r = CornerRadius(barH / 2f)
+            drawRoundRect(
+                color = scrubTrackColor.copy(alpha = 0.25f),
+                topLeft = Offset(0f, barY - barH / 2f),
+                size = Size(size.width, barH),
+                cornerRadius = r
             )
+            val playedW = size.width * clampedProgress
+            if (playedW > 0f) {
+                drawRoundRect(
+                    color = scrubPrimaryColor,
+                    topLeft = Offset(0f, barY - barH / 2f),
+                    size = Size(playedW, barH),
+                    cornerRadius = r
+                )
+            }
+            if (scrubThumbAlpha > 0f) {
+                drawCircle(
+                    color = scrubPrimaryColor.copy(alpha = scrubThumbAlpha),
+                    radius = 7.dp.toPx(),
+                    center = Offset(size.width * clampedProgress, barY)
+                )
+            }
         }
 
         Row(

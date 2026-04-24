@@ -1814,29 +1814,29 @@ If you encounter issues in a phase, fix them before proceeding. Don't accumulate
    - `InfiniteTransition.animateFloat(0f → 360f, infiniteRepeatable(tween(8000, easing = LinearEasing)))`
    - Bind animation to `isPlaying`: use `animatable.stop()` / `.animateTo()` on play state change
    - Add circular clip + subtle drop shadow behind the "vinyl"
-   - [ ] Art rotates slowly (one full rotation per ~8 seconds); pauses immediately on pause
+   - [x] Art rotates slowly (one full rotation per ~8 seconds); pauses immediately on pause
 
 2. **Gesture-based progress scrubber**
    - Replace `Slider` with a custom `Canvas`-drawn bar + `detectHorizontalDragGestures`
    - Show thumb on drag-start, hide when idle (Spotify behavior)
    - Commit seek via `viewModel.seekTo(positionMs)` on drag-end
-   - [ ] Can scrub by dragging anywhere on the progress bar; thumb appears on touch
+   - [x] Can scrub by dragging anywhere on the progress bar; thumb appears on touch
 
 3. **Album art scale pulse on play state**
    - `val artScale by animateFloatAsState(if (isPlaying) 1.03f else 1.0f, spring(DampingRatioMediumBouncy))`
    - Apply to `Modifier.scale(artScale)` on the album art container
-   - [ ] Art subtly grows when music plays, shrinks on pause
+   - [x] Art subtly grows when music plays, shrinks on pause
 
 4. **Smooth dynamic background color**
    - Animate `albumColor` change: `val animatedTopColor by animateColorAsState(topGradientColor, tween(600))`
    - Replace static `topGradientColor` in the `Brush.verticalGradient` with `animatedTopColor`
-   - [ ] Background gradient transitions smoothly when track changes (no hard cut)
+   - [x] Background gradient transitions smoothly when track changes (no hard cut)
 
 #### Testing:
-- [ ] Vinyl rotates; pauses and resumes correctly
-- [ ] Scrubber responds to drag gesture; seeks correctly
-- [ ] Art scale pulse visible on play/pause toggle
-- [ ] Background color cross-fades on track change
+- [x] Vinyl rotates; pauses and resumes correctly
+- [x] Scrubber responds to drag gesture; seeks correctly
+- [x] Art scale pulse visible on play/pause toggle
+- [x] Background color cross-fades on track change
 
 ---
 
