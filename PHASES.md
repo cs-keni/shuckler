@@ -885,10 +885,41 @@ Follow-up refinements from Phase 21d implementation.
 
 ---
 
-## Phase 28: Import Playlists from Spotify (Planned)
-**Goal:** Import existing playlists from Spotify (and optionally other music apps) into Shuckler.
+## Phase 28: Import Playlists — YouTube & Spotify ✅
+**Goal:** Import playlists from YouTube (by URL) and Spotify (OAuth) into Shuckler.
 
 ### Tasks:
+1. **YouTube playlist import** ✅
+   - `YouTubeRepository.getPlaylist(url)` fetches playlist via NewPipe PlaylistExtractor; handles pagination.
+   - Import dialog: paste URL → Fetch playlist → Import creates Shuckler playlist and downloads each track.
+   - Skips already-downloaded tracks (by sourceUrl).
+2. **Spotify import** ✅
+   - OAuth 2.0 Authorization Code with PKCE (no client secret).
+   - SpotifyRepository: buildAuthUrl, exchangeCodeForToken, getPlaylists, getPlaylistTracks.
+   - SpotifyAuthManager: persists code verifier, handles callback, stores token.
+   - Redirect URI: `shuckler://spotify-callback`; intent filter in AndroidManifest.
+   - For each Spotify track: search YouTube by "title artist", download first result, add to playlist.
+3. **UI** ✅
+   - Import icon in Library header opens ImportDialog (ModalBottomSheet).
+   - Tabs: YouTube | Spotify. YouTube: URL field, Fetch, Import. Spotify: Connect → Load playlists → Select → Import.
+4. **Manual setup** ✅
+   - IMPORT_SETUP.md documents steps. Spotify requires: create app at developer.spotify.com, add redirect URI, add SPOTIFY_CLIENT_ID to gradle.properties.
+
+### Testing:
+- [ ] YouTube: paste playlist URL, fetch, import; tracks download and appear in playlist.
+- [ ] Spotify: connect, load playlists, import; tracks are searched on YouTube and downloaded.
+
+### Deliverables:
+- YouTube playlist import by URL.
+- Spotify playlist import via OAuth.
+- IMPORT_SETUP.md with manual steps.
+
+---
+
+## Phase 28 (Original Plan — Superseded by Phase 28 Above)
+~~**Goal:** Import existing playlists from Spotify (and optionally other music apps) into Shuckler.~~
+
+### Original Tasks (for reference):
 1. **Spotify API integration**
    - Use Spotify Web API (OAuth 2.0) to authenticate and fetch user's playlists.
    - For each playlist: get track list (title, artist). Spotify doesn't provide downloadable audio; user will need to search YouTube for each track and download. Consider UX: batch "import" that creates a Shuckler playlist and queues YouTube searches for each track.
@@ -1618,3 +1649,343 @@ Begin with **Phase 1** and work through each phase sequentially. After completin
 ---
 
 If you encounter issues in a phase, fix them before proceeding. Don't accumulate technical debt.
+
+---
+
+## Competitive Analysis: Shuckler vs Spotify / Apple Music / Pandora
+
+**Summary:** Shuckler is ready to deploy for personal use. It offers a rich, polished experience that rivals big-name apps in many areas. Below: how it feels, what differs, and ideas to compete or differentiate.
+
+---
+
+### How Shuckler Feels (Assessment)
+
+**Strengths:**
+- **Feature density:** 49 phases implemented — search, download, stream, playlists, queue, crossfade, gapless, preload, lyrics, equalizer, widget, achievements, recommendations, onboarding, and more.
+- **Flow:** Home → Search → Library → Analytics with smooth tab transitions; mini-player expands to full player; modal sheets for Library and Player.
+- **Polish:** Haptic feedback, double-tap seek, skeleton loaders, error retry, swipe-to-delete with undo, scroll position memory, empty states.
+- **Accessibility:** Reduce motion, high contrast, TalkBack support.
+- **Identity:** Shuckle mascot, neon yellow accent, cohesive dark theme.
+
+**Potential friction points:**
+- **Stream URL expiry:** YouTube URLs expire; retries and resumable downloads help, but streaming can occasionally fail mid-track.
+- **Download speed:** Depends on YouTube; no CDN like Spotify’s.
+- **No account sync:** Library is device-only; no cloud backup or multi-device sync.
+
+**Verdict:** The app feels seamless for its model (YouTube-sourced, offline-first). It competes well on UX polish and feature set for a personal, non-commercial app.
+
+---
+
+### What Differs: Shuckler vs Big-Name Apps
+
+| Aspect | Spotify / Apple Music / Pandora | Shuckler |
+|--------|----------------------------------|----------|
+| **Infrastructure** | Own datacenters, CDNs, direct streaming | Streams from YouTube; downloads to device |
+| **Licensing** | Direct deals with labels | Uses YouTube (user responsibility) |
+| **Discovery** | ML-based recommendations, curated playlists | Simple rules: recent searches, favorites, play counts |
+| **Social** | Follow artists, friends, shared playlists | None (personal use) |
+| **Offline** | Smart sync, DRM-protected | Manual download; user owns files |
+| **Multi-device** | Continue on phone, tablet, desktop, TV | Single device only |
+| **Audio quality** | Lossless (Hi-Fi), spatial audio | Quality options (Best/High/Data saver); no lossless |
+| **Podcasts** | Spotify has podcasts | Music only |
+| **Monetization** | Subscription, ads (free tier) | Free, no ads, no account required |
+| **Metadata** | Curated, rich (artist bios, album art) | YouTube metadata; thumbnails |
+| **Stream reliability** | Highly reliable | YouTube URLs can expire; retries help |
+| **Privacy** | Analytics, tracking | Local-only; no server analytics |
+
+---
+
+### Ideas to Compete or Differentiate
+
+**Already implemented (Shuckler advantages):**
+- No subscription, no ads, no account
+- True offline; user owns files
+- Long compilations (lo-fi, study mixes) — YouTube strength
+- Lyrics (LRCLIB), equalizer, playback speed
+- Achievements, listening personality, mood tags
+- Widget, app shortcuts, share track/playlist
+- Smart playlists, clean-up suggestions
+- Preview before download, stream without download
+
+**Ideas to add (store for future phases):**
+
+| Idea | Description | Effort |
+|------|-------------|--------|
+| **Android Auto / CarPlay** | In-car playback controls | Medium |
+| **Chromecast / Cast** | Cast to TV or speaker | Medium |
+| **Richer metadata** | MusicBrainz / Last.fm for artist, album, genre | Medium |
+| **Biometric lock** | Fingerprint/face lock for app | Low |
+| **Cloud backup (optional)** | Export/import library JSON to cloud (Google Drive, etc.) for restore on new device | Medium |
+| **Smart playlist rules** | Auto-add tracks: "Never played," "Play count &lt; 2," "Added &gt; 30 days ago" | Medium |
+| **Genre/artist from metadata** | Derive or fetch genre; filter Library by artist | Low–Medium |
+| **"Similar tracks" in Search** | When viewing a result, "Find similar" runs related search | Low |
+| **Add all to playlist** | Add all search results to a playlist in one tap | Low |
+| **Voice search** | "Hey Google" or in-app voice input for search | Medium |
+| **Year-in-review / Wrapped** | Annual recap: top tracks, artists, listening time | Medium |
+| **Shareable stats cards** | "My top 5 this month" as shareable image | Medium |
+| **Focus mode** | Pomodoro timer + auto-play focus playlist | Low |
+| **Notification: lyrics preview** | Show current lyric line in media notification | Low |
+| **Widget: seekable progress** | Progress bar on widget; tap to seek | Medium |
+| **Stream queue for Search** | Add stream-only items to queue; resolve URL when playing | Medium |
+| **"Daily mix"** | Auto-generated mix from listening habits | Medium |
+| **Import from Spotify** | Phase 28 — OAuth, fetch playlists, queue YouTube downloads | Medium |
+
+---
+
+### Deployment Readiness
+
+**Ready to deploy if:**
+- Target is personal use or sharing with a few friends
+- You accept YouTube as the source (ToS, URL expiry)
+- No Play Store distribution (or sideload / F-Droid)
+
+**Before wider use, consider:**
+- Testing Phase 4 (MediaSession, lock screen, headphone buttons) on real device
+- Verifying long compilation downloads (Phase 6)
+- Running through onboarding and first-run flows
+- Testing widget and app shortcuts on target device
+
+---
+
+### Suggested Next Steps (Post-Deploy)
+
+1. **Quick wins:** Biometric lock, "Add all to playlist," notification lyrics preview
+2. **Differentiation:** Year-in-review, shareable stats cards, focus mode
+3. **Reach:** Android Auto, Chromecast
+4. **Migration:** Spotify import (Phase 28) for users switching from paid services
+
+---
+
+## Phase 50: Spotify-Level Visual Polish & Animation Overhaul
+
+**Goal:** Make Shuckler feel as polished and visually satisfying as Spotify — spring physics throughout, dynamic album art colors, vinyl spin in the player, skeleton loading, editorial home cards, and micro-interactions on every tap.
+
+**Constraint:** minSdk 29 — `Modifier.blur()` requires API 31+, so true glassmorphism is deferred. Everything else is achievable with BOM 2024.09.00 and no new dependencies.
+
+**Architecture decisions:**
+- Mini→Full player: keep ModalBottomSheet with spring entrance + album art crossfade (not SharedTransitionLayout)
+- Grid/list toggle: `AnimatedContent` crossfade between `LazyColumn` and `LazyVerticalGrid`
+- Shimmer: manual `InfiniteTransition` + `Brush.linearGradient` (no library)
+- Vinyl spin: `InfiniteTransition` rotating 360° over 8000ms, paused when `isPlaying=false`
+
+---
+
+### Sub-phase 50A: Foundation & Bug Fixes
+**Must complete before any animation work — fixes the sources of visual jank.**
+
+#### Tasks:
+1. **Fix palette extraction to use Coil cache** — `PlayerScreen.kt` ✅
+   - Replaced raw `java.net.URL` fetch with `context.imageLoader.execute(ImageRequest.Builder(context).data(url).allowHardware(false).build())`
+   - Casts `SuccessResult.drawable` to `BitmapDrawable`, extracts bitmap, feeds to `Palette.from(bmp).generate()`
+   - Falls back to null (no gradient) if result is not a BitmapDrawable
+   - [x] Album color gradient appears instantly on track change (no network delay)
+
+2. **Replace 200ms polling loop with Handler runnable** — `MusicPlayerService.kt` ✅
+   - Added `positionUpdateRunnable` in service that self-reschedules at 200ms while playing
+   - Wired to both `onIsPlayingChanged` listeners: `startPositionUpdates()` on play, `stopPositionUpdates()` on pause
+   - Cleaned up in `onDestroy` with `stopPositionUpdates()`
+   - Removed `LaunchedEffect(Unit) { while(true) { delay(200) ... } }` from `PlayerScreen.kt`
+   - [x] No UI-thread polling when music is paused; position updates driven by service
+
+3. **Fix duplicate imports** — `LibraryScreen.kt`, `MiniPlayerBar.kt` ✅
+   - Removed duplicate `Favorite`, `PlaylistAdd`, `getValue` in LibraryScreen
+   - Removed duplicate `fillMaxWidth`, `padding` in MiniPlayerBar
+   - [x] IDE shows zero "unused import" warnings in these files
+
+4. **Spring physics in nav transitions** — `NavGraph.kt` ✅
+   - Added `val reduceMotion` from `accessibilityPrefs.reduceMotionFlow`
+   - Replaced `tween(280)` with `spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)`
+   - Falls back to `tween(0)` when `reduceMotion = true`
+   - [x] Tab switches feel bouncy and alive; users with reduce-motion see instant switch
+
+#### Testing:
+- [x] Album gradient loads without visible delay on track switch
+- [x] No recompositions while music is paused (polling moved to service)
+- [x] Tab transitions feel springy, not robotic
+- [x] Reduce motion setting disables all spring animations
+
+---
+
+### Sub-phase 50B: Player Screen Overhaul
+
+#### Tasks:
+1. **Vinyl spin on album art**
+   - Wrap `AsyncImage` in a `Box` with `Modifier.rotate(rotation)`
+   - `InfiniteTransition.animateFloat(0f → 360f, infiniteRepeatable(tween(8000, easing = LinearEasing)))`
+   - Bind animation to `isPlaying`: use `animatable.stop()` / `.animateTo()` on play state change
+   - Add circular clip + subtle drop shadow behind the "vinyl"
+   - [ ] Art rotates slowly (one full rotation per ~8 seconds); pauses immediately on pause
+
+2. **Gesture-based progress scrubber**
+   - Replace `Slider` with a custom `Canvas`-drawn bar + `detectHorizontalDragGestures`
+   - Show thumb on drag-start, hide when idle (Spotify behavior)
+   - Commit seek via `viewModel.seekTo(positionMs)` on drag-end
+   - [ ] Can scrub by dragging anywhere on the progress bar; thumb appears on touch
+
+3. **Album art scale pulse on play state**
+   - `val artScale by animateFloatAsState(if (isPlaying) 1.03f else 1.0f, spring(DampingRatioMediumBouncy))`
+   - Apply to `Modifier.scale(artScale)` on the album art container
+   - [ ] Art subtly grows when music plays, shrinks on pause
+
+4. **Smooth dynamic background color**
+   - Animate `albumColor` change: `val animatedTopColor by animateColorAsState(topGradientColor, tween(600))`
+   - Replace static `topGradientColor` in the `Brush.verticalGradient` with `animatedTopColor`
+   - [ ] Background gradient transitions smoothly when track changes (no hard cut)
+
+#### Testing:
+- [ ] Vinyl rotates; pauses and resumes correctly
+- [ ] Scrubber responds to drag gesture; seeks correctly
+- [ ] Art scale pulse visible on play/pause toggle
+- [ ] Background color cross-fades on track change
+
+---
+
+### Sub-phase 50C: Mini Player Upgrade
+
+#### Tasks:
+1. **Playback progress bar at top of mini player**
+   - Add `LinearProgressIndicator` pinned to the top edge of `MiniPlayerBar`
+   - Progress driven by `positionMs / durationMs` from `PlayerViewModel`
+   - Requires adding `positionMs` and `durationMs` flows to `PlayerViewModel` (reuse from PlayerScreen)
+   - Note: needs its own `LaunchedEffect` ticker (16ms) since `Player.Listener` doesn't fire on every position update
+   - Use `animateFloatAsState` on progress value to prevent visible jumps
+   - [ ] Thin yellow progress bar shows playback position at top of mini player
+
+2. **Album art crossfade on track change**
+   - Add `crossfade(300)` parameter to Coil `ImageRequest` in `MiniPlayerBar`
+   - [ ] Artwork transitions with crossfade between tracks
+
+3. **Spring animation on full player sheet entrance**
+   - `ModalBottomSheetState` doesn't expose spring config directly; use `SwipeToDismissBox` or override via `SheetState(skipHalfExpanded=true)` + custom `animationSpec`
+   - Alternatively: animate the sheet content with `slideInVertically(spring(...))` inside `AnimatedContent`
+   - [ ] Full player slides up with spring physics (slight overshoot then settle)
+
+#### Testing:
+- [ ] Progress bar visible and accurate in mini player
+- [ ] Track art crossfades on skip/next
+- [ ] Full player sheet entrance has spring feel
+
+---
+
+### Sub-phase 50D: Home Screen Editorial Cards
+
+#### Tasks:
+1. **Hero banner for most-played track**
+   - Above the greeting text, show a full-width `Box` (height: 180dp) with the most-played track's thumbnail as background
+   - `AsyncImage` with `ContentScale.Crop` + `Brush.verticalGradient` overlay (transparent → black) in a `Box`
+   - Track title + "Most played" label over gradient
+   - Tap plays the track
+   - [ ] Hero banner shows most-played track with gradient overlay
+
+2. **Gradient overlays on recommendation cards**
+   - In `RecommendedYouTubeCard`, add `Box` gradient overlay (bottom 40% dark-to-transparent) over thumbnail
+   - Move title/artist text inside the card over the gradient (editorial layout)
+   - [ ] Recommendation cards have gradient + text overlay, magazine-style
+
+3. **Staggered list entrance for LazyRow items**
+   - Use `animateItem()` (already available on lazy items) + `Modifier.alpha(alpha)` + `Modifier.offset(y)`
+   - Key: use `LazyRow { items(results, key = { it.url }) { ... } }` for stable keys (avoids re-animation on recompose)
+   - Entrance animation state stored with `remember { mutableStateOf(false) }` per item, fired once via `LaunchedEffect(Unit)`
+   - [ ] Recommendation cards animate in staggered on first load; stable on recompose
+
+4. **Quick action buttons visual upgrade**
+   - Wrap "Surprise me" and "Throwback" in `Card` with album art thumbnails instead of plain `Button`
+   - Add `scale` interaction feedback (see 50E)
+   - [ ] Quick action cards feel tappable and visual
+
+#### Testing:
+- [ ] Hero banner appears with most-played track
+- [ ] Recommendation cards have editorial gradient layout
+- [ ] Staggered entrance fires once, not on recompose
+- [ ] Quick action cards look like cards, not plain buttons
+
+---
+
+### Sub-phase 50E: Library + Micro-interactions
+
+#### Tasks:
+1. **Grid/list toggle in Library**
+   - Add toggle `IconButton` (Grid/List icon) in `ScreenHeader` trailing content
+   - `var isGridView by rememberSaveable { mutableStateOf(false) }` (persists on config change)
+   - Wrap both `LazyColumn` and `LazyVerticalGrid` in `AnimatedContent(isGridView, transitionSpec = { fadeIn() togetherWith fadeOut() })`
+   - Grid: 2-column `LazyVerticalGrid` with square artwork cards
+   - [ ] Toggle switches between list and grid; crossfade animation between layouts
+
+2. **Button press scale feedback (micro-interaction)**
+   - Create `Modifier.pressScale()` extension: uses `interactionSource.collectIsPressedAsState()`, animates `scale` from 1.0 → 0.95 with spring on press, back to 1.0 on release
+   - Apply to: all `IconButton`, play/pause button in MiniPlayerBar, quick action cards, recommendation cards
+   - [ ] Every tappable element gives tactile scale feedback on press
+
+3. **Favorite button spring animation**
+   - Replace existing `animateFloatAsState` on favorite scale with spring: `spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessHigh)`
+   - Scale shoots to 1.4 on favorite, bounces back to 1.0
+   - [ ] Heart button bounces satisfyingly on toggle
+
+4. **Swipe-to-delete visual upgrade**
+   - Behind the swiped item, show a `Box` with red background + `Delete` icon centered
+   - Scale the icon from 0.6 → 1.0 as swipe progresses (`dismissProgress * scale`)
+   - [ ] Delete icon grows in as user swipes
+
+#### Testing:
+- [ ] Grid/list toggle works; layout crossfades
+- [ ] All buttons give press scale feedback
+- [ ] Favorite heart bounces on toggle
+- [ ] Swipe-to-delete reveals animated delete icon
+
+---
+
+### NOT in scope for Phase 50:
+- **True glassmorphism blur** — requires API 31+; minSdk 29 makes this fragmented. Defer.
+- **SharedTransitionLayout** — requires NavGraph restructure; spring + crossfade achieves 80% of the visual effect. Defer.
+- **FAB transformation** — no FAB exists in the app currently. Defer.
+- **Tab indicator morphing** — requires full custom navigation bar reimplementation. Defer.
+- **Beat-sync animations** — requires audio analysis pipeline. Defer.
+- **Screenshot/visual regression tests** — no test infra; out of scope.
+
+---
+
+### What already exists (reused, not rebuilt):
+| Existing code | Reused in Phase 50 |
+|---|---|
+| Palette extraction in PlayerScreen | Fixed (Coil), not replaced |
+| Album color gradient (PlayerScreen:269-279) | Extended with `animateColorAsState` |
+| `animateItem()` in LibraryScreen | Extended with spring tuning |
+| Haptic feedback in MiniPlayerBar/PlayerScreen | Kept as-is |
+| `AnimatedContent` in NavGraph | Extended with spring |
+| `AsyncImage` everywhere | Add `crossfade(300)` parameter |
+
+---
+
+### Parallelization (Worktree Strategy)
+
+| Lane | Sub-phase | Modules touched | Depends on |
+|---|---|---|---|
+| A | 50A (Foundation) | NavGraph, PlayerViewModel, PlayerScreen, LibraryScreen, MiniPlayerBar | — |
+| B | 50B (Player) | PlayerScreen, PlayerViewModel | 50A (polling fix) |
+| C | 50C (Mini Player) | MiniPlayerBar, PlayerViewModel | 50A |
+| D | 50D (Home) | HomeScreen | 50A |
+| E | 50E (Library) | LibraryScreen | 50A |
+
+**Execution:** Lane A first (sequential, all other lanes depend on it). Then B + C + D + E in parallel worktrees. Merge all four into main.
+
+---
+
+### Failure Modes
+
+| Codepath | Failure scenario | Test? | Error handling? | Silent? |
+|---|---|---|---|---|
+| Coil palette extraction | Thumbnail is animated WebP, not BitmapDrawable | No | Yes (null fallback to static black) | No — gradient just stays black |
+| Vinyl spin | `InfiniteTransition` not paused correctly on lifecycle stop | No | No | Yes — battery drain while paused |
+| Progress bar ticker | `durationMs = 0` before track loads | No | Yes (divide-by-zero guard) | No |
+| Staggered entrance | Key collision if two tracks share same URL | No | No — uses `key = { it.url }` | Yes — duplicate key crash |
+
+**Critical gap:** Duplicate URL key in staggered LazyRow. If two recommendations share the same YouTube URL (possible for re-uploaded content), `key = { it.url }` throws. Use `key = { "${it.url}-${index}" }` as the key lambda instead.
+
+---
+
+### Testing:
+- [ ] All sub-phases A–E pass their individual testing checklists
+- [ ] Reduce motion setting disables all spring animations
+- [ ] High contrast mode still works with dynamic album colors (colors are blended toward black, never clash)
+- [ ] No battery drain when music is paused (verify via Android Studio Energy Profiler)
+- [ ] App doesn't crash on device running API 29 (all animations work without API 31 features)

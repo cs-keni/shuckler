@@ -86,9 +86,11 @@ import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import androidx.palette.graphics.Palette
 import com.shuckler.app.ui.theme.ShucklerBlack
 
@@ -118,22 +120,26 @@ fun PlayerScreen(
     val lyricsResult by viewModel.lyricsResult.collectAsState(initial = LyricsResult.NotFound)
     val visualizerFftData by viewModel.visualizerFftData.collectAsState(initial = null)
     val downloadManager = LocalDownloadManager.current
+    val context = LocalContext.current
     var albumColor by remember { mutableStateOf<Color?>(null) }
     LaunchedEffect(thumbnailUrl) {
         albumColor = thumbnailUrl?.let { url ->
             withContext(Dispatchers.IO) {
                 try {
-                    val conn = java.net.URL(url).openConnection()
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
-                    val stream = conn.getInputStream()
-                    val bitmap = android.graphics.BitmapFactory.decodeStream(stream)
-                    stream?.close()
-                    bitmap?.let { bmp ->
-                        Palette.from(bmp).generate().dominantSwatch?.rgb?.let { rgb ->
-                            Color(0xFF000000.toInt() or rgb)
+                    val request = ImageRequest.Builder(context)
+                        .data(url)
+                        .allowHardware(false)
+                        .build()
+                    val result = context.imageLoader.execute(request)
+                    (result as? SuccessResult)
+                        ?.drawable
+                        ?.let { it as? android.graphics.drawable.BitmapDrawable }
+                        ?.bitmap
+                        ?.let { bmp ->
+                            Palette.from(bmp).generate().dominantSwatch?.rgb?.let { rgb ->
+                                Color(0xFF000000.toInt() or rgb)
+                            }
                         }
-                    }
                 } catch (_: Exception) { null }
             }
         }
@@ -144,12 +150,6 @@ fun PlayerScreen(
     val musicService by LocalMusicServiceConnection.current.service.collectAsState(initial = null)
     val view = LocalView.current
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(200)
-            viewModel.updatePlaybackProgress()
-        }
-    }
     val isDefaultTrack = trackTitle == DefaultTrackInfo.TITLE && trackArtist == DefaultTrackInfo.ARTIST
     LaunchedEffect(trackTitle, trackArtist) {
         if (!isDefaultTrack) viewModel.loadLyrics(trackArtist, trackTitle)

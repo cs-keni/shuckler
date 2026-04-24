@@ -1,10 +1,13 @@
 package com.shuckler.app.navigation
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +117,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     val musicService by LocalMusicServiceConnection.current.service.collectAsState(initial = null)
 
     val accessibilityPrefs = LocalAccessibilityPreferences.current
+    val reduceMotion by accessibilityPrefs.reduceMotionFlow.collectAsState(initial = accessibilityPrefs.reduceMotion)
     if (showSettingsDialog) {
         SettingsDialog(
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
@@ -251,11 +255,14 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                 val fromIndex = tabOrder.indexOf(initialState)
                 val toIndex = tabOrder.indexOf(targetState)
                 val direction = if (toIndex > fromIndex) 1 else -1
+                val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<IntOffset> =
+                    if (reduceMotion) tween(durationMillis = 0)
+                    else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
                 slideInHorizontally(
-                    animationSpec = tween(durationMillis = 280),
+                    animationSpec = slideSpec,
                     initialOffsetX = { fullWidth -> direction * fullWidth }
                 ) togetherWith slideOutHorizontally(
-                    animationSpec = tween(durationMillis = 280),
+                    animationSpec = slideSpec,
                     targetOffsetX = { fullWidth -> -direction * fullWidth }
                 )
             },

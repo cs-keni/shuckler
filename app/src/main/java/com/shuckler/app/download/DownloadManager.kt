@@ -237,6 +237,19 @@ class DownloadManager(private val context: Context) {
         _downloads.value.find { it.id == trackId }?.lastPositionMs?.takeIf { it > 0 }
 
     /**
+     * Clear all saved playback positions. Use if positions are corrupted (e.g. after emulator snapshot issues).
+     */
+    fun clearAllPlaybackPositions() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val list = _downloads.value.map { it.copy(lastPositionMs = 0L) }
+                _downloads.value = list
+                saveMetadata(list.filter { it.status == DownloadStatus.COMPLETED })
+            }
+        }
+    }
+
+    /**
      * Set or clear shuffle exclusion for a track. When untilMs is null, removes exclusion.
      * When untilMs > 0, track is excluded from shuffle until that timestamp.
      */

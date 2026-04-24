@@ -146,6 +146,7 @@ class MusicPlayerService : Service() {
                                 _isPlaying.value = playing
                                 updateMediaSession()
                                 updateNotification()
+                                if (playing) startPositionUpdates() else stopPositionUpdates()
                             }
                         })
                     }
@@ -445,6 +446,7 @@ class MusicPlayerService : Service() {
             _isPlaying.value = playing
             updateMediaSession()
             updateNotification()
+            if (playing) startPositionUpdates() else stopPositionUpdates()
         }
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val idx = _exoPlayer?.currentMediaItemIndex ?: 0
@@ -524,6 +526,22 @@ class MusicPlayerService : Service() {
         _playbackSpeed.value = s
         _exoPlayer?.setPlaybackSpeed(s)
         (applicationContext as? ShucklerApplication)?.downloadManager?.playbackSpeed = s
+    }
+
+    private val positionUpdateRunnable = object : Runnable {
+        override fun run() {
+            updatePlaybackProgress()
+            if (_isPlaying.value) mainHandler.postDelayed(this, 200)
+        }
+    }
+
+    private fun startPositionUpdates() {
+        mainHandler.removeCallbacks(positionUpdateRunnable)
+        mainHandler.post(positionUpdateRunnable)
+    }
+
+    private fun stopPositionUpdates() {
+        mainHandler.removeCallbacks(positionUpdateRunnable)
     }
 
     fun updatePlaybackProgress() {
@@ -894,12 +912,14 @@ class MusicPlayerService : Service() {
                     onCurrentTrackEnded()
                 }
                 // Resume from last position when ready (Phase 32: Continue listening)
+                // Only resume when duration is known - otherwise we may seek past end (e.g. corrupted metadata)
                 if (playbackState == Player.STATE_READY && trackId != null) {
                     val dm = (applicationContext as? ShucklerApplication)?.downloadManager ?: return
                     val lastPos = dm.getLastPosition(trackId) ?: return
                     val dur = _exoPlayer?.duration ?: 0L
-                    val effectiveDur = if (dur != C.TIME_UNSET && dur > 0) dur else Long.MAX_VALUE
-                    if (lastPos >= MIN_POSITION_TO_RESUME_MS && lastPos < effectiveDur - MIN_REMAINING_TO_RESUME_MS) {
+                    if (dur != C.TIME_UNSET && dur > 0 &&
+                        lastPos >= MIN_POSITION_TO_RESUME_MS && lastPos < dur - MIN_REMAINING_TO_RESUME_MS
+                    ) {
                         _exoPlayer?.seekTo(lastPos)
                         lastSavePositionTimeMs = System.currentTimeMillis()
                     }
@@ -1080,6 +1100,7 @@ class MusicPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopPositionUpdates()
         mediaSession?.isActive = false
         mediaSession?.release()
         mediaSession = null

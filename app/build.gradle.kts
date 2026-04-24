@@ -15,6 +15,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Spotify Client ID for playlist import. Add to gradle.properties: SPOTIFY_CLIENT_ID=your_id
+        val spotifyId = project.findProperty("SPOTIFY_CLIENT_ID") as? String ?: ""
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyId\"")
     }
 
     buildTypes {
@@ -33,6 +37,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

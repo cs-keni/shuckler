@@ -34,15 +34,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -71,7 +70,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -91,6 +89,7 @@ import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import com.shuckler.app.ui.ImportDialog
 import com.shuckler.app.util.shareText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -154,6 +153,7 @@ fun LibraryScreen(
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
     var showMoodTagTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
     var selectedSmartPlaylist by remember { mutableStateOf<SmartPlaylistType?>(null) }
@@ -216,6 +216,16 @@ fun LibraryScreen(
         return
     }
 
+    if (showImportDialog) {
+        ImportDialog(
+            onDismiss = { showImportDialog = false },
+            onImportComplete = { playlist ->
+                showImportDialog = false
+                playlist?.let { selectedPlaylist = it }
+                scope.launch { snackbarHostState.showSnackbar("Import started") }
+            }
+        )
+    }
     if (showCreatePlaylistDialog) {
         CreateEditPlaylistDialog(
             playlist = null,
@@ -275,6 +285,12 @@ fun LibraryScreen(
                         modifier = Modifier
                     ) {
                         Icon(Icons.Default.Search, contentDescription = "Search library")
+                    }
+                    IconButton(
+                        onClick = { showImportDialog = true },
+                        modifier = Modifier
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Import playlist")
                     }
                     IconButton(
                         onClick = { showCreatePlaylistDialog = true },
@@ -505,15 +521,20 @@ fun LibraryScreen(
                     )
                 }
                 if (completedTracks.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TextButton(onClick = { showCleanUpDialog = true }) {
-                            Text("Clean up suggestions")
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(onClick = { showCleanUpDialog = true }) {
+                                Text("Clean up suggestions")
+                            }
+                            TextButton(onClick = { showClearAllConfirm = true }) {
+                                Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                            }
                         }
-                        TextButton(onClick = { showClearAllConfirm = true }) {
-                            Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                        TextButton(onClick = { downloadManager.clearAllPlaybackPositions() }) {
+                            Text("Reset playback positions")
                         }
                     }
                 }

@@ -11,6 +11,7 @@ import org.schabi.newpipe.extractor.MediaFormat
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamExtractor
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import org.schabi.newpipe.extractor.playlist.PlaylistExtractor
 
 /**
  * YouTube search and audio URL extraction using NewPipe Extractor 0.25.1 with OkHttp.
@@ -167,6 +168,84 @@ object YouTubeRepository {
         val title: String,
         val uploaderName: String
     )
+
+    /**
+     * Result of fetching a YouTube playlist: either success with [PlaylistInfo] or failure.
+     */
+    sealed class PlaylistResult {
+        data class Success(val info: PlaylistInfo) : PlaylistResult()
+        data class Failure(val message: String) : PlaylistResult()
+    }
+
+    data class PlaylistInfo(
+        val name: String,
+        val description: String?,
+        val thumbnailUrl: String?,
+        val uploaderName: String?,
+        val items: List<YouTubeSearchResult>
+    )
+
+    /**
+     * Fetch a YouTube playlist by URL. Returns all items (handles pagination).
+     * URL formats: youtube.com/playlist?list=..., youtube.com/watch?v=...&list=...
+     */
+    suspend fun getPlaylist(playlistUrl: String): PlaylistResult = withContext(Dispatchers.IO) {
+        if (playlistUrl.isBlank()) return@withContext PlaylistResult.Failure("No playlist URL")
+        ensureInitialized()
+        val trimmed = playlistUrl.trim()
+        val listId = extractPlaylistId(trimmed) ?: return@withContext PlaylistResult.Failure("Invalid playlist URL")
+        try {
+            val extractor: PlaylistExtractor = youtube.getPlaylistExtractor("https://www.youtube.com/playlist?list=$listId")
+            extractor.fetchPage()
+            val name = extractor.name ?: "Untitled Playlist"
+            val description = extractor.description?.toString()?.takeIf { it.isNotBlank() }
+            val thumbUrl = extractor.thumbnails.firstOrNull()?.url
+            val uploader = extractor.uploaderName?.takeIf { it.isNotBlank() }
+            val allItems = mutableListOf<YouTubeSearchResult>()
+            @Suppress("UNCHECKED_CAST")
+            var page: org.schabi.newpipe.extractor.ListExtractor.InfoItemsPage<StreamInfoItem>? =
+                extractor.initialPage
+            while (page != null) {
+                page.items
+                    .filterIsInstance<StreamInfoItem>()
+                    .forEach { item ->
+                    val durationSec = try { item.duration } catch (_: Throwable) { 0L }
+                    val itemThumb = item.thumbnails.firstOrNull()?.url
+                    allItems.add(
+                        YouTubeSearchResult(
+                            id = item.url ?: "",
+                            title = item.name ?: "",
+                            url = item.url ?: "",
+                            thumbnailUrl = itemThumb,
+                            durationSeconds = durationSec,
+                            uploaderName = item.uploaderName
+                        )
+                    )
+                }
+                page = page.nextPage?.let { extractor.getPage(it) }
+            }
+            PlaylistResult.Success(
+                PlaylistInfo(
+                    name = name,
+                    description = description,
+                    thumbnailUrl = thumbUrl,
+                    uploaderName = uploader,
+                    items = allItems
+                )
+            )
+        } catch (t: Throwable) {
+            val msg = t.message?.take(200) ?: t.javaClass.simpleName
+            Log.e(TAG, "getPlaylist failed for $listId", t)
+            PlaylistResult.Failure(msg)
+        }
+    }
+
+    private fun extractPlaylistId(input: String): String? {
+        val listMatch = Regex("list=([a-zA-Z0-9_-]+)").find(input)
+        if (listMatch != null) return listMatch.groupValues[1]
+        val shortMatch = Regex("youtu\\.be/[^?]*\\?list=([a-zA-Z0-9_-]+)").find(input)
+        return shortMatch?.groupValues?.get(1)
+    }
 
     /** Chapter info: startMs, endMs, title. Used for splitting long videos by chapters. */
     data class ChapterInfo(val startMs: Long, val endMs: Long, val title: String)

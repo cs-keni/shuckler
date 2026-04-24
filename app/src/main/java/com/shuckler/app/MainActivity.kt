@@ -34,7 +34,11 @@ import com.shuckler.app.playlist.PlaylistManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.MusicServiceConnection
 import com.shuckler.app.shortcut.AppShortcutHandler
+import com.shuckler.app.spotify.LocalSpotifyAuthManager
 import com.shuckler.app.ui.theme.ShucklerTheme
+import com.shuckler.app.BuildConfig
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 
 class MainActivity : ComponentActivity() {
 
@@ -47,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleShortcutIntent(intent)
+        handleSpotifyCallback(intent)
         requestNotificationPermission()
         musicServiceConnection.bind(this)
         enableEdgeToEdge()
@@ -65,7 +70,8 @@ class MainActivity : ComponentActivity() {
                         LocalDownloadManager provides downloadManager,
                         LocalPlaylistManager provides (application as ShucklerApplication).playlistManager,
                         LocalAchievementManager provides app.achievementManager,
-                        LocalListeningPersonalityManager provides app.listeningPersonalityManager
+                        LocalListeningPersonalityManager provides app.listeningPersonalityManager,
+                        LocalSpotifyAuthManager provides app.spotifyAuthManager
                     ) {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             ShucklerNavGraph()
@@ -86,6 +92,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleShortcutIntent(intent)
+        handleSpotifyCallback(intent)
     }
 
     override fun onDestroy() {
@@ -96,6 +103,17 @@ class MainActivity : ComponentActivity() {
     private fun handleShortcutIntent(intent: Intent?) {
         if (AppShortcutHandler.handleShortcutIntent(this, intent)) {
             intent?.removeExtra(AppShortcutHandler.EXTRA_SHORTCUT_ACTION)
+        }
+    }
+
+    private fun handleSpotifyCallback(intent: Intent?) {
+        val clientId = BuildConfig.SPOTIFY_CLIENT_ID
+        if (clientId.isBlank()) return
+        lifecycleScope.launch {
+            val handled = (application as ShucklerApplication).spotifyAuthManager.handleCallback(intent, clientId)
+            if (handled) {
+                setIntent(Intent()) // Clear the redirect intent
+            }
         }
     }
 
