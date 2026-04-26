@@ -1,5 +1,6 @@
 package com.shuckler.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.horizontalScroll
@@ -18,9 +20,11 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -32,9 +36,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import kotlinx.coroutines.delay
 
 @Composable
 fun MiniPlayerBar(
@@ -52,9 +58,25 @@ fun MiniPlayerBar(
     val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
     val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
+    val positionMs by viewModel.playbackPositionMs.collectAsState(initial = 0L)
+    val durationMs by viewModel.durationMs.collectAsState(initial = 0L)
     val view = LocalView.current
+    val context = LocalContext.current
     val currentIndex = (queueInfo.first - 1).coerceIn(0, queueItems.size)
     val upNextItems = queueItems.drop(currentIndex + 1).take(3)
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            viewModel.updatePlaybackProgress()
+            delay(16)
+        }
+    }
+
+    val rawProgress = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        label = "mini_player_progress"
+    )
 
     Column(
         modifier = Modifier
@@ -63,6 +85,14 @@ fun MiniPlayerBar(
             .clickable(onClick = onTap)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f))
     ) {
+        LinearProgressIndicator(
+            progress = { animatedProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -72,7 +102,10 @@ fun MiniPlayerBar(
     ) {
         if (thumbnailUrl != null) {
             AsyncImage(
-                model = thumbnailUrl,
+                model = ImageRequest.Builder(context)
+                    .data(thumbnailUrl)
+                    .crossfade(300)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier
                     .size(48.dp)

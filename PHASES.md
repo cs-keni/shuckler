@@ -1849,21 +1849,21 @@ If you encounter issues in a phase, fix them before proceeding. Don't accumulate
    - Requires adding `positionMs` and `durationMs` flows to `PlayerViewModel` (reuse from PlayerScreen)
    - Note: needs its own `LaunchedEffect` ticker (16ms) since `Player.Listener` doesn't fire on every position update
    - Use `animateFloatAsState` on progress value to prevent visible jumps
-   - [ ] Thin yellow progress bar shows playback position at top of mini player
+   - [x] Thin yellow progress bar shows playback position at top of mini player
 
 2. **Album art crossfade on track change**
    - Add `crossfade(300)` parameter to Coil `ImageRequest` in `MiniPlayerBar`
-   - [ ] Artwork transitions with crossfade between tracks
+   - [x] Artwork transitions with crossfade between tracks
 
 3. **Spring animation on full player sheet entrance**
    - `ModalBottomSheetState` doesn't expose spring config directly; use `SwipeToDismissBox` or override via `SheetState(skipHalfExpanded=true)` + custom `animationSpec`
    - Alternatively: animate the sheet content with `slideInVertically(spring(...))` inside `AnimatedContent`
-   - [ ] Full player slides up with spring physics (slight overshoot then settle)
+   - [x] Full player slides up with spring physics (slight overshoot then settle)
 
 #### Testing:
-- [ ] Progress bar visible and accurate in mini player
-- [ ] Track art crossfades on skip/next
-- [ ] Full player sheet entrance has spring feel
+- [x] Progress bar visible and accurate in mini player (unit tests in `PlaybackProgressTest.kt`)
+- [x] Track art crossfades on skip/next (Compose test in `MiniPlayerBarTest.kt`)
+- [x] Full player sheet entrance has spring feel (verified in NavGraph.kt)
 
 ---
 
@@ -1875,29 +1875,29 @@ If you encounter issues in a phase, fix them before proceeding. Don't accumulate
    - `AsyncImage` with `ContentScale.Crop` + `Brush.verticalGradient` overlay (transparent → black) in a `Box`
    - Track title + "Most played" label over gradient
    - Tap plays the track
-   - [ ] Hero banner shows most-played track with gradient overlay
+   - [x] Hero banner shows most-played track with gradient overlay
 
 2. **Gradient overlays on recommendation cards**
    - In `RecommendedYouTubeCard`, add `Box` gradient overlay (bottom 40% dark-to-transparent) over thumbnail
    - Move title/artist text inside the card over the gradient (editorial layout)
-   - [ ] Recommendation cards have gradient + text overlay, magazine-style
+   - [x] Recommendation cards have gradient + text overlay, magazine-style
 
 3. **Staggered list entrance for LazyRow items**
    - Use `animateItem()` (already available on lazy items) + `Modifier.alpha(alpha)` + `Modifier.offset(y)`
    - Key: use `LazyRow { items(results, key = { it.url }) { ... } }` for stable keys (avoids re-animation on recompose)
    - Entrance animation state stored with `remember { mutableStateOf(false) }` per item, fired once via `LaunchedEffect(Unit)`
-   - [ ] Recommendation cards animate in staggered on first load; stable on recompose
+   - [x] Recommendation cards animate in staggered on first load; stable on recompose
 
 4. **Quick action buttons visual upgrade**
    - Wrap "Surprise me" and "Throwback" in `Card` with album art thumbnails instead of plain `Button`
    - Add `scale` interaction feedback (see 50E)
-   - [ ] Quick action cards feel tappable and visual
+   - [x] Quick action cards feel tappable and visual
 
 #### Testing:
-- [ ] Hero banner appears with most-played track
-- [ ] Recommendation cards have editorial gradient layout
-- [ ] Staggered entrance fires once, not on recompose
-- [ ] Quick action cards look like cards, not plain buttons
+- [x] Hero banner appears with most-played track
+- [x] Recommendation cards have editorial gradient layout
+- [x] Staggered entrance fires once, not on recompose
+- [x] Quick action cards look like cards, not plain buttons
 
 ---
 

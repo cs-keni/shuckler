@@ -1,9 +1,13 @@
 package com.shuckler.app.navigation
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -28,6 +32,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -165,11 +170,25 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             containerColor = Color(0xFF121212),
             dragHandle = null
         ) {
-            PlayerScreen(
-                onCollapse = onPlayerCollapse,
-                fromMiniPlayer = true,
-                viewModel = viewModel
-            )
+            var playerLaunched by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { playerLaunched = true }
+            AnimatedVisibility(
+                visible = playerLaunched,
+                enter = scaleIn(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    initialScale = 0.94f
+                ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                exit = ExitTransition.None
+            ) {
+                PlayerScreen(
+                    onCollapse = onPlayerCollapse,
+                    fromMiniPlayer = true,
+                    viewModel = viewModel
+                )
+            }
         }
     }
 

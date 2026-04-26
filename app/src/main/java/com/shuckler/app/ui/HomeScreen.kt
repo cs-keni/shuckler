@@ -1,33 +1,43 @@
 package com.shuckler.app.ui
 
 import android.net.Uri
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,30 +49,32 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
-import com.shuckler.app.ui.LocalOnWifiOnlyBlocked
-import com.shuckler.app.ui.LocalSnackbarHostState
+import com.shuckler.app.player.LocalMusicServiceConnection
+import com.shuckler.app.player.PlayerViewModel
+import com.shuckler.app.player.QueueItem
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.preview.PreviewPlayer
 import com.shuckler.app.recommendation.RecommendationEngine
-import com.shuckler.app.ui.SearchPreferences
-import com.shuckler.app.player.LocalMusicServiceConnection
-import com.shuckler.app.player.PlayerViewModel
-import com.shuckler.app.player.QueueItem
 import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
 import java.io.File
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun HomeScreen(
@@ -103,6 +115,7 @@ fun HomeScreen(
             recommendedResults = emptyList()
         }
     }
+
     val recentlyPlayed = completedTracks
         .filter { it.lastPlayedMs > 0 }
         .sortedByDescending { it.lastPlayedMs }
@@ -116,6 +129,23 @@ fun HomeScreen(
         .sortedByDescending { p -> allEntries.filter { it.playlistId == p.id }.maxOfOrNull { it.position } ?: 0 }
         .take(8)
 
+    val mostPlayedTrack = remember(completedTracks.size) {
+        completedTracks.filter { it.playCount > 0 }.maxByOrNull { it.playCount }
+    }
+
+    val shuffleable = downloadManager.filterForShuffle(completedTracks)
+    val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
+    val throwbacks = shuffleable.filter { it.lastPlayedMs < thirtyDaysAgo || it.lastPlayedMs == 0L }
+
+    val surpriseThumbnail = remember(completedTracks.size) {
+        downloadManager.filterForShuffle(completedTracks).randomOrNull()?.thumbnailUrl
+    }
+    val throwbackThumbnail = remember(completedTracks.size) {
+        val tb = downloadManager.filterForShuffle(completedTracks)
+            .filter { it.lastPlayedMs < System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000 || it.lastPlayedMs == 0L }
+        (if (tb.isNotEmpty()) tb else downloadManager.filterForShuffle(completedTracks)).randomOrNull()?.thumbnailUrl
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -125,6 +155,26 @@ fun HomeScreen(
             title = "Home",
             onSettingsClick = onSettingsClick
         )
+
+        if (mostPlayedTrack != null) {
+            HeroBanner(
+                track = mostPlayedTrack,
+                onPlay = {
+                    val items = listOf(
+                        QueueItem(
+                            uri = Uri.fromFile(File(mostPlayedTrack.filePath)).toString(),
+                            title = mostPlayedTrack.title,
+                            artist = mostPlayedTrack.artist,
+                            trackId = mostPlayedTrack.id,
+                            thumbnailUrl = mostPlayedTrack.thumbnailUrl,
+                            startMs = mostPlayedTrack.startMs,
+                            endMs = mostPlayedTrack.endMs
+                        )
+                    )
+                    viewModel.playTrackWithQueue(items, 0)
+                }
+            )
+        }
 
         val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
             in 0..11 -> "Good morning"
@@ -143,12 +193,15 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
+                QuickActionCard(
+                    label = "Surprise me",
+                    thumbnailUrl = surpriseThumbnail,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.weight(1f),
                     onClick = {
-                        val shuffleable = downloadManager.filterForShuffle(completedTracks)
-                        val track = shuffleable.randomOrNull() ?: return@Button
+                        val track = shuffleable.randomOrNull() ?: return@QuickActionCard
                         val items = listOf(
                             QueueItem(
                                 uri = Uri.fromFile(File(track.filePath)).toString(),
@@ -161,18 +214,16 @@ fun HomeScreen(
                             )
                         )
                         viewModel.playTrackWithQueue(items, 0)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Text("Surprise me")
-                }
-                val thirtyDaysAgo = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000
-                val shuffleable = downloadManager.filterForShuffle(completedTracks)
-                val throwbacks = shuffleable.filter { it.lastPlayedMs < thirtyDaysAgo || it.lastPlayedMs == 0L }
-                Button(
+                    }
+                )
+                QuickActionCard(
+                    label = "Throwback",
+                    thumbnailUrl = throwbackThumbnail,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.weight(1f),
                     onClick = {
                         val track = if (throwbacks.isNotEmpty()) throwbacks.random()
-                        else shuffleable.randomOrNull() ?: return@Button
+                        else shuffleable.randomOrNull() ?: return@QuickActionCard
                         val items = listOf(
                             QueueItem(
                                 uri = Uri.fromFile(File(track.filePath)).toString(),
@@ -185,11 +236,8 @@ fun HomeScreen(
                             )
                         )
                         viewModel.playTrackWithQueue(items, 0)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Text("Throwback")
-                }
+                    }
+                )
             }
         }
 
@@ -251,82 +299,104 @@ fun HomeScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(recommendedResults, key = { it.url }) { result ->
+                    itemsIndexed(recommendedResults, key = { index, result -> "${result.url}-$index" }) { index, result ->
+                        var visible by remember { mutableStateOf(false) }
+                        val alpha by animateFloatAsState(
+                            targetValue = if (visible) 1f else 0f,
+                            animationSpec = tween(durationMillis = 300),
+                            label = "recAlpha"
+                        )
+                        val offsetY by animateFloatAsState(
+                            targetValue = if (visible) 0f else 20f,
+                            animationSpec = tween(durationMillis = 300),
+                            label = "recOffsetY"
+                        )
+                        LaunchedEffect(Unit) {
+                            delay(index * 60L)
+                            visible = true
+                        }
+
                         val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
-                        RecommendedYouTubeCard(
-                            result = result,
-                            isDownloading = downloadingVideoUrl == result.url,
-                            isStreaming = streamingVideoUrl == result.url,
-                            isPreviewing = previewingVideoUrl == result.url,
-                            isDownloaded = isDownloaded,
-                            onPlayClick = {
-                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
-                                streamingVideoUrl = result.url
-                                scope.launch {
-                                    val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                    when (audio) {
-                                        is YouTubeRepository.AudioStreamResult.Success -> {
-                                            viewModel.playTrack(
-                                                Uri.parse(audio.info.url),
-                                                result.title,
-                                                result.uploaderName ?: "Unknown",
-                                                thumbnailUrl = result.thumbnailUrl
-                                            )
-                                        }
-                                        is YouTubeRepository.AudioStreamResult.Failure -> {
-                                            snackbarHostState?.let { host ->
-                                                scope.launch {
-                                                    val r = host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short)
-                                                    if (r == SnackbarResult.ActionPerformed) {
-                                                        streamingVideoUrl = result.url
-                                                        val retryAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                                        when (retryAudio) {
-                                                            is YouTubeRepository.AudioStreamResult.Success -> viewModel.playTrack(
-                                                                Uri.parse(retryAudio.info.url), result.title, result.uploaderName ?: "Unknown", thumbnailUrl = result.thumbnailUrl
-                                                            )
-                                                            is YouTubeRepository.AudioStreamResult.Failure -> { /* already showed snackbar */ }
+                        Box(
+                            modifier = Modifier
+                                .alpha(alpha)
+                                .offset(y = offsetY.dp)
+                        ) {
+                            RecommendedYouTubeCard(
+                                result = result,
+                                isDownloading = downloadingVideoUrl == result.url,
+                                isStreaming = streamingVideoUrl == result.url,
+                                isPreviewing = previewingVideoUrl == result.url,
+                                isDownloaded = isDownloaded,
+                                onPlayClick = {
+                                    if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                                    streamingVideoUrl = result.url
+                                    scope.launch {
+                                        val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                        when (audio) {
+                                            is YouTubeRepository.AudioStreamResult.Success -> {
+                                                viewModel.playTrack(
+                                                    Uri.parse(audio.info.url),
+                                                    result.title,
+                                                    result.uploaderName ?: "Unknown",
+                                                    thumbnailUrl = result.thumbnailUrl
+                                                )
+                                            }
+                                            is YouTubeRepository.AudioStreamResult.Failure -> {
+                                                snackbarHostState?.let { host ->
+                                                    scope.launch {
+                                                        val r = host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short)
+                                                        if (r == SnackbarResult.ActionPerformed) {
+                                                            streamingVideoUrl = result.url
+                                                            val retryAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                                            when (retryAudio) {
+                                                                is YouTubeRepository.AudioStreamResult.Success -> viewModel.playTrack(
+                                                                    Uri.parse(retryAudio.info.url), result.title, result.uploaderName ?: "Unknown", thumbnailUrl = result.thumbnailUrl
+                                                                )
+                                                                is YouTubeRepository.AudioStreamResult.Failure -> { /* already showed snackbar */ }
+                                                            }
+                                                            streamingVideoUrl = null
                                                         }
-                                                        streamingVideoUrl = null
                                                     }
                                                 }
                                             }
                                         }
+                                        streamingVideoUrl = null
                                     }
-                                    streamingVideoUrl = null
-                                }
-                            },
-                            onPreviewClick = {
-                                scope.launch {
-                                    val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                    when (audio) {
-                                        is YouTubeRepository.AudioStreamResult.Success ->
-                                            PreviewPlayer.play(context, result.url, audio.info.url)
-                                        is YouTubeRepository.AudioStreamResult.Failure ->
-                                            snackbarHostState?.let { host ->
-                                                scope.launch { host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short) }
-                                            }
-                                    }
-                                }
-                            },
-                            onStopPreviewClick = { PreviewPlayer.stop() },
-                            onDownloadClick = {
-                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
-                                val id = downloadManager.startDownloadFromYouTube(
-                                    result.url,
-                                    result.title,
-                                    result.uploaderName ?: "",
-                                    result.thumbnailUrl,
-                                    onWifiOnlyBlocked = onWifiOnlyBlocked
-                                )
-                                if (id.isNotEmpty()) {
-                                    downloadingVideoUrl = result.url
+                                },
+                                onPreviewClick = {
                                     scope.launch {
-                                        kotlinx.coroutines.delay(500)
-                                        if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                        val audio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                        when (audio) {
+                                            is YouTubeRepository.AudioStreamResult.Success ->
+                                                PreviewPlayer.play(context, result.url, audio.info.url)
+                                            is YouTubeRepository.AudioStreamResult.Failure ->
+                                                snackbarHostState?.let { host ->
+                                                    scope.launch { host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short) }
+                                                }
+                                        }
+                                    }
+                                },
+                                onStopPreviewClick = { PreviewPlayer.stop() },
+                                onDownloadClick = {
+                                    if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                                    val id = downloadManager.startDownloadFromYouTube(
+                                        result.url,
+                                        result.title,
+                                        result.uploaderName ?: "",
+                                        result.thumbnailUrl,
+                                        onWifiOnlyBlocked = onWifiOnlyBlocked
+                                    )
+                                    if (id.isNotEmpty()) {
+                                        downloadingVideoUrl = result.url
+                                        scope.launch {
+                                            kotlinx.coroutines.delay(500)
+                                            if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -401,6 +471,126 @@ fun HomeScreen(
 }
 
 @Composable
+private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clickable(onClick = onPlay)
+    ) {
+        if (track.thumbnailUrl != null) {
+            AsyncImage(
+                model = track.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Most played",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (track.artist.isNotBlank()) {
+                Text(
+                    text = track.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionCard(
+    label: String,
+    thumbnailUrl: String?,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1.0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "quickActionScale"
+    )
+
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .height(80.dp)
+            .scale(scale),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        interactionSource = interactionSource
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (thumbnailUrl != null) {
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.35f
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                containerColor.copy(alpha = 0.6f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(horizontal = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun PlaylistShortcutCard(
     playlist: Playlist,
     firstTrack: DownloadedTrack?,
@@ -439,7 +629,7 @@ private fun PlaylistShortcutCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                androidx.compose.foundation.layout.Box(
+                Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -486,7 +676,7 @@ private fun TrackShortcutCard(
                     contentScale = ContentScale.Crop
                 )
             } else {
-                androidx.compose.foundation.layout.Box(
+                Box(
                     modifier = Modifier
                         .size(80.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -517,62 +707,100 @@ private fun RecommendedYouTubeCard(
     onDownloadClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.size(width = 160.dp, height = 140.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        ),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier.size(width = 160.dp, height = 200.dp),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(8.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             if (result.thumbnailUrl != null) {
                 AsyncImage(
                     model = result.thumbnailUrl,
                     contentDescription = null,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(8.dp)),
+                    modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
             } else {
-                androidx.compose.foundation.layout.Box(
+                Box(
                     modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
             }
-            Text(
-                text = result.title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                modifier = Modifier.padding(top = 4.dp)
+
+            // Gradient overlay — transparent at 30%, full black at bottom
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colorStops = arrayOf(
+                                0.3f to Color.Transparent,
+                                1.0f to Color.Black.copy(alpha = 0.88f)
+                            )
+                        )
+                    )
             )
-            Row(
-                modifier = Modifier.padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
             ) {
-                if (isPreviewing) {
-                    IconButton(onClick = onStopPreviewClick) {
-                        Icon(Icons.Default.Stop, contentDescription = "Stop preview", modifier = Modifier.size(20.dp))
+                Text(
+                    text = result.title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!result.uploaderName.isNullOrBlank()) {
+                    Text(
+                        text = result.uploaderName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isPreviewing) {
+                        IconButton(onClick = onStopPreviewClick) {
+                            Icon(
+                                Icons.Default.Stop,
+                                contentDescription = "Stop preview",
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onPlayClick, enabled = !isDownloading && !isStreaming) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = if (isStreaming) "Loading…" else "Play",
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
+                            )
+                        }
+                        IconButton(onClick = onPreviewClick, enabled = !isDownloading) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Preview 60s",
+                                modifier = Modifier.size(14.dp),
+                                tint = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                     }
-                } else {
-                    IconButton(onClick = onPlayClick, enabled = !isDownloading && !isStreaming) {
+                    IconButton(onClick = onDownloadClick, enabled = !isDownloading && !isDownloaded) {
                         Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = if (isStreaming) "Loading…" else "Play (stream)",
-                            modifier = Modifier.size(20.dp)
+                            Icons.Default.Download,
+                            contentDescription = "Download",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
                         )
                     }
-                    IconButton(onClick = onPreviewClick, enabled = !isDownloading) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Preview 60s", modifier = Modifier.size(16.dp))
-                    }
-                }
-                IconButton(onClick = onDownloadClick, enabled = !isDownloading && !isDownloaded) {
-                    Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(20.dp))
                 }
             }
         }
