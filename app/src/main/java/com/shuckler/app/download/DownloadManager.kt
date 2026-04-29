@@ -122,6 +122,13 @@ class DownloadManager(private val context: Context) {
             prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
         }
 
+    /** Whether shuffle mode is enabled. Persisted across app restarts. */
+    var shuffleEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_SHUFFLE_ENABLED, value).apply()
+        }
+
     /** Returns true if connected to Wi-Fi (or Ethernet). Used for wifiOnlyDownloads check. */
     fun isConnectedToWifi(): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
@@ -780,5 +787,6 @@ class DownloadManager(private val context: Context) {
         private const val KEY_SLEEP_TIMER_FADE_LAST_MINUTE = "sleep_timer_fade_last_minute"
         private const val KEY_DEFAULT_TAB = "default_tab"
         private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
+        private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     }
 }

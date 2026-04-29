@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -130,6 +131,7 @@ fun PlayerScreen(
     val sleepTimerRemainingMs by viewModel.sleepTimerRemainingMs.collectAsState(initial = null)
     val lyricsResult by viewModel.lyricsResult.collectAsState(initial = LyricsResult.NotFound)
     val visualizerFftData by viewModel.visualizerFftData.collectAsState(initial = null)
+    val shuffleEnabled by viewModel.shuffleEnabled.collectAsState(initial = false)
     val downloadManager = LocalDownloadManager.current
     val context = LocalContext.current
     var albumColor by remember { mutableStateOf<Color?>(null) }
@@ -591,6 +593,20 @@ fun PlayerScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            FilterChip(
+                selected = shuffleEnabled,
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    viewModel.toggleShuffle()
+                },
+                label = {
+                    Icon(
+                        imageVector = Icons.Default.Shuffle,
+                        contentDescription = "Shuffle",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            )
             FilterChip(
                 selected = repeatMode == Player.REPEAT_MODE_ONE,
                 onClick = {

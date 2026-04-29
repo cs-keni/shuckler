@@ -172,6 +172,9 @@ class MusicPlayerService : Service() {
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
+    private val _shuffleEnabled = MutableStateFlow(false)
+    val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
+
     private val _playbackSpeed = MutableStateFlow(1f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
@@ -418,6 +421,7 @@ class MusicPlayerService : Service() {
                 playlistListenerAdded = true
             }
             player.repeatMode = _repeatMode.value
+            player.shuffleModeEnabled = _shuffleEnabled.value
             player.setMediaItems(mediaItems, startIndex, startPositionMs)
             player.prepare()
         } ?: run {
@@ -428,6 +432,7 @@ class MusicPlayerService : Service() {
                 .build()
                 .apply {
                     repeatMode = _repeatMode.value
+                    shuffleModeEnabled = _shuffleEnabled.value
                     addListener(audioSessionListener)
                     addListener(createPlaylistListener())
                     setMediaItems(mediaItems, startIndex, startPositionMs)
@@ -521,6 +526,17 @@ class MusicPlayerService : Service() {
     private fun getStoredPlaybackSpeed(): Float =
         (applicationContext as? ShucklerApplication)?.downloadManager?.playbackSpeed ?: 1f
 
+    private fun getStoredShuffleEnabled(): Boolean =
+        (applicationContext as? ShucklerApplication)?.downloadManager?.shuffleEnabled ?: false
+
+    fun setShuffleEnabled(enabled: Boolean) {
+        _shuffleEnabled.value = enabled
+        _exoPlayer?.shuffleModeEnabled = enabled
+        (applicationContext as? ShucklerApplication)?.downloadManager?.shuffleEnabled = enabled
+    }
+
+    fun toggleShuffle() = setShuffleEnabled(!_shuffleEnabled.value)
+
     fun setPlaybackSpeed(speed: Float) {
         val s = speed.coerceIn(0.5f, 2f)
         _playbackSpeed.value = s
@@ -567,15 +583,16 @@ class MusicPlayerService : Service() {
             // Start crossfade before track end (only when NOT using gapless playlist - ExoPlayer auto-advances)
             val crossfadeMs = getCrossfadeDurationMs()
             val remaining = dur - position
+            val nextIdx = nextQueueIndex()
             if (!useGaplessPlaylist() && dur != C.TIME_UNSET && dur > 0 && crossfadeMs > 0 &&
-                queue.isNotEmpty() && currentQueueIndex + 1 < queue.size &&
+                queue.isNotEmpty() && nextIdx < queue.size &&
                 _repeatMode.value != Player.REPEAT_MODE_ONE && !crossfadeStartedForCurrentTrack &&
                 remaining in 1..crossfadeMs
             ) {
                 crossfadeStartedForCurrentTrack = true
                 startFadeOut {
                     saveCurrentPositionIfNeeded()
-                    currentQueueIndex++
+                    currentQueueIndex = nextIdx
                     playQueueItemAt(currentQueueIndex, fadeIn = true)
                 }
             }
@@ -591,6 +608,7 @@ class MusicPlayerService : Service() {
     override fun onCreate() {
         super.onCreate()
         _playbackSpeed.value = getStoredPlaybackSpeed()
+        _shuffleEnabled.value = getStoredShuffleEnabled()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -641,6 +659,7 @@ class MusicPlayerService : Service() {
                 startSleepTimer(durationMs, endOfTrack)
             }
             ACTION_CANCEL_SLEEP_TIMER -> cancelSleepTimer()
+            ACTION_TOGGLE_SHUFFLE -> toggleShuffle()
         }
         return START_STICKY
     }
@@ -724,12 +743,20 @@ class MusicPlayerService : Service() {
         }
     }
 
+    private fun nextQueueIndex(): Int {
+        if (_shuffleEnabled.value && queue.size > 1) {
+            return (0 until queue.size).filter { it != currentQueueIndex }.random()
+        }
+        return currentQueueIndex + 1
+    }
+
     private fun skipToNext() {
         if (queue.isEmpty()) return
         saveCurrentPositionIfNeeded()
-        if (currentQueueIndex + 1 < queue.size) {
+        val next = nextQueueIndex()
+        if (next < queue.size) {
             if (useGaplessPlaylist() && _exoPlayer?.mediaItemCount == queue.size) {
-                currentQueueIndex++
+                currentQueueIndex = next
                 _exoPlayer?.seekTo(currentQueueIndex, 0L)
                 updateMetadataFromQueue(currentQueueIndex)
                 queue[currentQueueIndex].trackId?.let { (applicationContext as? ShucklerApplication)?.downloadManager?.incrementPlayCount(it) }
@@ -739,11 +766,11 @@ class MusicPlayerService : Service() {
                 val durationMs = getCrossfadeDurationMs()
                 if (durationMs > 0) {
                     startFadeOut {
-                        currentQueueIndex++
+                        currentQueueIndex = next
                         playQueueItemAt(currentQueueIndex, fadeIn = true)
                     }
                 } else {
-                    currentQueueIndex++
+                    currentQueueIndex = next
                     playQueueItemAt(currentQueueIndex)
                 }
             }
@@ -845,15 +872,16 @@ class MusicPlayerService : Service() {
         currentTrackId = null
         if (useGaplessPlaylist() && queue.size > 1) return
         if (queue.isNotEmpty() && _repeatMode.value != Player.REPEAT_MODE_ONE) {
-            if (currentQueueIndex + 1 < queue.size) {
+            val next = nextQueueIndex()
+            if (next < queue.size) {
                 val durationMs = getCrossfadeDurationMs()
                 if (durationMs > 0) {
                     startFadeOut {
-                        currentQueueIndex++
+                        currentQueueIndex = next
                         playQueueItemAt(currentQueueIndex, fadeIn = true)
                     }
                 } else {
-                    currentQueueIndex++
+                    currentQueueIndex = next
                     playQueueItemAt(currentQueueIndex)
                 }
             } else {
@@ -929,6 +957,7 @@ class MusicPlayerService : Service() {
         _exoPlayer?.let { player ->
             player.addListener(playbackEndedListener)
             player.repeatMode = _repeatMode.value
+            player.shuffleModeEnabled = _shuffleEnabled.value
             player.setMediaItem(mediaItem)
             player.prepare()
         } ?: run {
@@ -938,6 +967,7 @@ class MusicPlayerService : Service() {
                 .build()
                 .apply {
                     repeatMode = _repeatMode.value
+                    shuffleModeEnabled = _shuffleEnabled.value
                     addListener(audioSessionListener)
                     addListener(playbackEndedListener)
                     setMediaItem(mediaItem)
@@ -1126,6 +1156,7 @@ class MusicPlayerService : Service() {
         const val ACTION_ADD_TO_QUEUE_END = "com.shuckler.app.ADD_TO_QUEUE_END"
         const val ACTION_START_SLEEP_TIMER = "com.shuckler.app.START_SLEEP_TIMER"
         const val ACTION_CANCEL_SLEEP_TIMER = "com.shuckler.app.CANCEL_SLEEP_TIMER"
+        const val ACTION_TOGGLE_SHUFFLE = "com.shuckler.app.TOGGLE_SHUFFLE"
         const val EXTRA_URI = "uri"
         const val EXTRA_SLEEP_DURATION_MS = "sleep_duration_ms"
         const val EXTRA_SLEEP_END_OF_TRACK = "sleep_end_of_track"

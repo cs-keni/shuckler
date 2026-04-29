@@ -68,6 +68,9 @@ class PlayerViewModel(
     val visualizerFftData: Flow<ByteArray?> = serviceConnection.service
         .flatMapLatest { service -> service?.visualizerFftData ?: flowOf(null) }
 
+    val shuffleEnabled: Flow<Boolean> = serviceConnection.service
+        .flatMapLatest { service -> service?.shuffleEnabled ?: flowOf(false) }
+
     fun playQueueItemAt(index: Int) {
         serviceConnection.service.value?.playQueueItemAt(index)
     }
@@ -171,6 +174,10 @@ class PlayerViewModel(
 
     fun cycleLoopMode() {
         serviceConnection.service.value?.cycleRepeatMode()
+    }
+
+    fun toggleShuffle() {
+        serviceConnection.service.value?.toggleShuffle()
     }
 
     fun setPlaybackSpeed(speed: Float) {

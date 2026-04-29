@@ -1989,3 +1989,73 @@ If you encounter issues in a phase, fix them before proceeding. Don't accumulate
 - [ ] High contrast mode still works with dynamic album colors (colors are blended toward black, never clash)
 - [ ] No battery drain when music is paused (verify via Android Studio Energy Profiler)
 - [ ] App doesn't crash on device running API 29 (all animations work without API 31 features)
+
+---
+
+## Phase 51: Shuffle Mode
+**Goal:** Add a shuffle toggle to the player so users can randomize queue order — a standard music player control that's currently missing from the UI despite shuffle infrastructure existing elsewhere (app shortcuts, filterForShuffle logic).
+
+### Why it's missing:
+- `filterForShuffle()` exists in DownloadManager for "Surprise me" / "Throwback" / app shortcuts, but that's one-shot randomization, not a persistent in-player shuffle mode.
+- ExoPlayer/Media3 has `player.shuffleModeEnabled` built-in and will automatically reorder the queue — no manual shuffle logic needed.
+- There is no `shuffleModeEnabled` StateFlow in `PlayerViewModel` and no shuffle button in `PlayerScreen`.
+
+### Tasks:
+1. **Service** — `MusicPlayerService.kt`
+   - Expose `shuffleModeEnabled` via `StateFlow<Boolean>` backed by `player.shuffleModeEnabled`.
+   - Add `ACTION_TOGGLE_SHUFFLE` or `setShuffleMode(enabled: Boolean)` method.
+   - Persist shuffle state in SharedPreferences (same as crossfade, playback speed) so it survives app restart.
+   - Apply persisted value in `onCreate` after player setup.
+2. **ViewModel** — `PlayerViewModel.kt`
+   - Add `val shuffleMode: StateFlow<Boolean>` (collected from service connection).
+   - Add `fun toggleShuffle()` that calls the service toggle.
+3. **UI** — `PlayerScreen.kt`
+   - Add a shuffle `FilterChip` (or `IconButton`) next to the Loop chip in the controls row.
+   - Use `Icons.Default.Shuffle` icon; `selected = shuffleMode` for visual state.
+   - Haptic on toggle (same pattern as loop).
+4. **Notification / MediaSession** (optional)
+   - Set `PlaybackStateCompat.setShuffleMode` so lock screen / headphone controls can reflect shuffle state.
+
+### Testing:
+- [x] Shuffle toggle visible in player controls
+- [x] Enabling shuffle randomizes queue order; disabling restores original order (ExoPlayer handles this)
+- [x] Shuffle state persists across track change and app restart
+- [x] No crash when toggling shuffle with empty queue
+
+### Deliverables:
+- Shuffle button in Player controls; ExoPlayer shuffle mode wired through service and ViewModel; persisted state.
+
+---
+
+## Phase 52: Portfolio Preparation — README Overhaul
+**Goal:** The README currently says "Phase 3 complete (background playback)" and lists only 10 phases. The actual app is at Phase 50+ with 48+ implemented phases and a feature set that rivals commercial music apps. This is the first thing anyone sees on the repo — it must accurately represent what's been built.
+
+### Why this matters:
+- A recruiter or professor opening the repo sees "In Development — Phase 3 complete" and thinks this is a basic class project. The gap between the README and reality is enormous and undersells the work.
+- The project structure section in README shows a flat file layout that doesn't match the actual package structure (`player/`, `download/`, `youtube/`, `lyrics/`, etc.).
+- The tech stack section doesn't mention NewPipe Extractor, Palette API, LRCLIB, Spotify OAuth/PKCE, or Coil — the most interesting technical choices.
+
+### Tasks:
+1. **Rewrite README.md**
+   - Status: "Feature-complete personal music app — 50 development phases implemented"
+   - Key features section: organized into categories (Playback, Library, Discovery, Analytics, UX) covering the actual feature set
+   - Tech stack: Kotlin, Jetpack Compose, ExoPlayer/Media3, NewPipe Extractor, AndroidX Palette, LRCLIB, Spotify Web API (OAuth 2.0 PKCE), Coil, Coroutines/Flow, Room/SharedPreferences
+   - Architecture: foreground service, MediaSession, MVVM with StateFlow, Compose navigation
+   - Project structure: update to reflect actual package layout
+   - Screenshots section: placeholder text "See /screenshots" (add actual screenshots when available)
+   - Remove the outdated 10-phase checklist; replace with link to PHASES.md for the full breakdown
+2. **Add screenshots (optional but high-impact)**
+   - Capture: Home tab, Player screen (with album art + lyrics), Library, Analytics, Onboarding
+   - Add to `docs/screenshots/` and reference in README
+3. **Verify project description framing**
+   - Frame it as a portfolio project demonstrating Android development depth, not just "a personal app"
+   - Mention the scale: ~50 implemented features, full MVVM architecture, real audio pipeline
+
+### Testing:
+- [ ] README accurately describes current feature set
+- [ ] Project structure in README matches actual package layout
+- [ ] Tech stack section mentions all notable libraries
+- [ ] No references to "Phase 3 complete" or outdated 10-phase plan
+
+### Deliverables:
+- Rewritten README.md that accurately represents the project for an ePortfolio audience.
