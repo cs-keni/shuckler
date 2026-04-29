@@ -1,134 +1,196 @@
 # Shuckler
 
-A personal, non-commercial Android music app for offline music playback with YouTube integration.
+A feature-complete personal Android music app built with Jetpack Compose — offline playback, YouTube integration, Spotify discovery, lyrics, analytics, and a polished animated UI across 50+ implemented development phases.
 
-## Overview
+> Personal/non-commercial use only. Not distributed on the Play Store.
 
-Shuckler is a private Android application designed for personal use and sharing with a few friends. It allows users to search for music (including long 1–2 hour compilations), download audio locally, and play music offline with full background playback support.
+---
 
-## Key Features
+## Features
 
-- **Music Search**: Search for music and long compilations (1–2 hours)
-- **Local Downloads**: Download audio as MP3 files (192–320 kbps preferred)
-- **Offline Playback**: Play downloaded music without internet connection
-- **Background Playback**: Music continues playing when screen is off
-- **Media Controls**: Full support for:
-  - Headphone button controls (play, pause, next, previous)
-  - Lock screen media controls
-  - Notification media controls
-  - Loop functionality
-- **Audio Management**:
-  - Cache downloaded audio locally
-  - Mark tracks as favorites (protected from auto-delete)
-  - Optional auto-delete after playback (except favorites)
-  - Storage management
+### Playback
+- Full **background playback** via a foreground service with MediaSession integration
+- **Gapless playback** using ExoPlayer/Media3 playlist mode
+- **Crossfade** between tracks with configurable duration
+- **Shuffle** and **repeat** modes (off / repeat-one / repeat-all)
+- **Variable playback speed** (0.5× – 2×) persisted across sessions
+- **Sleep timer** — fixed duration or end-of-current-track
+- **Queue management** — reorder, jump to any track, swipe to remove
+- Lock screen, notification, and headphone button controls via MediaSession
+- Audio visualizer (FFT waveform) in the full-screen player
 
-## Platform & Stack
+### Library
+- **Offline downloads** stored in app-specific storage (no internet required after download)
+- **Favorites** — heart toggle protects tracks from auto-delete; spring-bounce animation
+- **Playlists** — create, rename, delete, reorder, add/remove tracks
+- **Grid/list toggle** in Library with animated crossfade transition
+- **Swipe-to-delete** with progressive delete-icon reveal animation
+- **Import** local audio files from device storage
+- **Storage management** — usage stats, bulk delete, configurable auto-delete policy
+- Wi-Fi-only download option
 
-- **Platform**: Android (target device: Samsung S22 Ultra)
-- **Language**: Kotlin
-- **IDE**: Cursor (for development) + Android Studio (for building/running)
-- **Min SDK**: Android 10 (API 29)
-- **Target SDK**: Android 16 (API 36 "Baklava")
-- **Architecture**:
-  - Foreground Service for background audio playback
-  - MediaSession for system media controls
-  - App-specific storage for downloaded audio
+### Discovery
+- **YouTube search** via NewPipe Extractor — no API key required
+- **30-second track preview** before downloading
+- **Spotify integration** — browse top tracks, recently played, and personalized recommendations via OAuth 2.0 PKCE (no server required)
+- **Recommendation engine** — suggests tracks based on play count and listening history
+- Artist/album cover crop dialog for custom thumbnails
 
-## Project Status
+### Analytics
+- **Play count** tracking per track with time-range filter (24 h / 7 d / 30 d / all time)
+- **Top played** chart with relative bar visualization
+- **Achievements** — badge system (e.g. "First Download", "Marathon Listener")
+- **Listening personality** — computed archetype from listening patterns (e.g. "Deep Listener", "Variety Seeker")
 
-**In Development** - Phase 3 complete (background playback)
+### UX & Polish
+- **Lyrics** — synced/unsynced lyrics from LRCLIB API with auto-scroll and karaoke highlight
+- **Dynamic color theming** — album art colors extracted via AndroidX Palette, applied to player UI
+- **AMOLED / dark / light** themes with Material 3 color tokens
+- **Spring-physics animations** throughout (favorite bounce, press-scale feedback, swipe reveals)
+- **Reduce motion** setting disables all animations system-wide
+- **Home screen widget** — now-playing with play/pause control
+- **App shortcuts** — quick-launch Search or resume playback from launcher long-press
+- **Onboarding flow** — first-launch walkthrough
+- **Equalizer** preferences screen
+- Haptic feedback on key interactions
+- Mini player bar with progress indicator, up-next strip, and press-scale button feedback
 
-See [PHASES.md](./PHASES.md) for detailed development phases and progress.
+---
 
-## Development Phases
+## Tech Stack
 
-The project is broken down into 10 incremental phases:
+| Layer | Technology |
+|---|---|
+| Language | Kotlin |
+| UI | Jetpack Compose + Material 3 |
+| Audio engine | ExoPlayer / AndroidX Media3 |
+| System integration | MediaSession, MediaStyle notification, foreground service |
+| YouTube extraction | [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor) v0.25.1 |
+| Spotify | Spotify Web API, OAuth 2.0 PKCE (no backend) |
+| Lyrics | [LRCLIB](https://lrclib.net) REST API |
+| Image loading | Coil 2 with crossfade |
+| Dynamic color | AndroidX Palette |
+| Networking | OkHttp 4 |
+| Async | Kotlin Coroutines + StateFlow / Flow |
+| Persistence | SharedPreferences (settings, queue state, playback position) |
+| Navigation | AndroidX Navigation Compose |
+| Min SDK | Android 10 (API 29) |
+| Target SDK | Android 16 (API 36 "Baklava") |
 
-1. [x] Project Setup & Basic UI Foundation
-2. [x] Basic Audio Playback (Local File) - **See [PHASE2_SETUP.md](./PHASE2_SETUP.md)**
-3. [x] Foreground Service for Background Playback
-4. [ ] MediaSession & System Controls
-5. [ ] Download Functionality (Basic)
-6. [ ] YouTube Integration & Search
-7. [ ] Library & Cache Management
-8. [ ] Favorites & Auto-Delete
-9. [ ] Polish & Optimization
-10. [ ] Optional Enhancements (Future)
+---
 
-## Constraints & Design Decisions
+## Architecture
 
-- **Non-commercial**: Personal use only, not intended for Play Store distribution
-- **No user accounts**: Simple, offline-first design
-- **No ads**: Clean, distraction-free experience
-- **Offline-first**: Designed to work primarily offline after initial downloads
-- **Simple & maintainable**: First personal Android app, keeping code straightforward
+```
+UI (Compose screens)
+    │  collectAsState()
+    ▼
+PlayerViewModel / DownloadManager (StateFlow)
+    │  startForegroundService / serviceConnection
+    ▼
+MusicPlayerService (foreground service)
+    │  ExoPlayer / Media3
+    ▼
+MediaSession ──► System (lock screen, notification, headphones)
+```
+
+- **MVVM** — `PlayerViewModel` exposes `StateFlow` properties consumed by Compose screens via `collectAsState()`
+- **Foreground service** (`MusicPlayerService`) owns the ExoPlayer instance and all playback state; it outlives any Activity
+- **`MusicServiceConnection`** binds the ViewModel to the service; exposed via `CompositionLocal` so any screen can reach it without prop-drilling
+- **`CompositionLocal` provider pattern** — `DownloadManager`, `PlaylistManager`, `AchievementManager`, `ListeningPersonalityManager`, and others are injected once at the app root and accessed from any composable
+- **`ShucklerApplication`** wires all singleton managers at startup
+
+---
+
+## Project Structure
+
+```
+app/src/main/java/com/shuckler/app/
+├── MainActivity.kt
+├── ShucklerApplication.kt
+├── accessibility/          # Reduce motion, font scale preferences
+├── achievement/            # Badge definitions, unlock logic, AchievementManager
+├── download/               # DownloadManager, DownloadedTrack model, persistence
+├── equalizer/              # EQ band preferences
+├── lyrics/                 # LRCLIB API client, LyricsRepository, sync/unsync result types
+├── navigation/             # NavGraph, route constants
+├── onboarding/             # First-launch state
+├── personality/            # Listening archetype computation
+├── player/                 # MusicPlayerService, PlayerViewModel, MusicServiceConnection,
+│                           #   QueueItem, DefaultTrackInfo
+├── playlist/               # PlaylistManager, Playlist / PlaylistEntry models
+├── preview/                # 30-second preview player
+├── recommendation/         # RecommendationEngine (history-based suggestions)
+├── shortcut/               # Launcher app shortcuts
+├── spotify/                # SpotifyAuthManager (PKCE), SpotifyRepository
+├── ui/                     # All Compose screens and shared components
+│   ├── AnalyticsScreen.kt
+│   ├── CreateScreen.kt     # Playlist creation
+│   ├── CropCoverDialog.kt
+│   ├── EqualizerScreen.kt
+│   ├── HomeScreen.kt       # Recommendations, recents, hero banner
+│   ├── ImportDialog.kt
+│   ├── LibraryScreen.kt    # Downloads, favorites, grid/list toggle, swipe-delete
+│   ├── MiniPlayerBar.kt    # Persistent bottom player strip
+│   ├── OnboardingScreen.kt
+│   ├── PlayerScreen.kt     # Full-screen player, lyrics, queue, visualizer
+│   ├── PlaylistScreen.kt
+│   ├── ScreenHeader.kt
+│   ├── SearchScreen.kt     # YouTube search + preview
+│   ├── SettingsDialog.kt
+│   └── theme/              # Material 3 color tokens, typography, AMOLED palette
+├── util/
+│   └── ShareUtil.kt
+├── widget/
+│   └── NowPlayingWidgetProvider.kt
+└── youtube/
+    ├── OkHttpDownloader.kt # OkHttp bridge for NewPipe Extractor
+    ├── YouTubeModel.kt
+    └── YouTubeRepository.kt
+```
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Android Studio (for SDK, build tools, and emulator)
-- Android device (Samsung S22 Ultra) or emulator for testing
-- Kotlin knowledge (or willingness to learn)
+- Android Studio Hedgehog or later (for SDK + build tools)
+- Android 10+ device or emulator
+- (Optional) Spotify Developer account — add `SPOTIFY_CLIENT_ID` to `local.properties` to enable Spotify features
 
 ### Setup
 
-1. Clone this repository
-2. Open project in Android Studio
-3. Sync Gradle files
-4. Set up emulator or connect physical device
-5. Run the app
-
-See [ANDROID_SETUP.md](./ANDROID_SETUP.md) for detailed setup instructions.
-
-## Project Structure
-
-```
-shuckler/
-├── app/
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/shuckler/app/
-│   │   │   │   ├── MainActivity.kt
-│   │   │   │   ├── MusicPlayerService.kt
-│   │   │   │   ├── DownloadManager.kt
-│   │   │   │   └── ...
-│   │   │   ├── res/
-│   │   │   │   ├── layout/
-│   │   │   │   ├── drawable/
-│   │   │   │   └── values/
-│   │   │   └── AndroidManifest.xml
-│   │   └── test/
-├── PHASES.md          # Development phases
-├── project.txt        # Initial project planning notes
-└── README.md          # This file
+```bash
+git clone https://github.com/<you>/shuckler.git
+cd shuckler
+# Optional: echo "SPOTIFY_CLIENT_ID=your_id_here" >> local.properties
 ```
 
-## Key Components
+1. Open the project in Android Studio
+2. Sync Gradle
+3. Run on a device or emulator (API 29+)
 
-- **MainActivity**: Main UI with navigation between Search, Library, and Player screens
-- **MusicPlayerService**: Foreground service handling background audio playback
-- **DownloadManager**: Handles audio downloads and storage management
-- **MediaSession**: Integrates with system media controls (headphones, lock screen, notifications)
-
-## Audio Quality
-
-- Preferred format: MP3
-- Bitrate: 192–320 kbps
-- Optimized for long compilations without excessive storage usage
-
-## License
-
-MIT License - See [LICENSE](./LICENSE) file for details.
-
-## Notes
-
-- This is a personal project for learning Android development
-- Not intended for public distribution
-- Focus on simplicity and maintainability
-- Test thoroughly on target device (Samsung S22 Ultra)
+> See [ANDROID_SETUP.md](./ANDROID_SETUP.md) for detailed environment setup.
 
 ---
 
-**Built for personal music enjoyment**
+## Screenshots
+
+*Coming soon — see `/docs/screenshots/` once captured.*
+
+Screens to capture: Home, Player (album art + lyrics), Library (grid view), Analytics, Onboarding.
+
+---
+
+## Development History
+
+50+ incremental development phases — from basic local file playback all the way through Spotify OAuth, achievement systems, dynamic theming, and spring-physics micro-interactions.
+
+Full phase breakdown: [PHASES.md](./PHASES.md)
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE)
