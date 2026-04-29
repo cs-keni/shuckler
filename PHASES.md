@@ -1927,10 +1927,10 @@ If you encounter issues in a phase, fix them before proceeding. Don't accumulate
    - [ ] Delete icon grows in as user swipes
 
 #### Testing:
-- [ ] Grid/list toggle works; layout crossfades
-- [ ] All buttons give press scale feedback
-- [ ] Favorite heart bounces on toggle
-- [ ] Swipe-to-delete reveals animated delete icon
+- [x] Grid/list toggle works; layout crossfades
+- [x] All buttons give press scale feedback
+- [x] Favorite heart bounces on toggle
+- [x] Swipe-to-delete reveals animated delete icon
 
 ---
 

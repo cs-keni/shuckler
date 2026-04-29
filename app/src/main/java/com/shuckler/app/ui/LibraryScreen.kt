@@ -6,16 +6,26 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import coil.compose.AsyncImage
 import java.io.File
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
@@ -27,8 +37,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExpandLess
@@ -38,12 +53,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -127,6 +144,7 @@ fun LibraryScreen(
     var trackSort by remember { mutableStateOf(LibraryTrackSort.DATE_ADDED) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
     var deleteJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var isGridView by remember { mutableStateOf(false) }
     val filteredTracks = remember(completedTracks, libraryFilter, moodFilter, searchQuery, trackSort, pendingDeleteId) {
         val byFilter = when (libraryFilter) {
             LibraryFilter.ALL -> completedTracks
@@ -280,22 +298,19 @@ fun LibraryScreen(
             onSettingsClick = onSettingsClick,
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = { showSearchField = !showSearchField },
-                        modifier = Modifier
-                    ) {
+                    IconButton(onClick = { isGridView = !isGridView }) {
+                        Icon(
+                            imageVector = if (isGridView) Icons.Default.ViewList else Icons.Default.GridView,
+                            contentDescription = if (isGridView) "Switch to list view" else "Switch to grid view"
+                        )
+                    }
+                    IconButton(onClick = { showSearchField = !showSearchField }) {
                         Icon(Icons.Default.Search, contentDescription = "Search library")
                     }
-                    IconButton(
-                        onClick = { showImportDialog = true },
-                        modifier = Modifier
-                    ) {
+                    IconButton(onClick = { showImportDialog = true }) {
                         Icon(Icons.Default.Download, contentDescription = "Import playlist")
                     }
-                    IconButton(
-                        onClick = { showCreatePlaylistDialog = true },
-                        modifier = Modifier
-                    ) {
+                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Create new playlist")
                     }
                 }
@@ -599,6 +614,47 @@ fun LibraryScreen(
                         }
                     )
                 } else {
+                    AnimatedContent(
+                        targetState = isGridView,
+                        transitionSpec = {
+                            fadeIn(tween(if (reduceMotion) 0 else 200)) togetherWith
+                                fadeOut(tween(if (reduceMotion) 0 else 150))
+                        },
+                        modifier = if (isSheetMode) Modifier.heightIn(min = 500.dp) else Modifier.heightIn(max = 400.dp),
+                        label = "library_view_mode"
+                    ) { showGrid ->
+                    if (showGrid) {
+                        fun trackToQueueItem(t: DownloadedTrack) = QueueItem(
+                            uri = Uri.fromFile(File(t.filePath)).toString(),
+                            title = t.title,
+                            artist = t.artist,
+                            trackId = t.id,
+                            thumbnailUrl = t.thumbnailUrl,
+                            startMs = t.startMs,
+                            endMs = t.endMs
+                        )
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 8.dp)
+                        ) {
+                            items(filteredTracks, key = { it.id }) { track ->
+                                LibraryTrackGridItem(
+                                    track = track,
+                                    modifier = if (reduceMotion) Modifier else Modifier.animateItem(),
+                                    isCurrentlyPlaying = track.id == currentPlayingTrackId,
+                                    onPlayClick = {
+                                        val items = filteredTracks.map { trackToQueueItem(it) }
+                                        viewModel.playTrackWithQueue(items, filteredTracks.indexOf(track).coerceAtLeast(0))
+                                    },
+                                    onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
+                                    reduceMotion = reduceMotion
+                                )
+                            }
+                        }
+                    } else {
                     val listState = rememberLazyListState(
                         initialFirstVisibleItemIndex = savedScrollIndex,
                         initialFirstVisibleItemScrollOffset = savedScrollOffset
@@ -617,7 +673,7 @@ fun LibraryScreen(
                     }
                     LazyColumn(
                         state = listState,
-                        modifier = if (isSheetMode) Modifier.heightIn(min = 500.dp) else Modifier.heightIn(max = 400.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredTracks, key = { it.id }) { track ->
@@ -665,10 +721,23 @@ fun LibraryScreen(
                             SwipeToDismissBox(
                                 state = dismissState,
                                 backgroundContent = {
+                                    val progress = dismissState.progress
+                                    val iconScale by animateFloatAsState(
+                                        targetValue = (0.6f + progress * 0.6f).coerceIn(0.6f, 1.2f),
+                                        animationSpec = if (reduceMotion) tween(0) else spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessMedium
+                                        ),
+                                        label = "deleteIconScale"
+                                    )
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(MaterialTheme.colorScheme.error)
+                                            .background(
+                                                MaterialTheme.colorScheme.error.copy(
+                                                    alpha = (0.4f + progress * 0.6f).coerceIn(0f, 1f)
+                                                )
+                                            )
                                             .padding(horizontal = 20.dp),
                                         contentAlignment = Alignment.CenterEnd
                                     ) {
@@ -676,7 +745,7 @@ fun LibraryScreen(
                                             Icons.Default.Delete,
                                             contentDescription = "Delete",
                                             tint = MaterialTheme.colorScheme.onError,
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(28.dp).scale(iconScale)
                                         )
                                     }
                                 },
@@ -758,6 +827,8 @@ fun LibraryScreen(
                         )
                         }
                     }
+                    } // end list branch
+                    } // end AnimatedContent
                 }
             }
         }
@@ -895,8 +966,11 @@ private fun LibraryTrackItem(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     val favoriteScale by animateFloatAsState(
-        targetValue = if (track.isFavorite) 1.15f else 1f,
-        animationSpec = tween(durationMillis = if (reduceMotion) 0 else 150),
+        targetValue = if (track.isFavorite) 1.4f else 1f,
+        animationSpec = if (reduceMotion) tween(0) else spring(
+            dampingRatio = Spring.DampingRatioHighBouncy,
+            stiffness = Spring.StiffnessHigh
+        ),
         label = "favoriteScale"
     )
     Card(
@@ -1113,6 +1187,98 @@ private fun LibraryTrackItem(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LibraryTrackGridItem(
+    track: DownloadedTrack,
+    modifier: Modifier = Modifier,
+    isCurrentlyPlaying: Boolean = false,
+    onPlayClick: () -> Unit,
+    onFavoriteClick: () -> Unit,
+    reduceMotion: Boolean = false
+) {
+    val favoriteScale by animateFloatAsState(
+        targetValue = if (track.isFavorite) 1.4f else 1f,
+        animationSpec = if (reduceMotion) tween(0) else spring(
+            dampingRatio = Spring.DampingRatioHighBouncy,
+            stiffness = Spring.StiffnessHigh
+        ),
+        label = "gridFavScale"
+    )
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPlayClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Box {
+            if (track.thumbnailUrl != null) {
+                AsyncImage(
+                    model = track.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Now-playing accent bar at the bottom of the art
+            if (isCurrentlyPlaying) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .align(Alignment.BottomCenter)
+                )
+            }
+            // Favorite overlay at top-right
+            IconButton(
+                onClick = onFavoriteClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(32.dp)
+            ) {
+                Icon(
+                    imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
+                    modifier = Modifier.size(16.dp).scale(favoriteScale),
+                    tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Color.White.copy(alpha = 0.85f)
+                )
+            }
+        }
+        Column(modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 4.dp)) {
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = track.artist,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

@@ -1,7 +1,11 @@
 package com.shuckler.app.ui
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -27,9 +31,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -76,6 +82,22 @@ fun MiniPlayerBar(
     val animatedProgress by animateFloatAsState(
         targetValue = rawProgress,
         label = "mini_player_progress"
+    )
+
+    val playPauseInteractionSource = remember { MutableInteractionSource() }
+    val playPauseIsPressed by playPauseInteractionSource.collectIsPressedAsState()
+    val playPauseScale by animateFloatAsState(
+        targetValue = if (playPauseIsPressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "playPauseScale"
+    )
+
+    val skipInteractionSource = remember { MutableInteractionSource() }
+    val skipIsPressed by skipInteractionSource.collectIsPressedAsState()
+    val skipScale by animateFloatAsState(
+        targetValue = if (skipIsPressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "skipScale"
     )
 
     Column(
@@ -149,7 +171,8 @@ fun MiniPlayerBar(
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                 viewModel.togglePlayPause()
             },
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(40.dp).scale(playPauseScale),
+            interactionSource = playPauseInteractionSource
         ) {
             Icon(
                 imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -162,7 +185,8 @@ fun MiniPlayerBar(
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                 viewModel.skipToNext()
             },
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(40.dp).scale(skipScale),
+            interactionSource = skipInteractionSource
         ) {
             Icon(
                 imageVector = Icons.Default.SkipNext,
