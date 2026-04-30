@@ -175,11 +175,28 @@ cd shuckler
 
 ---
 
+## Demo
+
+<video src="docs/demo.mp4" controls width="320"></video>
+
+> [docs/demo.mp4](./docs/demo.mp4) — ~1 minute walkthrough
+
+---
+
 ## Screenshots
 
-*Coming soon — see `/docs/screenshots/` once captured.*
-
-Screens to capture: Home, Player (album art + lyrics), Library (grid view), Analytics, Onboarding.
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.jpg" width="180"/><br/><sub><b>Home</b> — recommendations, playlists, recents</sub></td>
+    <td align="center"><img src="docs/screenshots/player.jpg" width="180"/><br/><sub><b>Player</b> — dynamic color theming, queue, controls</sub></td>
+    <td align="center"><img src="docs/screenshots/library.jpg" width="180"/><br/><sub><b>Library</b> — filters, storage stats, track list</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/analytics.jpg" width="180"/><br/><sub><b>Analytics</b> — listening personality, achievements, charts</sub></td>
+    <td align="center"><img src="docs/screenshots/settings.jpg" width="180"/><br/><sub><b>Settings</b> — crossfade, sleep timer, EQ, download quality</sub></td>
+    <td align="center"><img src="docs/screenshots/onboarding.jpg" width="180"/><br/><sub><b>Onboarding</b> — first-launch walkthrough</sub></td>
+  </tr>
+</table>
 
 ---
 
