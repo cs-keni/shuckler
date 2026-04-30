@@ -408,6 +408,9 @@ class MusicPlayerService : Service() {
     /** Track if we've added the playlist listener (for gapless mode) to avoid duplicates. */
     private var playlistListenerAdded = false
 
+    /** The active single-track listener added by setMediaUri. Removed before the next setMediaUri call. */
+    private var currentMediaUriListener: Player.Listener? = null
+
     /**
      * Sync queue to ExoPlayer using setMediaItems for gapless playback and preloading.
      * ExoPlayer will preload the next track and transition seamlessly when current ends.
@@ -913,6 +916,8 @@ class MusicPlayerService : Service() {
         _currentTrackThumbnailUrl.value = thumbnailUrl
         currentArtworkBitmap = null
         thumbnailUrl?.let { url -> loadArtworkForNotification(url) }
+        // Reset volume in case a previous crossfade left it at 0
+        _exoPlayer?.volume = 1f
         val mediaItem = if (startMs != null && endMs != null && startMs >= 0 && endMs > startMs) {
             MediaItem.Builder()
                 .setUri(uri)
@@ -926,11 +931,14 @@ class MusicPlayerService : Service() {
         } else {
             MediaItem.fromUri(uri)
         }
+        // Guard: only resume once per track load to prevent a seek → STATE_READY → seek loop
+        var hasResumed = false
         val playbackEndedListener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 _isPlaying.value = playing
                 updateMediaSession()
                 updateNotification()
+                if (playing) startPositionUpdates() else stopPositionUpdates()
             }
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
@@ -939,9 +947,11 @@ class MusicPlayerService : Service() {
                 if (playbackState == Player.STATE_ENDED) {
                     onCurrentTrackEnded()
                 }
-                // Resume from last position when ready (Phase 32: Continue listening)
-                // Only resume when duration is known - otherwise we may seek past end (e.g. corrupted metadata)
-                if (playbackState == Player.STATE_READY && trackId != null) {
+                // Resume from last position when ready (Continue listening).
+                // Only resume when duration is known - otherwise we may seek past end (e.g. corrupted metadata).
+                // hasResumed prevents the seek from re-triggering STATE_BUFFERING → STATE_READY indefinitely.
+                if (playbackState == Player.STATE_READY && !hasResumed && trackId != null) {
+                    hasResumed = true
                     val dm = (applicationContext as? ShucklerApplication)?.downloadManager ?: return
                     val lastPos = dm.getLastPosition(trackId) ?: return
                     val dur = _exoPlayer?.duration ?: 0L
@@ -955,12 +965,17 @@ class MusicPlayerService : Service() {
             }
         }
         _exoPlayer?.let { player ->
+            // Remove the previous single-track listener so stale closures don't seek future tracks
+            // to a position saved for a different track.
+            currentMediaUriListener?.let { player.removeListener(it) }
+            currentMediaUriListener = playbackEndedListener
             player.addListener(playbackEndedListener)
             player.repeatMode = _repeatMode.value
             player.shuffleModeEnabled = _shuffleEnabled.value
             player.setMediaItem(mediaItem)
             player.prepare()
         } ?: run {
+            currentMediaUriListener = playbackEndedListener
             _exoPlayer = ExoPlayer.Builder(applicationContext)
                 .setAudioAttributes(audioAttributes, true)
                 .setHandleAudioBecomingNoisy(true)
@@ -1138,6 +1153,7 @@ class MusicPlayerService : Service() {
         equalizer = null
         try { visualizer?.release() } catch (_: Exception) { }
         visualizer = null
+        currentMediaUriListener = null
         _exoPlayer?.release()
         _exoPlayer = null
     }
