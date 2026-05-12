@@ -45,8 +45,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.equalizer.EqualizerPreferences
 import com.shuckler.app.player.MusicPlayerService
-import com.shuckler.app.ui.theme.ShucklerBlack
-import com.shuckler.app.ui.theme.ShucklerNeonYellow
+import com.shuckler.app.ui.theme.Amber as ShucklerNeonYellow
+import com.shuckler.app.ui.theme.Base as ShucklerBlack
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt

@@ -1,6 +1,7 @@
 package com.shuckler.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import com.shuckler.app.ui.theme.Base
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,7 +75,7 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(Base)
     ) {
         Column(
             modifier = Modifier

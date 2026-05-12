@@ -2,30 +2,40 @@ package com.shuckler.app.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
 
+val LocalAccentColor = compositionLocalOf { Amber }
+
 private val ShucklerDarkColorScheme = darkColorScheme(
-    primary = ShucklerNeonYellow,
-    onPrimary = ShucklerBlack,
-    primaryContainer = ShucklerSurfaceDark,
-    onPrimaryContainer = ShucklerOnSurface,
-    secondary = ShucklerYellowOnBlack,
-    onSecondary = ShucklerBlack,
-    background = ShucklerBlack,
-    onBackground = ShucklerOnSurface,
-    surface = ShucklerBlack,
-    onSurface = ShucklerOnSurface,
-    surfaceVariant = ShucklerBlackElevated,
-    onSurfaceVariant = ShucklerOnSurfaceVariant,
-    outline = ShucklerOnSurfaceVariant.copy(alpha = 0.5f),
-    surfaceContainerHigh = ShucklerBlackElevated
+    primary = Amber,
+    onPrimary = Base,
+    primaryContainer = SurfaceHigh,
+    onPrimaryContainer = Text1,
+    secondary = Amber,
+    onSecondary = Base,
+    secondaryContainer = SurfaceElevated,
+    onSecondaryContainer = Text1,
+    background = Base,
+    onBackground = Text1,
+    surface = Surface,
+    onSurface = Text1,
+    surfaceVariant = SurfaceElevated,
+    onSurfaceVariant = Text2,
+    surfaceContainerHigh = SurfaceHigh,
+    surfaceContainerHighest = SurfaceHigh,
+    outline = Border,
+    outlineVariant = BorderSubtle,
+    error = Red,
+    onError = Text1,
 )
 
 private val ShucklerHighContrastColorScheme = darkColorScheme(
@@ -46,24 +56,23 @@ private val ShucklerHighContrastColorScheme = darkColorScheme(
 )
 
 @Composable
-fun ShucklerTheme(
-    content: @Composable () -> Unit
-) {
+fun ShucklerTheme(content: @Composable () -> Unit) {
     val accessibilityPrefs = LocalAccessibilityPreferences.current
     val highContrast by accessibilityPrefs.highContrastFlow.collectAsState(initial = accessibilityPrefs.highContrast)
     val colorScheme = if (highContrast) ShucklerHighContrastColorScheme else ShucklerDarkColorScheme
     val shapes = Shapes(
-        extraSmall = RoundedCornerShape(8.dp),
-        small = RoundedCornerShape(12.dp),
-        medium = RoundedCornerShape(16.dp),
-        large = RoundedCornerShape(20.dp),
-        extraLarge = RoundedCornerShape(24.dp)
+        extraSmall = RoundedCornerShape(6.dp),
+        small = RoundedCornerShape(8.dp),
+        medium = RoundedCornerShape(12.dp),
+        large = RoundedCornerShape(16.dp),
+        extraLarge = RoundedCornerShape(20.dp)
     )
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = shapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalAccentColor provides colorScheme.primary) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = shapes,
+            content = content
+        )
+    }
 }

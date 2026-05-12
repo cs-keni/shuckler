@@ -1,8 +1,6 @@
 package com.shuckler.app.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,7 +28,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.layout.onSizeChanged
 import android.view.HapticFeedbackConstants
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -80,7 +77,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
@@ -104,7 +100,8 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import androidx.palette.graphics.Palette
-import com.shuckler.app.ui.theme.ShucklerBlack
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -251,20 +248,7 @@ fun PlayerScreen(
     }
     val accessibilityPrefs = LocalAccessibilityPreferences.current
     val reduceMotion by accessibilityPrefs.reduceMotionFlow.collectAsState(initial = accessibilityPrefs.reduceMotion)
-    val vinylRotation = remember { Animatable(0f) }
-    LaunchedEffect(isPlaying, reduceMotion) {
-        if (isPlaying && !reduceMotion) {
-            while (true) {
-                vinylRotation.animateTo(
-                    targetValue = vinylRotation.value + 360f,
-                    animationSpec = tween(durationMillis = 8000, easing = LinearEasing)
-                )
-                vinylRotation.snapTo(vinylRotation.value % 360f)
-            }
-        } else {
-            vinylRotation.stop()
-        }
-    }
+    // Breathing scale — gentle pulse driven by playback state
     val artScale by animateFloatAsState(
         targetValue = if (!reduceMotion && isPlaying) 1.03f else 1.0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -298,7 +282,7 @@ fun PlayerScreen(
         )
     }
 
-    val topGradientColor = albumColor?.let { lerp(it, Color.Black, 0.4f) } ?: ShucklerBlack
+    val topGradientColor = albumColor?.let { lerp(it, Base, 0.45f) } ?: Base
     val animatedTopColor by animateColorAsState(
         targetValue = topGradientColor,
         animationSpec = tween(if (reduceMotion) 0 else 600),
@@ -309,7 +293,7 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(animatedTopColor, ShucklerBlack),
+                    colors = listOf(animatedTopColor, Base),
                     startY = 0f,
                     endY = Float.POSITIVE_INFINITY
                 )
@@ -361,33 +345,30 @@ fun PlayerScreen(
                     )
                 }
             }
+            val artShape = RoundedCornerShape(18.dp)
             if (thumbnailUrl != null) {
                 AsyncImage(
                     model = thumbnailUrl,
                     contentDescription = "Album art for $trackTitle",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(260.dp)
-                        .padding(10.dp)
-                        .shadow(elevation = 12.dp, shape = CircleShape, clip = false)
-                        .clip(CircleShape)
-                        .rotate(if (!reduceMotion) vinylRotation.value else 0f)
+                        .size(196.dp)
+                        .shadow(elevation = 16.dp, shape = artShape, clip = false)
+                        .clip(artShape)
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(260.dp)
-                        .padding(10.dp)
-                        .shadow(elevation = 12.dp, shape = CircleShape, clip = false)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .size(196.dp)
+                        .shadow(elevation = 16.dp, shape = artShape, clip = false)
+                        .clip(artShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "No album art",
-                        modifier = Modifier
-                            .size(64.dp)
-                            .align(Alignment.Center),
+                        modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

@@ -44,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Surface
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.Playlist
@@ -167,7 +169,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
         ModalBottomSheet(
             onDismissRequest = { showPlayerSheet = false },
             sheetState = sheetState,
-            containerColor = Color(0xFF121212),
+            containerColor = Base,
             dragHandle = null
         ) {
             var playerLaunched by remember { mutableStateOf(false) }
@@ -203,7 +205,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                 currentScreen = previousScreen
             },
             sheetState = librarySheetState,
-            containerColor = Color(0xFF121212)
+            containerColor = Base
         ) {
             LibraryScreen(
                 initialPlaylistToOpen = selectedPlaylistToOpen,
@@ -228,11 +230,11 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     Box(modifier = Modifier.fillMaxSize()) {
     androidx.compose.material3.Scaffold(
         modifier = modifier,
-        containerColor = Color(0xFF121212),
+        containerColor = Base,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column(
-                modifier = Modifier.background(Color(0xCC121212))
+                modifier = Modifier.background(Base.copy(alpha = 0.97f))
             ) {
                 if (hasActivePlayback) {
                     MiniPlayerBar(onTap = onMiniPlayerTap, viewModel = viewModel)

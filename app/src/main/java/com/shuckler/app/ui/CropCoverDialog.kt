@@ -1,6 +1,7 @@
 package com.shuckler.app.ui
 
 import android.graphics.Bitmap
+import com.shuckler.app.ui.theme.Amber
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.graphics.BitmapFactory
@@ -212,7 +213,7 @@ fun CropCoverDialog(
                 )
 
                 drawRect(
-                    color = androidx.compose.ui.graphics.Color(0xFFE8B323).copy(alpha = 0.25f),
+                    color = Amber.copy(alpha = 0.25f),
                     topLeft = Offset(cropLeft, cropTop),
                     size = Size(cropW, cropH)
                 )
