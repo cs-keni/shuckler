@@ -11,10 +11,14 @@ import com.shuckler.app.spotify.SpotifyAuthManager
 import com.shuckler.app.lyrics.LyricsRepository
 import com.shuckler.app.personality.ListeningPersonalityManager
 import com.shuckler.app.playlist.PlaylistManager
+import com.shuckler.app.player.MusicServiceConnection
 
 class ShucklerApplication : Application() {
 
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    // Singleton scoped to the process so it survives activity recreation (config changes).
+    val musicServiceConnection = MusicServiceConnection()
 
     val listeningPersonalityManager: ListeningPersonalityManager by lazy {
         ListeningPersonalityManager(applicationContext)
@@ -42,5 +46,10 @@ class ShucklerApplication : Application() {
 
     val accessibilityPreferences: AccessibilityPreferences by lazy {
         AccessibilityPreferences(applicationContext)
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        musicServiceConnection.bind(this)
     }
 }

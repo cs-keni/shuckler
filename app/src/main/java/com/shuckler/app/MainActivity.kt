@@ -22,17 +22,12 @@ import com.shuckler.app.ui.OnboardingScreen
 import androidx.core.content.ContextCompat
 import com.shuckler.app.accessibility.AccessibilityPreferences
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
-import com.shuckler.app.achievement.AchievementManager
 import com.shuckler.app.achievement.LocalAchievementManager
-import com.shuckler.app.personality.ListeningPersonalityManager
 import com.shuckler.app.personality.LocalListeningPersonalityManager
-import com.shuckler.app.download.DownloadManager
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.navigation.ShucklerNavGraph
 import com.shuckler.app.playlist.LocalPlaylistManager
-import com.shuckler.app.playlist.PlaylistManager
 import com.shuckler.app.player.LocalMusicServiceConnection
-import com.shuckler.app.player.MusicServiceConnection
 import com.shuckler.app.shortcut.AppShortcutHandler
 import com.shuckler.app.spotify.LocalSpotifyAuthManager
 import com.shuckler.app.ui.theme.ShucklerTheme
@@ -41,8 +36,6 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.lifecycleScope
 
 class MainActivity : ComponentActivity() {
-
-    private val musicServiceConnection = MusicServiceConnection()
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -53,11 +46,10 @@ class MainActivity : ComponentActivity() {
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
         requestNotificationPermission()
-        musicServiceConnection.bind(this)
         enableEdgeToEdge()
-        val downloadManager = (application as ShucklerApplication).downloadManager
-        val showOnboarding = !OnboardingPreferences.hasCompletedOnboarding(this)
         val app = application as ShucklerApplication
+        val downloadManager = app.downloadManager
+        val showOnboarding = !OnboardingPreferences.hasCompletedOnboarding(this)
         setContent {
             var onboardingComplete by remember { mutableStateOf(!showOnboarding) }
             CompositionLocalProvider(
@@ -66,7 +58,7 @@ class MainActivity : ComponentActivity() {
             ShucklerTheme {
                 if (onboardingComplete) {
                     CompositionLocalProvider(
-                        LocalMusicServiceConnection provides musicServiceConnection,
+                        LocalMusicServiceConnection provides app.musicServiceConnection,
                         LocalDownloadManager provides downloadManager,
                         LocalPlaylistManager provides (application as ShucklerApplication).playlistManager,
                         LocalAchievementManager provides app.achievementManager,
@@ -93,11 +85,6 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        musicServiceConnection.unbind(this)
     }
 
     private fun handleShortcutIntent(intent: Intent?) {

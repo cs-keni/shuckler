@@ -1,4 +1,16 @@
 
+## Design System
+
+The canonical design reference is `DESIGN.md` in the project root.
+
+Key decisions:
+- **Colors:** Token system in `Color.kt` — never hardcode colors in composables. See `DESIGN.md § Color Tokens`.
+- **Typography:** DM Serif Display (display/headers/empty states) + DM Mono (timestamps/metadata). No Instrument Serif, no italic for headers.
+- **Album art:** Always `RoundedCornerShape` — never `CircleShape`.
+- **Mini player:** Floating pill above nav bar, not a full-width bottom bar.
+- **Accent color:** `LocalAccentColor` CompositionLocal — replaced at runtime by Palette API from album art.
+- **Preview:** `design-preview.html` in project root — open in browser to see all screens.
+
 ## Skill routing
 
 When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.

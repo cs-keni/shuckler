@@ -14,15 +14,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import com.shuckler.app.youtube.YouTubeRepository
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Handles downloading audio from URLs and persisting track metadata.
@@ -31,6 +32,11 @@ import java.util.concurrent.ConcurrentHashMap
 class DownloadManager(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(300, TimeUnit.SECONDS)
+        .build()
 
     private val _downloads = MutableStateFlow<List<DownloadedTrack>>(emptyList())
     val downloads: StateFlow<List<DownloadedTrack>> = _downloads.asStateFlow()
@@ -463,7 +469,7 @@ class DownloadManager(private val context: Context) {
     }
 
     /**
-     * Single download attempt. Supports resumable download via Range header when [resumeFromByte] > 0.
+     * Single download attempt using OkHttp. Supports resumable download via Range header.
      * Returns Success, or Failure with partialFile/bytesDownloaded for resume on next retry.
      */
     private fun runDownloadAttempt(
@@ -475,31 +481,27 @@ class DownloadManager(private val context: Context) {
         existingPartialFile: File? = null,
         resumeFromByte: Long = 0L
     ): DownloadAttemptResult {
-        var connection: HttpURLConnection? = null
         var outputStream: FileOutputStream? = null
         var outFile: File? = null
         val isResume = resumeFromByte > 0L && existingPartialFile != null && existingPartialFile.exists()
         return try {
-            val url = URL(urlString)
-            connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 20_000
-            connection.readTimeout = 300_000 // 5 min - YouTube can be slow
-            connection.setRequestProperty("User-Agent", USER_AGENT)
+            val requestBuilder = Request.Builder()
+                .url(urlString)
+                .header("User-Agent", USER_AGENT)
             if (isResume) {
-                connection.setRequestProperty("Range", "bytes=$resumeFromByte-")
+                requestBuilder.header("Range", "bytes=$resumeFromByte-")
             }
-            connection.connect()
+            val response = httpClient.newCall(requestBuilder.build()).execute()
 
-            val responseCode = connection.responseCode
+            val responseCode = response.code
             when {
                 responseCode == 416 -> {
-                    // Range not satisfiable - server might have changed; retry from scratch
+                    response.close()
                     Log.w(TAG, "runDownloadAttempt: 416 Range not satisfiable, will retry from scratch")
-                    DownloadAttemptResult.Failure("Range not satisfiable", null, 0L)
+                    return DownloadAttemptResult.Failure("Range not satisfiable", null, 0L)
                 }
-                responseCode in 200..299 -> { /* OK or 206 Partial Content */ }
-                else -> {
+                responseCode !in 200..299 -> {
+                    response.close()
                     Log.w(TAG, "runDownloadAttempt: HTTP $responseCode for $urlString")
                     return DownloadAttemptResult.Failure("HTTP $responseCode", if (isResume) existingPartialFile else null, if (isResume) resumeFromByte else 0L)
                 }
@@ -507,24 +509,25 @@ class DownloadManager(private val context: Context) {
 
             val is206 = responseCode == 206
             if (isResume && !is206) {
-                // Server ignored Range, sent full content - cannot append; retry from scratch
+                response.close()
                 Log.w(TAG, "runDownloadAttempt: requested Range but got $responseCode, retry from scratch")
                 return DownloadAttemptResult.Failure("Server sent full content instead of partial", null, 0L)
             }
 
+            val contentType = response.header("Content-Type")
             outFile = if (isResume) existingPartialFile!! else {
-                File(audioDir, suggestFileName(urlString, connection.contentType))
+                File(audioDir, suggestFileName(urlString, contentType))
             }
             val file = outFile!!
-            val contentRange = connection.getHeaderField("Content-Range")
+            val contentRange = response.header("Content-Range")
             val totalSize = parseTotalFromContentRange(contentRange)
-            val contentLength = connection.contentLengthLong.takeIf { it > 0 }
-                ?: totalSize?.minus(resumeFromByte)?.takeIf { it > 0 }
-            val totalExpected = if (totalSize != null) totalSize else (contentLength?.plus(resumeFromByte))
+            val bodyLength = response.body?.contentLength()?.takeIf { it > 0 }
+            val totalExpected = totalSize ?: bodyLength?.plus(resumeFromByte)
 
             if (!isResume && totalExpected != null && totalExpected > 0) {
                 val available = getAvailableSpace()
                 if (available < totalExpected) {
+                    response.close()
                     failDownload(id, urlString, title, artist, "Not enough space. Need ${totalExpected / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
                     return DownloadAttemptResult.Success
                 }
@@ -533,7 +536,7 @@ class DownloadManager(private val context: Context) {
             file.parentFile?.mkdirs()
             outputStream = FileOutputStream(file, isResume)
 
-            val inputStream = connection.inputStream
+            val inputStream = response.body!!.byteStream()
             val buffer = ByteArray(BUFFER_SIZE)
             var totalRead: Long = resumeFromByte
             var read: Int
@@ -561,6 +564,7 @@ class DownloadManager(private val context: Context) {
             completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
             outputStream.close()
             outputStream = null
+            response.close()
             clearProgress(id)
             DownloadAttemptResult.Success
         } catch (e: Exception) {
@@ -570,7 +574,6 @@ class DownloadManager(private val context: Context) {
             DownloadAttemptResult.Failure(e.message ?: "Unknown error", partial.takeIf { bytes > 0 }, bytes)
         } finally {
             outputStream?.closeQuietly()
-            connection?.disconnect()
         }
     }
 
@@ -761,7 +764,7 @@ class DownloadManager(private val context: Context) {
         private const val TAG = "DownloadManager"
         private const val METADATA_FILENAME = "downloads.json"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; rv:78.0) Gecko/20100101 Firefox/78.0"
-        private const val BUFFER_SIZE = 65536 // 64KB - larger buffer for faster reads, fewer round-trips
+        private const val BUFFER_SIZE = 524288 // 512KB - fewer syscalls on fast WiFi connections
         private const val KEY_ID = "id"
         private const val KEY_TITLE = "title"
         private const val KEY_ARTIST = "artist"
