@@ -1,5 +1,7 @@
 package com.shuckler.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +51,11 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 
 private enum class AnalyticsTimeRange(val label: String, val ms: Long?) {
     H24("24 hours", 24 * 60 * 60 * 1000L),
@@ -99,13 +106,7 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        ScreenHeader(title = "Analytics", onSettingsClick = onSettingsClick)
-        Text(
-            text = "Your listening stats",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
+        ScreenHeader(title = "Stats", onSettingsClick = onSettingsClick)
         val personality = personalityManager.computePersonality()
         Card(
             modifier = Modifier
@@ -172,8 +173,8 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
         }
         Text(
             text = "Achievements",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.headlineSmall,
+            color = Text1,
             modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
         )
         val badges = AchievementDefinitions.ALL
@@ -196,9 +197,9 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
         if (topPlayed.isNotEmpty()) {
             Text(
                 text = "Most played",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                style = MaterialTheme.typography.headlineSmall,
+                color = Text1,
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
             )
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 topPlayed.forEachIndexed { i, track ->
@@ -214,9 +215,9 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
         if (playlistPlayCounts.isNotEmpty()) {
             Text(
                 text = "Most played playlists",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)
+                style = MaterialTheme.typography.headlineSmall,
+                color = Text1,
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
             )
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -272,22 +273,23 @@ private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boo
 
 @Composable
 private fun RowScope.StatCard(label: String, value: String) {
+    val accentColor = LocalAccentColor.current
     Column(
         modifier = Modifier
             .weight(1f)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .background(SurfaceElevated)
             .padding(12.dp)
     ) {
         Text(
             text = value,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary
+            style = MaterialTheme.typography.displayLarge,
+            color = accentColor
         )
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = Text2
         )
     }
 }
@@ -299,46 +301,51 @@ private fun BarChartRow(
     value: Int,
     maxValue: Int
 ) {
+    val accentColor = LocalAccentColor.current
+    val fillFraction by animateFloatAsState(
+        targetValue = (value.toFloat() / maxValue).coerceIn(0f, 1f),
+        animationSpec = tween(600),
+        label = "barFill"
+    )
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "$rank.",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(24.dp)
+            text = "$rank",
+            style = MaterialTheme.typography.labelSmall,
+            color = Text3,
+            modifier = Modifier.width(20.dp)
         )
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
+                style = MaterialTheme.typography.titleSmall,
+                color = Text1,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
                     .padding(top = 4.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(SurfaceElevated)
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth((value.toFloat() / maxValue).coerceIn(0f, 1f))
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MaterialTheme.colorScheme.primary)
+                        .fillMaxWidth(fillFraction)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(accentColor)
                 )
             }
         }
         Text(
             text = "$value",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 8.dp)
+            color = accentColor
         )
     }
 }

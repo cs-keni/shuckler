@@ -44,7 +44,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.palette.graphics.Palette
+import com.shuckler.app.ui.theme.Amber
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.Surface
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.download.LocalDownloadManager
@@ -112,6 +122,35 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList<QueueItem>())
     val durationMs by viewModel.durationMs.collectAsState(initial = 0L)
     val hasActivePlayback = queueItems.isNotEmpty() || durationMs > 0L
+
+    // Palette extraction — drives LocalAccentColor for pill + Now Playing
+    val context = LocalContext.current
+    val thumbnailUrl by viewModel.currentTrackThumbnailUrl.collectAsState(initial = null)
+    var extractedAccent by remember { mutableStateOf<Color>(Amber) }
+    LaunchedEffect(thumbnailUrl) {
+        extractedAccent = thumbnailUrl?.let { url ->
+            withContext(Dispatchers.IO) {
+                try {
+                    val req = ImageRequest.Builder(context).data(url).allowHardware(false).build()
+                    val result = context.imageLoader.execute(req)
+                    (result as? SuccessResult)
+                        ?.drawable
+                        ?.let { it as? android.graphics.drawable.BitmapDrawable }
+                        ?.bitmap
+                        ?.let { bmp ->
+                            Palette.from(bmp).generate()
+                                .let { p -> p.vibrantSwatch ?: p.dominantSwatch }
+                                ?.rgb?.let { Color(0xFF000000.toInt() or it) }
+                        }
+                } catch (_: Exception) { null }
+            }
+        } ?: Amber
+    }
+    val animatedAccent by animateColorAsState(
+        targetValue = extractedAccent,
+        animationSpec = tween(600),
+        label = "accentColor"
+    )
 
     val onMiniPlayerTap: () -> Unit = { showPlayerSheet = true }
     val onPlayerCollapse: () -> Unit = { showPlayerSheet = false }
@@ -227,6 +266,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
         }
     }
 
+    CompositionLocalProvider(LocalAccentColor provides animatedAccent) {
     Box(modifier = Modifier.fillMaxSize()) {
     androidx.compose.material3.Scaffold(
         modifier = modifier,
@@ -333,4 +373,5 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             OnboardingScreen(onComplete = { showTutorial = false })
         }
     }
+    } // end LocalAccentColor provider
 }

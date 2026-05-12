@@ -243,77 +243,30 @@ fun SearchScreen(
         }
 
         if (progress.isNotEmpty()) {
-            Text("Active downloads", style = MaterialTheme.typography.titleSmall)
-            progress.values.forEach { p ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LinearProgressIndicator(
-                        progress = { p.percent / 100f },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (p.bytesPerSecond > 0) "${p.percent}% · ${formatSpeed(p.bytesPerSecond)}" else "${p.percent}%",
-                        style = MaterialTheme.typography.bodySmall
+            Text(
+                "Downloading",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                progress.values.forEach { p ->
+                    val track = downloads.find { it.id == p.id }
+                    WaveformDownloadCard(
+                        title = track?.title ?: "Downloading…",
+                        artist = track?.artist ?: "",
+                        thumbnailUrl = track?.thumbnailUrl,
+                        progress = p
                     )
                 }
             }
         }
 
         if (searchLoading) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                repeat(4) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceVariant,
-                                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                    )
-                            )
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.8f)
-                                        .height(16.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceVariant,
-                                            androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                        )
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.5f)
-                                        .height(12.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.surfaceVariant,
-                                            androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                        )
-                                )
-                            }
-                        }
-                    }
-                }
+            Column(modifier = Modifier.fillMaxWidth()) {
+                repeat(5) { ShimmerTrackRow() }
             }
         }
 

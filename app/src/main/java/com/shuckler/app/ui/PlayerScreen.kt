@@ -1,9 +1,13 @@
 package com.shuckler.app.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.InfiniteRepeatableSpec
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -70,6 +74,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -94,12 +99,6 @@ import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
 import coil.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
-import androidx.palette.graphics.Palette
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.LocalAccentColor
 
@@ -131,29 +130,7 @@ fun PlayerScreen(
     val shuffleEnabled by viewModel.shuffleEnabled.collectAsState(initial = false)
     val downloadManager = LocalDownloadManager.current
     val context = LocalContext.current
-    var albumColor by remember { mutableStateOf<Color?>(null) }
-    LaunchedEffect(thumbnailUrl) {
-        albumColor = thumbnailUrl?.let { url ->
-            withContext(Dispatchers.IO) {
-                try {
-                    val request = ImageRequest.Builder(context)
-                        .data(url)
-                        .allowHardware(false)
-                        .build()
-                    val result = context.imageLoader.execute(request)
-                    (result as? SuccessResult)
-                        ?.drawable
-                        ?.let { it as? android.graphics.drawable.BitmapDrawable }
-                        ?.bitmap
-                        ?.let { bmp ->
-                            Palette.from(bmp).generate().dominantSwatch?.rgb?.let { rgb ->
-                                Color(0xFF000000.toInt() or rgb)
-                            }
-                        }
-                } catch (_: Exception) { null }
-            }
-        }
-    }
+    val albumColor = LocalAccentColor.current
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showEqualizerDialog by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
@@ -282,7 +259,7 @@ fun PlayerScreen(
         )
     }
 
-    val topGradientColor = albumColor?.let { lerp(it, Base, 0.45f) } ?: Base
+    val topGradientColor = lerp(albumColor, Base, 0.45f)
     val animatedTopColor by animateColorAsState(
         targetValue = topGradientColor,
         animationSpec = tween(if (reduceMotion) 0 else 600),
@@ -328,6 +305,26 @@ fun PlayerScreen(
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
             }
         }
+        // Breathing glow + art container
+        val glowTransition = rememberInfiniteTransition(label = "glow")
+        val glowScale by glowTransition.animateFloat(
+            initialValue = 1.05f,
+            targetValue = 1.18f,
+            animationSpec = InfiniteRepeatableSpec(
+                animation = tween(1800),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glowScale"
+        )
+        val glowAlpha by glowTransition.animateFloat(
+            initialValue = 0.28f,
+            targetValue = 0.42f,
+            animationSpec = InfiniteRepeatableSpec(
+                animation = tween(1800),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "glowAlpha"
+        )
         Box(
             modifier = Modifier
                 .padding(bottom = 16.dp)
@@ -335,6 +332,20 @@ fun PlayerScreen(
                 .scale(artScale),
             contentAlignment = Alignment.Center
         ) {
+            // Breathing glow ring
+            if (!reduceMotion && thumbnailUrl != null && isPlaying) {
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(196.dp)
+                        .scale(glowScale)
+                        .blur(28.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .alpha(glowAlpha)
+                )
+            }
             if (!reduceMotion) {
                 visualizerFftData?.let { fft ->
                     AudioVisualizerCanvas(
