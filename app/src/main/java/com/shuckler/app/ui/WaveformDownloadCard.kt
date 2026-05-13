@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,8 +33,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.shuckler.app.download.DownloadProgress
-import com.shuckler.app.ui.theme.Amber
+import com.shuckler.app.download.DownloadStatus
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.Green
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Red
 import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
@@ -49,6 +53,7 @@ fun WaveformDownloadCard(
     artist: String,
     thumbnailUrl: String?,
     progress: DownloadProgress,
+    status: DownloadStatus = DownloadStatus.DOWNLOADING,
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
@@ -65,12 +70,25 @@ fun WaveformDownloadCard(
     }
 
     val speedLabel = if (progress.bytesPerSecond > 0) formatDownloadSpeed(progress.bytesPerSecond) else null
+    val statusLabel = when (status) {
+        DownloadStatus.PENDING -> "QUEUED"
+        DownloadStatus.DOWNLOADING -> null
+        DownloadStatus.COMPLETED -> "DONE"
+        DownloadStatus.FAILED -> "FAILED"
+    }
+    val statusColor = when (status) {
+        DownloadStatus.COMPLETED -> Green
+        DownloadStatus.FAILED -> Red
+        DownloadStatus.PENDING -> Text3
+        DownloadStatus.DOWNLOADING -> accentColor
+    }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(SurfaceElevated)
+            .border(1.dp, Border, RoundedCornerShape(8.dp))
             .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -107,11 +125,19 @@ fun WaveformDownloadCard(
                         color = Text2, maxLines = 1)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "${progress.percent}%",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = accentColor
-                    )
+                    if (statusLabel != null) {
+                        Text(
+                            text = statusLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = statusColor
+                        )
+                    } else {
+                        Text(
+                            text = "${progress.percent}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = accentColor
+                        )
+                    }
                     if (speedLabel != null) {
                         Text(
                             text = speedLabel,

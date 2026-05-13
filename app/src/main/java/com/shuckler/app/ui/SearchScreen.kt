@@ -340,7 +340,8 @@ fun SearchScreen(
                         title = track?.title ?: "Downloading…",
                         artist = track?.artist ?: "",
                         thumbnailUrl = track?.thumbnailUrl,
-                        progress = p
+                        progress = p,
+                        status = track?.status ?: DownloadStatus.DOWNLOADING
                     )
                 }
             }

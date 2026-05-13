@@ -66,6 +66,10 @@ Date: 2026-05-13
   - "Recommended for you" no longer renders during the background recommendation fetch.
   - The recommendation shelf/title renders only when visible recommendation tiles are available.
   - Empty background refreshes no longer clear an already-visible recommendation shelf.
+- Continued Downloads/utility polish:
+  - `WaveformDownloadCard` now supports `DownloadStatus` labels (`QUEUED`, `DONE`, `FAILED`) and uses the tighter tokenized 8dp card style.
+  - Search passes each active download's status into the waveform card.
+  - Library's "Manage storage & downloads" disclosure now uses warm token styling, subtle border, and tokenized action colors.
 
 ## Checks
 
@@ -104,6 +108,7 @@ Date: 2026-05-13
 - Re-attempted `:app:compileDebugKotlin` from Codex after the Now Playing/Settings slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
 - Android Studio compile reported unresolved `FilledIconButtonDefaults` in `PlayerScreen.kt`; fixed by using `IconButtonDefaults.filledIconButtonColors`.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search recommendation flicker fix.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/WaveformDownloadCard.kt app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Downloads/utility polish.
 
 ## Known Risks
 
@@ -119,6 +124,7 @@ Date: 2026-05-13
 - Device-review Home with empty library, some downloads but no plays, and active listening history.
 - Device-review Library in sheet and full-tab modes, including empty library, albums shelf, playlists shelf, list/grid track view, swipe delete, and Manage storage disclosure.
 - Device-review Search with no library, with saved tracks but no query, with recommendation data, and after a normal search.
+- Device-review active, queued, failed, and completed download states if possible.
 - Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
 - Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
 - Continue remaining flow-first polish using `DESIGN.md`, especially Downloads/active download surfaces and any remaining boxed utility sections.

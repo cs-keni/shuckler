@@ -113,6 +113,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Red
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
@@ -874,6 +875,9 @@ fun LibraryScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 18.dp, bottom = 4.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(SurfaceElevated.copy(alpha = 0.42f))
+                .border(1.dp, Border, RoundedCornerShape(8.dp))
                 .clickable { downloadsExpanded = !downloadsExpanded },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -881,11 +885,14 @@ fun LibraryScreen(
             Text(
                 text = if (downloadsExpanded) "Hide manage tools" else "Manage storage & downloads",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Text2,
+                modifier = Modifier.padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
             )
             Icon(
                 imageVector = if (downloadsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (downloadsExpanded) "Collapse" else "Expand"
+                contentDescription = if (downloadsExpanded) "Collapse" else "Expand",
+                tint = Text2,
+                modifier = Modifier.padding(end = 8.dp)
             )
         }
         AnimatedVisibility(
@@ -893,7 +900,12 @@ fun LibraryScreen(
             enter = expandVertically(animationSpec = tween(200)),
             exit = shrinkVertically(animationSpec = tween(200))
         ) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -901,29 +913,29 @@ fun LibraryScreen(
                     Text(
                         text = "Used: ${formatBytes(storageUsed)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                     Text(
                         text = "Free: ${formatBytes(storageAvailable)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                 }
                 if (completedTracks.isNotEmpty()) {
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             TextButton(onClick = { showCleanUpDialog = true }) {
-                                Text("Clean up suggestions")
+                                Text("Clean up suggestions", color = LocalAccentColor.current)
                             }
                             TextButton(onClick = { showClearAllConfirm = true }) {
-                                Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                                Text("Clear all downloads", color = Red)
                             }
                         }
                         TextButton(onClick = { downloadManager.clearAllPlaybackPositions() }) {
-                            Text("Reset playback positions")
+                            Text("Reset playback positions", color = Text2)
                         }
                     }
                 }

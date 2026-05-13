@@ -37,7 +37,8 @@ Now Playing and Settings redesign are now the active implementation slice:
 - Now Playing flow polish continued: queue sheet uses the warm Base canvas, flat tokenized rows, accent wash for the current track, album-accent progress/controls, and custom action chips instead of Material `FilterChip`.
 - Settings dialog polish continued: warm tokenized dialog surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 copy hierarchy.
 - Search idle recommendation flicker fixed: "Recommended for you" now renders only when visible recommendation tiles are available, and empty background refreshes no longer clear an already-visible shelf.
+- Downloads flow polish continued: waveform download cards now use the tighter 8dp card radius, token border, status labels for queued/done/failed states, and Library's storage/download disclosure uses warm token styling.
 
 ## Next Best Work
 
-Android Studio build/run the latest Search, Now Playing, and Settings slices, then device-review Home, Library sheet/full tab, Search idle/results states, Stats, Now Playing, Queue, Lyrics, and Settings.
+Android Studio build/run the latest Search, Downloads, Library manage, Now Playing, and Settings slices, then device-review Home, Library sheet/full tab, Search idle/results states, active downloads, Stats, Now Playing, Queue, Lyrics, and Settings.

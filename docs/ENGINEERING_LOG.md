@@ -40,3 +40,5 @@
 - Settings polish grouped options with DM section headers and tokenized segmented choices while preserving existing settings behavior.
 - Android Studio compile caught that this Material3 version does not expose `FilledIconButtonDefaults`; switched the play button colors to `IconButtonDefaults.filledIconButtonColors`.
 - Search idle recommendations previously showed the section title while loading, then removed it if YouTube returned no recommendation results. The fix now keeps a separate visible recommendation shelf and only replaces it with non-empty fetches, so transient empty refreshes cannot make "Recommended for you" blink away.
+- Download card polish added `DownloadStatus` labels to `WaveformDownloadCard` and tightened its shape/border to match the active-download exception in `DESIGN.md`; Search now passes the track status into the shared card.
+- Library's storage/download disclosure now uses the warm tokenized utility style instead of default Material surface/text colors.
