@@ -62,6 +62,9 @@ Date: 2026-05-13
   - Queue bottom sheet now uses the warm Base canvas, flat rows, subtle borders, and album-accent current-track wash.
   - Now Playing progress, playback controls, action chips, lyrics sheet, and empty artwork state now use the album accent and warm design tokens instead of default Material chip/surface colors.
   - Settings dialog now uses a warm tokenized surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 hierarchy.
+- Fixed Search idle recommendation flicker:
+  - "Recommended for you" no longer renders during the background recommendation fetch.
+  - The recommendation shelf/title renders only when `recommendedResults` is non-empty, so empty fetches do not flash a disappearing section.
 
 ## Checks
 
@@ -99,6 +102,7 @@ Date: 2026-05-13
 - `rg` confirms no `FilterChip`, `CircleShape`, or targeted default `MaterialTheme.colorScheme` surface/primary usages remain in `PlayerScreen.kt` or `SettingsDialog.kt`.
 - Re-attempted `:app:compileDebugKotlin` from Codex after the Now Playing/Settings slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
 - Android Studio compile reported unresolved `FilledIconButtonDefaults` in `PlayerScreen.kt`; fixed by using `IconButtonDefaults.filledIconButtonColors`.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search recommendation flicker fix.
 
 ## Known Risks
 

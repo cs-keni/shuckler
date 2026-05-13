@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -120,17 +119,14 @@ fun SearchScreen(
         downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     }
     var recommendedResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
-    var recommendedLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(completedTracks) {
         if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
-            recommendedLoading = true
             recommendedResults = try {
                 RecommendationEngine.fetchRecommendedYouTubeResults(context, completedTracks)
             } catch (_: Throwable) {
                 emptyList()
             }
-            recommendedLoading = false
         } else {
             recommendedResults = emptyList()
         }
@@ -504,111 +500,93 @@ fun SearchScreen(
             }
         }
 
-        val showRecommendations = lastSearchedQuery.isBlank() &&
-            RecommendationEngine.hasRecommendationData(context, completedTracks) &&
-            (recommendedLoading || recommendedResults.isNotEmpty())
+        val showRecommendations = lastSearchedQuery.isBlank() && recommendedResults.isNotEmpty()
         if (showRecommendations) {
             SectionLabel("Recommended for you", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-            if (recommendedLoading) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    Text(
-                        "Finding recommendations…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Text2,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
-            } else if (recommendedResults.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    recommendedResults.forEach { result ->
-                        val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
-                        RecommendedSearchTile(
-                            result = result,
-                            isDownloading = downloadingVideoUrl == result.url,
-                            isStreaming = streamingVideoUrl == result.url,
-                            isPreviewing = previewingVideoUrl == result.url,
-                            isDownloaded = isDownloaded,
-                            onPlayClick = {
-                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
-                                youtubeDownloadError = null
-                                streamingVideoUrl = result.url
-                                scope.launch {
-                                    val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                    when (resultAudio) {
-                                        is YouTubeRepository.AudioStreamResult.Success -> {
-                                            viewModel.playTrack(
-                                                Uri.parse(resultAudio.info.url),
-                                                result.title,
-                                                result.uploaderName ?: "Unknown",
-                                                thumbnailUrl = result.thumbnailUrl
-                                            )
-                                        }
-                                        is YouTubeRepository.AudioStreamResult.Failure -> {
-                                            youtubeDownloadError = resultAudio.message
-                                            val host = snackbarHostState
-                                            if (host != null) {
-                                                val r = host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short)
-                                                if (r == SnackbarResult.ActionPerformed) {
-                                                    streamingVideoUrl = result.url
-                                                    val retryAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                                    when (retryAudio) {
-                                                        is YouTubeRepository.AudioStreamResult.Success -> viewModel.playTrack(
-                                                            Uri.parse(retryAudio.info.url), result.title, result.uploaderName ?: "Unknown", thumbnailUrl = result.thumbnailUrl
-                                                        )
-                                                        is YouTubeRepository.AudioStreamResult.Failure -> youtubeDownloadError = retryAudio.message
-                                                    }
-                                                    streamingVideoUrl = null
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                recommendedResults.forEach { result ->
+                    val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
+                    RecommendedSearchTile(
+                        result = result,
+                        isDownloading = downloadingVideoUrl == result.url,
+                        isStreaming = streamingVideoUrl == result.url,
+                        isPreviewing = previewingVideoUrl == result.url,
+                        isDownloaded = isDownloaded,
+                        onPlayClick = {
+                            if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                            youtubeDownloadError = null
+                            streamingVideoUrl = result.url
+                            scope.launch {
+                                val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                when (resultAudio) {
+                                    is YouTubeRepository.AudioStreamResult.Success -> {
+                                        viewModel.playTrack(
+                                            Uri.parse(resultAudio.info.url),
+                                            result.title,
+                                            result.uploaderName ?: "Unknown",
+                                            thumbnailUrl = result.thumbnailUrl
+                                        )
+                                    }
+                                    is YouTubeRepository.AudioStreamResult.Failure -> {
+                                        youtubeDownloadError = resultAudio.message
+                                        val host = snackbarHostState
+                                        if (host != null) {
+                                            val r = host.showSnackbar("Couldn't play — check connection", actionLabel = "Retry", duration = SnackbarDuration.Short)
+                                            if (r == SnackbarResult.ActionPerformed) {
+                                                streamingVideoUrl = result.url
+                                                val retryAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                                when (retryAudio) {
+                                                    is YouTubeRepository.AudioStreamResult.Success -> viewModel.playTrack(
+                                                        Uri.parse(retryAudio.info.url), result.title, result.uploaderName ?: "Unknown", thumbnailUrl = result.thumbnailUrl
+                                                    )
+                                                    is YouTubeRepository.AudioStreamResult.Failure -> youtubeDownloadError = retryAudio.message
                                                 }
+                                                streamingVideoUrl = null
                                             }
                                         }
                                     }
-                                    streamingVideoUrl = null
                                 }
-                            },
-                            onPreviewClick = {
-                                youtubeDownloadError = null
-                                scope.launch {
-                                    val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                    when (resultAudio) {
-                                        is YouTubeRepository.AudioStreamResult.Success ->
-                                            PreviewPlayer.play(context, result.url, resultAudio.info.url)
-                                        is YouTubeRepository.AudioStreamResult.Failure ->
-                                            youtubeDownloadError = resultAudio.message
-                                    }
-                                }
-                            },
-                            onStopPreviewClick = { PreviewPlayer.stop() },
-                            onDownloadClick = {
-                                if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
-                                youtubeDownloadError = null
-                                val id = downloadManager.startDownloadFromYouTube(
-                                    result.url,
-                                    result.title,
-                                    result.uploaderName ?: "",
-                                    result.thumbnailUrl,
-                                    onWifiOnlyBlocked = onWifiOnlyBlocked
-                                )
-                                if (id.isNotEmpty()) {
-                                    downloadingVideoUrl = result.url
-                                    scope.launch {
-                                        kotlinx.coroutines.delay(500)
-                                        if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
-                                    }
+                                streamingVideoUrl = null
+                            }
+                        },
+                        onPreviewClick = {
+                            youtubeDownloadError = null
+                            scope.launch {
+                                val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
+                                when (resultAudio) {
+                                    is YouTubeRepository.AudioStreamResult.Success ->
+                                        PreviewPlayer.play(context, result.url, resultAudio.info.url)
+                                    is YouTubeRepository.AudioStreamResult.Failure ->
+                                        youtubeDownloadError = resultAudio.message
                                 }
                             }
-                        )
-                    }
+                        },
+                        onStopPreviewClick = { PreviewPlayer.stop() },
+                        onDownloadClick = {
+                            if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                            youtubeDownloadError = null
+                            val id = downloadManager.startDownloadFromYouTube(
+                                result.url,
+                                result.title,
+                                result.uploaderName ?: "",
+                                result.thumbnailUrl,
+                                onWifiOnlyBlocked = onWifiOnlyBlocked
+                            )
+                            if (id.isNotEmpty()) {
+                                downloadingVideoUrl = result.url
+                                scope.launch {
+                                    kotlinx.coroutines.delay(500)
+                                    if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
