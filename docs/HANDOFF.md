@@ -1,6 +1,6 @@
 # Handoff
 
-Date: 2026-05-12
+Date: 2026-05-13
 
 ## Changed
 
@@ -23,6 +23,7 @@ Date: 2026-05-12
 - Added `brand-review.html` with brand/name directions for user review.
 - Added brand guidance to `DESIGN.md`.
 - Updated Home screen visual language: warm Base background, library snapshot stats, rounded hero/empty hero, and quieter section headers.
+- Updated Search screen visual language: warm Base background, tokenized search field, recent/suggestion chips, section labels, redesigned result cards, rectangular art, and a separate horizontally scrollable action row to reduce narrow-screen overflow.
 
 ## Checks
 
@@ -39,6 +40,7 @@ Date: 2026-05-12
 - After this handoff update, another Android Studio sync/build/run is needed because album metadata, Album Detail, brand/icon, Home redesign, and the `DownloadManager.kt` fix were added after the last successful build.
 - `git diff --check` passes for the files touched in the album-detail slice; full-worktree `git diff --check` still reports pre-existing trailing whitespace in `AndroidManifest.xml` Last.fm intent-filter lines.
 - `xdg-open` is unavailable and Windows Explorer interop failed, but `cmd.exe /c start` succeeded for opening `brand-review.html`.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search visual pass.
 
 ## Known Risks
 
@@ -50,7 +52,8 @@ Date: 2026-05-12
 
 ## Remaining Work
 
-- Run Android Studio sync/build after the latest album, brand, and Home changes.
+- Run Android Studio sync/build after the latest album, brand, Home, and Search changes.
 - Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
 - Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
+- Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
 - Consider a future metadata-enrichment pass for existing YouTube-only downloads that do not have album title/year.

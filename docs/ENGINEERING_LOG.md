@@ -14,3 +14,9 @@
 - `DownloadManager.suggestFileName()` requires `java.net.URL`; missing import surfaced in Android Studio run checks after the album metadata changes.
 - Brand direction now avoids character-derived assets. User chose to keep Shuckler and use `catdoodle.png`; launcher, header, and onboarding use that drawable; old character image files were removed.
 - Browser launch note: `xdg-open` is missing and Windows Explorer interop returned exit code 1, but `cmd.exe /c start` opened `brand-review.html`.
+
+## 2026-05-13
+
+- Checkpoint commit `dbcdc25` was pushed to `origin/main` before continuing new work, per user request.
+- Search screen now uses the redesign token system instead of Material default surface colors. Result actions moved below the metadata row to reduce narrow-screen overflow risk.
+- Codex still cannot run Gradle in this WSL shell; use Android Studio sync/build for compile verification.
