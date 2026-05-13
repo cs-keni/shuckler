@@ -118,17 +118,20 @@ fun SearchScreen(
     val completedTracks = remember(downloads) {
         downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     }
-    var recommendedResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
+    var visibleRecommendedResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
 
     LaunchedEffect(completedTracks) {
         if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
-            recommendedResults = try {
+            val fetchedResults = try {
                 RecommendationEngine.fetchRecommendedYouTubeResults(context, completedTracks)
             } catch (_: Throwable) {
                 emptyList()
             }
-        } else {
-            recommendedResults = emptyList()
+            // Empty refreshes can happen during startup/network churn; do not let
+            // them remove a shelf that was already stable on screen.
+            if (fetchedResults.isNotEmpty()) {
+                visibleRecommendedResults = fetchedResults
+            }
         }
     }
     val lastDownloadError by downloadManager.lastDownloadError.collectAsState(initial = null)
@@ -500,7 +503,7 @@ fun SearchScreen(
             }
         }
 
-        val showRecommendations = lastSearchedQuery.isBlank() && recommendedResults.isNotEmpty()
+        val showRecommendations = lastSearchedQuery.isBlank() && visibleRecommendedResults.isNotEmpty()
         if (showRecommendations) {
             SectionLabel("Recommended for you", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             Row(
@@ -510,7 +513,7 @@ fun SearchScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                recommendedResults.forEach { result ->
+                visibleRecommendedResults.forEach { result ->
                     val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
                     RecommendedSearchTile(
                         result = result,
@@ -590,7 +593,7 @@ fun SearchScreen(
                 }
             }
         }
-        if (showRecommendations && recommendedResults.isNotEmpty()) {
+        if (showRecommendations) {
             SectionLabel("Keep exploring", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             Row(
                 modifier = Modifier
@@ -639,7 +642,7 @@ fun SearchScreen(
         }
 
         val showEmptyState = downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() &&
-            !searchLoading && recommendedResults.isEmpty() && !hasIdleDiscovery &&
+            !searchLoading && visibleRecommendedResults.isEmpty() && !hasIdleDiscovery &&
             !showRecommendations
         if (showEmptyState) {
             Column(

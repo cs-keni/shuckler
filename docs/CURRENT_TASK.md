@@ -36,7 +36,7 @@ Now Playing and Settings redesign are now the active implementation slice:
 - Stats follow-up added a dedicated topbar and Top artists ranked bar section from `DESIGN.md`.
 - Now Playing flow polish continued: queue sheet uses the warm Base canvas, flat tokenized rows, accent wash for the current track, album-accent progress/controls, and custom action chips instead of Material `FilterChip`.
 - Settings dialog polish continued: warm tokenized dialog surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 copy hierarchy.
-- Search idle recommendation flicker fixed: "Recommended for you" now renders only when actual recommendation tiles are available, so an empty recommendation fetch cannot flash the section title and then remove it.
+- Search idle recommendation flicker fixed: "Recommended for you" now renders only when visible recommendation tiles are available, and empty background refreshes no longer clear an already-visible shelf.
 
 ## Next Best Work
 

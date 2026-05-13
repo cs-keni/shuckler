@@ -64,7 +64,8 @@ Date: 2026-05-13
   - Settings dialog now uses a warm tokenized surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 hierarchy.
 - Fixed Search idle recommendation flicker:
   - "Recommended for you" no longer renders during the background recommendation fetch.
-  - The recommendation shelf/title renders only when `recommendedResults` is non-empty, so empty fetches do not flash a disappearing section.
+  - The recommendation shelf/title renders only when visible recommendation tiles are available.
+  - Empty background refreshes no longer clear an already-visible recommendation shelf.
 
 ## Checks
 

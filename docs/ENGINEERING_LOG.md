@@ -39,4 +39,4 @@
 - Now Playing polish moved the queue sheet and playback controls off default Material surfaces/chips and onto Base, album accent, and warm text tokens. `PlayerScreen.kt` no longer has Material `FilterChip` usage.
 - Settings polish grouped options with DM section headers and tokenized segmented choices while preserving existing settings behavior.
 - Android Studio compile caught that this Material3 version does not expose `FilledIconButtonDefaults`; switched the play button colors to `IconButtonDefaults.filledIconButtonColors`.
-- Search idle recommendations previously showed the section title while loading, then removed it if YouTube returned no recommendation results. Gate the shelf on `recommendedResults.isNotEmpty()` so empty fetches stay silent and the idle starter remains stable.
+- Search idle recommendations previously showed the section title while loading, then removed it if YouTube returned no recommendation results. The fix now keeps a separate visible recommendation shelf and only replaces it with non-empty fetches, so transient empty refreshes cannot make "Recommended for you" blink away.
