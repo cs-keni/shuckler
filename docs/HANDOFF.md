@@ -57,6 +57,7 @@ Date: 2026-05-13
   - Replaced the personality card surface with a quieter inline accent panel.
   - Flattened the big stat numbers and achievement badge surfaces.
   - Tokenized playlist stat fallback surfaces.
+  - Added a dedicated Stats topbar and Top artists ranked bar section from `DESIGN.md`.
 
 ## Checks
 
@@ -84,6 +85,7 @@ Date: 2026-05-13
 - After the `LibraryScreen.kt` line 1613 fix, Codex-side Gradle is still blocked by missing Java, so Android Studio should rerun `:app:compileDebugKotlin`.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Search discovery pass.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/AnalyticsScreen.kt` passes after the recommendation gating and Stats flow pass.
+- Attempted `./gradlew :app:compileDebugKotlin` after the follow-up Stats work; still blocked by missing Java/JAVA_HOME in WSL.
 
 ## Known Risks
 

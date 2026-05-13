@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -86,6 +88,16 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     val favoriteCount = filteredTracks.count { it.isFavorite }
     val topPlayed = filteredTracks.sortedByDescending { it.playCount }.take(8)
     val maxPlays = topPlayed.maxOfOrNull { it.playCount } ?: 1
+    val topArtists = filteredTracks
+        .filter { it.artist.isNotBlank() }
+        .groupBy { it.artist }
+        .map { (artist, tracks) ->
+            val plays = tracks.sumOf { it.playCount }
+            artist to if (plays > 0) plays else tracks.size
+        }
+        .sortedByDescending { it.second }
+        .take(8)
+    val maxArtistScore = topArtists.maxOfOrNull { it.second } ?: 1
 
     LaunchedEffect(completed, playlists, totalPlayCount) {
         achievementManager.checkAndUnlock(completed, playlists, totalPlayCount)
@@ -108,7 +120,7 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        ScreenHeader(title = "Stats", onSettingsClick = onSettingsClick)
+        StatsTopBar(onSettingsClick = onSettingsClick)
         val personality = personalityManager.computePersonality()
         Row(
             modifier = Modifier
@@ -144,7 +156,10 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AnalyticsTimeRange.entries.forEach { tr ->
@@ -205,6 +220,24 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
                 }
             }
         }
+        if (topArtists.isNotEmpty()) {
+            Text(
+                text = "Top artists",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Text1,
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                topArtists.forEachIndexed { index, (artist, score) ->
+                    BarChartRow(
+                        rank = index + 1,
+                        label = artist,
+                        value = score,
+                        maxValue = maxArtistScore
+                    )
+                }
+            }
+        }
         if (playlistPlayCounts.isNotEmpty()) {
             Text(
                 text = "Most played playlists",
@@ -227,6 +260,39 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StatsTopBar(onSettingsClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Stats",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Text1
+            )
+            Text(
+                text = "Your listening, visible.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Text3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        androidx.compose.material3.IconButton(onClick = onSettingsClick) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Text2
+            )
         }
     }
 }

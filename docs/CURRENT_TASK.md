@@ -32,6 +32,7 @@ Search redesign is now the active implementation slice:
 - Search recommendation section now only renders while loading or when there are actual recommendation results, avoiding a blank section after empty fetches.
 - Search now fills space under non-empty recommendations with a compact "Keep exploring" chip row.
 - Stats flow pass started: tokenized time chips, quieter personality panel, flatter big stats and achievement surfaces.
+- Stats follow-up added a dedicated topbar and Top artists ranked bar section from `DESIGN.md`.
 
 ## Next Best Work
 
