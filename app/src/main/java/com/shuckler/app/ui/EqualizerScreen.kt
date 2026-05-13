@@ -47,6 +47,7 @@ import com.shuckler.app.equalizer.EqualizerPreferences
 import com.shuckler.app.player.MusicPlayerService
 import com.shuckler.app.ui.theme.Amber as ShucklerNeonYellow
 import com.shuckler.app.ui.theme.Base as ShucklerBlack
+import com.shuckler.app.ui.theme.Text1
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -281,7 +282,7 @@ fun EqualizerDialog(
                                     center = Offset(cx, cy)
                                 )
                                 drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.5f),
+                                    color = Text1.copy(alpha = 0.5f),
                                     radius = dotRadiusPx * 0.6f,
                                     center = Offset(cx, cy)
                                 )

@@ -21,6 +21,76 @@ Seven principles that every decision traces back to.
 
 ---
 
+## Flow-First Redesign Direction
+
+The current implementation is moving toward the right palette and typography, but the screen composition can still feel like separated boxes with accidental gaps. The next redesign pass should focus on continuous layout flow before adding more components.
+
+### Research Notes
+
+- Apple layout guidance emphasizes full-bleed content, clear visual hierarchy, consistent alignment, and scrollable layouts that extend behind control layers instead of stopping at obvious bars.
+- Material layout guidance says cards are useful when a grouping needs a distinct entry point, varied content behavior, or extra separation. Cards should not be the default container for every section.
+- Spotify's newer adaptive design language points toward browsing that remains familiar while making the currently playing context feel present rather than detached.
+
+### Composition Rules
+
+1. **One canvas per screen.** Screens use `Base` as a continuous scroll canvas. Avoid stacking multiple full-width boxed sections with their own backgrounds.
+2. **Cards are exceptions.** Use cards for search results, active downloads, modals, and playlist/album entry points. Do not wrap simple headings, stats, chips, or short rows in cards.
+3. **Art leads the page.** Home and Library should start with album/playlist artwork or a compact now-playing context, not an empty header gap.
+4. **No dead vertical zones.** If a section has no content, collapse it or replace it with a compact inline empty state. Do not reserve hero-height space for missing recommendations.
+5. **Rows belong to the canvas.** Track rows are flat list items separated by subtle dividers or spacing. The currently playing row gets an accent wash, not a boxed card.
+6. **Section rhythm is tight and repeatable.** Use `20dp` after the screen header, `16dp` between section title and content, and `24dp` between major sections. Avoid arbitrary `32–48dp` gaps except before true full-screen empty states.
+7. **Horizontal shelves should peek.** Album, playlist, and recommendation shelves intentionally show partial next items to communicate scrollability.
+8. **Controls float above content.** The mini player and nav bar overlay the bottom of the canvas. Content gets bottom padding, but the canvas visually continues underneath.
+
+### Home Redesign Target
+
+Home should feel like a personalized music feed, not a dashboard.
+
+**Top region**
+- Collapsed brand/header row: "Shuckler" or greeting, settings icon, no large standalone card.
+- Compact "Continue listening" strip when playback/history exists:
+  - Large rectangular artwork on the left or full-bleed artwork band.
+  - Title, artist, and one primary action.
+  - Palette tint fades directly into `Base`.
+- If nothing is available, show a compact inline empty state and immediately surface Search prompts.
+
+**Main feed**
+- "Recently added" shelf: artwork-only first impression, labels underneath, no card backgrounds.
+- "Made from your library" or recommendations: one horizontal shelf of art-backed tiles. Tiles may have image overlays, but the section itself stays unboxed.
+- "Quick starts": small text chips or rows, not large cards.
+- "Your snapshot": compact inline metrics row with no outer card. Use typography and alignment for hierarchy.
+
+**Spacing**
+- Header to first content: `12–16dp`.
+- Section-to-section: `24dp`.
+- Shelf item gap: `10–12dp`.
+- No blank region larger than `32dp` unless it is the bottom safe area behind the mini player.
+
+### Library Redesign Target
+
+Library should behave more like a dense collection view.
+
+- Keep the Albums shelf, but make it the first visual anchor after the header when albums exist.
+- Move filters into a single horizontally scrollable chip row directly under the header.
+- Playlist cards should be compact art tiles, not large surface blocks.
+- Track list rows stay flat and dense; use `BorderSubtle` only when needed.
+- Storage/download maintenance moves behind a "Manage" affordance or collapsed utility section so it does not interrupt browsing.
+
+### Search Redesign Target
+
+Search can keep cards because each result has mixed actions, metadata, and download states. The next pass should still reduce boxed feel:
+
+- Search bar remains a pill.
+- Recent and suggestion chips stay unboxed.
+- Results cards use one shared plane, consistent `8dp` radius, and minimal border.
+- Recommended results should appear as an art shelf before list cards when the user has not searched yet.
+
+### Preview Artifact
+
+The flow-first composition study is at `flow-redesign-preview.html` in the project root. It is a planning artifact, not an implementation source.
+
+---
+
 ## Brand
 
 The app should not use character art, mascot art, or any asset derived from existing copyrighted characters.

@@ -20,3 +20,16 @@
 - Checkpoint commit `dbcdc25` was pushed to `origin/main` before continuing new work, per user request.
 - Search screen now uses the redesign token system instead of Material default surface colors. Result actions moved below the metadata row to reduce narrow-screen overflow risk.
 - Codex still cannot run Gradle in this WSL shell; use Android Studio sync/build for compile verification.
+- Latest visual cleanup removed `CircleShape` from onboarding pager indicators and migrated hardcoded black/white overlay values in UI composables to existing warm tokens. `git diff --check` passes for the touched files; Java/Gradle verification remains blocked in WSL.
+- User reported the redesigned UI still feels gappy and too much like stacked boxes. Added a flow-first planning section to `DESIGN.md` and created `flow-redesign-preview.html`; no Compose implementation was changed for this planning pass.
+- First flow-first implementation slice targets Home only. Existing behavior is preserved, but visual structure changed substantially. Codex still cannot compile due to missing Java in WSL, so Android Studio verification is required.
+- Library flow slice separates browsing from storage maintenance. The previous structure hid the track list inside the collapsed storage/download disclosure, which made the Library feel like a utility panel before a collection.
+- Library sheet gap was likely caused by `heightIn(min = 500.dp)` applied only in `isSheetMode`; removed that forced minimum and let the bottom sheet partially expand.
+- Library mid-page gap was caused by the `No playlists yet` empty state rendering before Albums even when album/track content existed. Removed that block from the main collection flow.
+- Material default `FilterChip` styling made Library still look unchanged; replaced local Library chips with tokenized pill chips.
+- Gotcha: after replacing the local `FilterChip` API, update all Library call sites. The mood-tag dialog still used Material's `label = { Text(mood) }` shape and caused a compile error at `LibraryScreen.kt:1613`; it now uses `label = mood`.
+- Search idle recommendations are now intentionally shelf-like; keep full action cards for concrete search results where play/preview/download state needs room.
+- Search felt empty because idle state depended on recommendations/recent searches. Added deterministic starter query chips so Search always has useful content on fresh installs.
+- Search recommendation title/blank-gap bug came from rendering the section label whenever recommendation data existed, even if the fetch returned an empty list. Gate the whole section on `recommendedLoading || recommendedResults.isNotEmpty()`.
+- Added "Keep exploring" chips under non-empty recommendations to prevent the Search idle surface from ending abruptly below the recommendation shelf.
+- Stats still used old Material default chips/cards; first Stats flow pass replaced those with tokenized chips, inline accent panel, and flatter metric surfaces.

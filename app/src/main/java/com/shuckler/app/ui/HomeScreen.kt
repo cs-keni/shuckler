@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -29,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -71,8 +74,9 @@ import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.preview.PreviewPlayer
 import com.shuckler.app.recommendation.RecommendationEngine
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.BorderSubtle
 import com.shuckler.app.ui.theme.LocalAccentColor
-import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
@@ -153,108 +157,86 @@ fun HomeScreen(
         (if (tb.isNotEmpty()) tb else downloadManager.filterForShuffle(completedTracks)).randomOrNull()?.thumbnailUrl
     }
 
+    fun playSingleTrack(track: DownloadedTrack) {
+        val items = listOf(
+            QueueItem(
+                uri = Uri.fromFile(File(track.filePath)).toString(),
+                title = track.title,
+                artist = track.artist,
+                trackId = track.id,
+                thumbnailUrl = track.thumbnailUrl,
+                startMs = track.startMs,
+                endMs = track.endMs
+            )
+        )
+        viewModel.playTrackWithQueue(items, 0)
+    }
+
+    val continueTrack = recentlyPlayed.firstOrNull()
+        ?: mostPlayedTrack
+        ?: completedTracks.maxByOrNull { it.downloadDateMs }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Base)
             .verticalScroll(rememberScrollState())
-            .padding(bottom = 24.dp)
+            .padding(bottom = 132.dp)
     ) {
-        ScreenHeader(
-            title = "Home",
-            onSettingsClick = onSettingsClick
-        )
-
         val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
             in 0..11 -> "Good morning"
             in 12..17 -> "Good afternoon"
             else -> "Good evening"
         }
-        Text(
-            text = greeting,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        HomeTopBar(
+            title = "Shuckler",
+            subtitle = when {
+                completedTracks.isEmpty() -> "$greeting. Start with a search."
+                completedTracks.size == 1 -> "$greeting. 1 song in your room."
+                else -> "$greeting. ${completedTracks.size} songs in your room."
+            },
+            onSettingsClick = onSettingsClick
         )
+
+        ContinueListeningBand(
+            track = continueTrack,
+            hasTracks = completedTracks.isNotEmpty(),
+            onPlay = { track -> playSingleTrack(track) },
+            onSearch = { onSearchQuerySelected("") }
+        )
+
         LibrarySnapshot(
             trackCount = completedTracks.size,
             playlistCount = playlists.size,
             recentCount = recentlyPlayed.size
         )
 
-        if (mostPlayedTrack != null) {
-            HeroBanner(
-                track = mostPlayedTrack,
-                onPlay = {
-                    val items = listOf(
-                        QueueItem(
-                            uri = Uri.fromFile(File(mostPlayedTrack.filePath)).toString(),
-                            title = mostPlayedTrack.title,
-                            artist = mostPlayedTrack.artist,
-                            trackId = mostPlayedTrack.id,
-                            thumbnailUrl = mostPlayedTrack.thumbnailUrl,
-                            startMs = mostPlayedTrack.startMs,
-                            endMs = mostPlayedTrack.endMs
-                        )
-                    )
-                    viewModel.playTrackWithQueue(items, 0)
-                }
-            )
-        } else {
-            HomeQuietHero(
-                hasTracks = completedTracks.isNotEmpty(),
-                onClick = { onSearchQuerySelected("") }
-            )
-        }
-
         if (completedTracks.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 QuickActionCard(
                     label = "Surprise me",
                     thumbnailUrl = surpriseThumbnail,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = SurfaceElevated,
                     modifier = Modifier.weight(1f),
                     onClick = {
                         val track = shuffleable.randomOrNull() ?: return@QuickActionCard
-                        val items = listOf(
-                            QueueItem(
-                                uri = Uri.fromFile(File(track.filePath)).toString(),
-                                title = track.title,
-                                artist = track.artist,
-                                trackId = track.id,
-                                thumbnailUrl = track.thumbnailUrl,
-                                startMs = track.startMs,
-                                endMs = track.endMs
-                            )
-                        )
-                        viewModel.playTrackWithQueue(items, 0)
+                        playSingleTrack(track)
                     }
                 )
                 QuickActionCard(
                     label = "Throwback",
                     thumbnailUrl = throwbackThumbnail,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    containerColor = SurfaceElevated,
                     modifier = Modifier.weight(1f),
                     onClick = {
                         val track = if (throwbacks.isNotEmpty()) throwbacks.random()
                         else shuffleable.randomOrNull() ?: return@QuickActionCard
-                        val items = listOf(
-                            QueueItem(
-                                uri = Uri.fromFile(File(track.filePath)).toString(),
-                                title = track.title,
-                                artist = track.artist,
-                                trackId = track.id,
-                                thumbnailUrl = track.thumbnailUrl,
-                                startMs = track.startMs,
-                                endMs = track.endMs
-                            )
-                        )
-                        viewModel.playTrackWithQueue(items, 0)
+                        playSingleTrack(track)
                     }
                 )
             }
@@ -263,26 +245,14 @@ fun HomeScreen(
         if (recentSearches.isNotEmpty()) {
             SectionTitle("Recent searches")
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(recentSearches, key = { it }) { query ->
-                    Card(
-                        modifier = Modifier
-                            .clickable { onSearchQuerySelected(query) },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Text(
-                            text = query,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        )
-                    }
+                    FlowActionChip(
+                        label = query,
+                        onClick = { onSearchQuerySelected(query) }
+                    )
                 }
             }
         }
@@ -291,7 +261,7 @@ fun HomeScreen(
             SectionTitle("Recommended for you")
             if (recommendedLoading) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -305,7 +275,7 @@ fun HomeScreen(
                 }
             } else if (recommendedResults.isNotEmpty()) {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(recommendedResults, key = { index, result -> "${result.url}-$index" }) { index, result ->
@@ -414,7 +384,7 @@ fun HomeScreen(
         if (recentPlaylists.isNotEmpty()) {
             SectionTitle("Your playlists")
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(recentPlaylists, key = { it.id }) { playlist ->
@@ -434,7 +404,7 @@ fun HomeScreen(
         SectionTitle(if (recentlyPlayed.isNotEmpty()) "Recently played" else "Quick picks")
         if (displayTracks.isNotEmpty()) {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(displayTracks, key = { it.id }) { track ->
@@ -471,12 +441,57 @@ fun HomeScreen(
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.headlineSmall,
-        color = Text1,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.headlineSmall,
+            color = Text1,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HomeTopBar(
+    title: String,
+    subtitle: String,
+    onSettingsClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineLarge,
+                color = Text1,
+                maxLines = 1
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Text3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        IconButton(onClick = onSettingsClick) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Text2
+            )
+        }
+    }
 }
 
 @Composable
@@ -485,15 +500,33 @@ private fun LibrarySnapshot(
     playlistCount: Int,
     recentCount: Int
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
-        SnapshotStat(label = "Tracks", value = trackCount.toString(), modifier = Modifier.weight(1f))
-        SnapshotStat(label = "Playlists", value = playlistCount.toString(), modifier = Modifier.weight(1f))
-        SnapshotStat(label = "Recent", value = recentCount.toString(), modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(BorderSubtle)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            SnapshotStat(label = "Tracks", value = trackCount.toString(), modifier = Modifier.weight(1f))
+            SnapshotStat(label = "Playlists", value = playlistCount.toString(), modifier = Modifier.weight(1f))
+            SnapshotStat(label = "Recent", value = recentCount.toString(), modifier = Modifier.weight(1f))
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(BorderSubtle)
+        )
     }
 }
 
@@ -504,14 +537,12 @@ private fun SnapshotStat(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Surface)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.headlineMedium,
             color = LocalAccentColor.current,
             maxLines = 1
         )
@@ -525,104 +556,92 @@ private fun SnapshotStat(
 }
 
 @Composable
-private fun HomeQuietHero(
+private fun ContinueListeningBand(
+    track: DownloadedTrack?,
     hasTracks: Boolean,
-    onClick: () -> Unit
+    onPlay: (DownloadedTrack) -> Unit,
+    onSearch: () -> Unit
 ) {
+    val accent = LocalAccentColor.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .height(156.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .height(if (track != null) 174.dp else 124.dp)
+            .clickable {
+                if (track != null) onPlay(track) else onSearch()
+            }
             .background(
-                Brush.verticalGradient(
+                Brush.horizontalGradient(
                     listOf(
-                        SurfaceElevated,
-                        Surface
+                        accent.copy(alpha = 0.26f),
+                        SurfaceElevated.copy(alpha = 0.86f),
+                        Base
                     )
                 )
             )
-            .padding(18.dp)
     ) {
-        Column(
-            modifier = Modifier.align(Alignment.BottomStart)
-        ) {
-            Text(
-                text = if (hasTracks) "Ready when you are" else "Your library is quiet.",
-                style = MaterialTheme.typography.titleMedium,
-                color = Text1,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (hasTracks) "Search, import, or shuffle from your library." else "Search for something and download it to start.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Text2,
-                modifier = Modifier.padding(top = 6.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .height(180.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onPlay)
-    ) {
-        if (track.thumbnailUrl != null) {
+        if (track?.thumbnailUrl != null) {
             AsyncImage(
                 model = track.thumbnailUrl,
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 14.dp)
+                    .size(132.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .alpha(0.92f),
+                contentScale = ContentScale.Crop
             )
         }
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Base.copy(alpha = 0.86f))
+                        colors = listOf(Color.Transparent, Base.copy(alpha = 0.98f)),
+                        startY = 0f
                     )
                 )
         )
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(16.dp)
+                .padding(start = 16.dp, end = if (track != null) 132.dp else 16.dp, bottom = 16.dp)
         ) {
             Text(
-                text = "Most played",
+                text = if (track != null) "Continue listening" else if (hasTracks) "Ready when you are" else "Start with a song",
                 style = MaterialTheme.typography.labelSmall,
-                color = Text2
+                color = Text3
             )
             Text(
-                text = track.title,
+                text = track?.title ?: if (hasTracks) "Search, import, or shuffle from your library." else "Your library is quiet.",
                 style = MaterialTheme.typography.titleMedium,
                 color = Text1,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp)
             )
-            if (track.artist.isNotBlank()) {
+            Text(
+                text = track?.artist?.takeIf { it.isNotBlank() }
+                    ?: if (hasTracks) "Build the next queue." else "Search for something and download it to start.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Text2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Text1)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = track.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Text2,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = if (track != null) "PLAY" else "SEARCH",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Base
                 )
             }
         }
@@ -645,46 +664,71 @@ private fun QuickActionCard(
         label = "quickActionScale"
     )
 
-    Card(
-        onClick = onClick,
+    Box(
         modifier = modifier
-            .height(80.dp)
-            .scale(scale),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        interactionSource = interactionSource
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            if (thumbnailUrl != null) {
-                AsyncImage(
-                    model = thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    alpha = 0.35f
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(
-                                containerColor.copy(alpha = 0.6f),
-                                Color.Transparent
-                            )
-                        )
-                    )
+            .height(42.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(999.dp))
+            .border(1.dp, Border, RoundedCornerShape(999.dp))
+            .background(containerColor.copy(alpha = 0.62f))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
             )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(horizontal = 16.dp)
+    ) {
+        if (thumbnailUrl != null) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.35f
             )
         }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            containerColor.copy(alpha = 0.6f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Text1,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 16.dp)
+        )
+    }
+}
+
+@Composable
+private fun FlowActionChip(
+    label: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .border(1.dp, Border, RoundedCornerShape(999.dp))
+            .background(SurfaceElevated.copy(alpha = 0.54f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Text2,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -694,54 +738,45 @@ private fun PlaylistShortcutCard(
     firstTrack: DownloadedTrack?,
     onClick: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
-            .size(140.dp)
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        ),
-        shape = RoundedCornerShape(8.dp)
+            .width(104.dp)
+            .clickable(onClick = onClick)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            if (playlist.coverImagePath != null && java.io.File(playlist.coverImagePath).exists()) {
-                AsyncImage(
-                    model = java.io.File(playlist.coverImagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else if (firstTrack?.thumbnailUrl != null) {
-                AsyncImage(
-                    model = firstTrack.thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                )
-            }
-            Text(
-                text = playlist.name,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                modifier = Modifier.padding(top = 4.dp)
+        if (playlist.coverImagePath != null && java.io.File(playlist.coverImagePath).exists()) {
+            AsyncImage(
+                model = java.io.File(playlist.coverImagePath),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else if (firstTrack?.thumbnailUrl != null) {
+            AsyncImage(
+                model = firstTrack.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SurfaceElevated)
             )
         }
+        Text(
+            text = playlist.name,
+            style = MaterialTheme.typography.labelMedium,
+            color = Text1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp)
+        )
     }
 }
 
@@ -750,43 +785,44 @@ private fun TrackShortcutCard(
     track: DownloadedTrack,
     onPlay: () -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
-            .size(140.dp)
-            .clickable(onClick = onPlay),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-        ),
-        shape = RoundedCornerShape(8.dp)
+            .width(104.dp)
+            .clickable(onClick = onPlay)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            if (track.thumbnailUrl != null) {
-                AsyncImage(
-                    model = track.thumbnailUrl,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                )
-            }
+        if (track.thumbnailUrl != null) {
+            AsyncImage(
+                model = track.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SurfaceElevated)
+            )
+        }
+        Text(
+            text = track.title,
+            style = MaterialTheme.typography.labelMedium,
+            color = Text1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 7.dp)
+        )
+        if (track.artist.isNotBlank()) {
             Text(
-                text = track.title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                modifier = Modifier.padding(top = 4.dp)
+                text = track.artist,
+                style = MaterialTheme.typography.labelSmall,
+                color = Text3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
     }
@@ -833,7 +869,7 @@ private fun RecommendedYouTubeCard(
                         Brush.verticalGradient(
                             colorStops = arrayOf(
                                 0.3f to Color.Transparent,
-                                1.0f to Color.Black.copy(alpha = 0.88f)
+                                1.0f to Base.copy(alpha = 0.9f)
                             )
                         )
                     )
@@ -847,7 +883,7 @@ private fun RecommendedYouTubeCard(
                 Text(
                     text = result.title,
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White,
+                    color = Text1,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -855,7 +891,7 @@ private fun RecommendedYouTubeCard(
                     Text(
                         text = result.uploaderName,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f),
+                        color = Text2,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -870,7 +906,7 @@ private fun RecommendedYouTubeCard(
                                 Icons.Default.Stop,
                                 contentDescription = "Stop preview",
                                 modifier = Modifier.size(18.dp),
-                                tint = Color.White
+                                tint = Text1
                             )
                         }
                     } else {
@@ -879,7 +915,7 @@ private fun RecommendedYouTubeCard(
                                 Icons.Default.PlayArrow,
                                 contentDescription = if (isStreaming) "Loading…" else "Play",
                                 modifier = Modifier.size(18.dp),
-                                tint = Color.White
+                                tint = Text1
                             )
                         }
                         IconButton(onClick = onPreviewClick, enabled = !isDownloading) {
@@ -887,7 +923,7 @@ private fun RecommendedYouTubeCard(
                                 Icons.Default.PlayArrow,
                                 contentDescription = "Preview 60s",
                                 modifier = Modifier.size(14.dp),
-                                tint = Color.White.copy(alpha = 0.7f)
+                                tint = Text2
                             )
                         }
                     }
@@ -896,7 +932,7 @@ private fun RecommendedYouTubeCard(
                             Icons.Default.Download,
                             contentDescription = "Download",
                             modifier = Modifier.size(18.dp),
-                            tint = Color.White
+                            tint = Text1
                         )
                     }
                 }

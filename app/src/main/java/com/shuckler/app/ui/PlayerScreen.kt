@@ -1150,7 +1150,7 @@ private fun LyricsSection(
 private fun AudioVisualizerCanvas(
     fftData: ByteArray,
     modifier: Modifier = Modifier,
-    barColor: Color = Color.White.copy(alpha = 0.3f),
+    barColor: Color = Text1.copy(alpha = 0.3f),
     barCount: Int = 32
 ) {
     val magnitudes = remember(fftData, barCount) {
@@ -1193,4 +1193,3 @@ private fun formatPlaybackTime(ms: Long): String {
     val h = totalSec / 3600
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
-

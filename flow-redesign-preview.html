@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shuckler Flow Redesign Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --base: #0C0A07;
+      --surface: #141210;
+      --surface-elevated: #1C1A17;
+      --surface-high: #252220;
+      --border: #2A2722;
+      --border-subtle: #1E1C19;
+      --text-1: #F5F2EC;
+      --text-2: #8C8880;
+      --text-3: #4A4843;
+      --accent: #E8A850;
+      --green: #6AB187;
+      --red: #C0635A;
+      --serif: "DM Serif Display", Georgia, serif;
+      --mono: "DM Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #070604;
+      color: var(--text-1);
+      font-family: var(--sans);
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 56px 28px 72px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 48px;
+      align-items: center;
+      margin-bottom: 56px;
+    }
+
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: clamp(44px, 7vw, 82px);
+      line-height: .98;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      margin: 18px 0 0;
+      max-width: 610px;
+      color: var(--text-2);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .research {
+      margin-top: 26px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      max-width: 780px;
+    }
+
+    .note {
+      border: 1px solid var(--border);
+      background: rgba(20, 18, 16, .55);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .note strong {
+      display: block;
+      margin-bottom: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-1);
+    }
+
+    .note span {
+      display: block;
+      color: var(--text-2);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .phone {
+      width: 336px;
+      height: 708px;
+      border: 1px solid #342f29;
+      border-radius: 42px;
+      background: var(--base);
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 36px 90px rgba(0, 0, 0, .58), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+
+    .status {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      padding: 13px 22px 0;
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: rgba(245, 242, 236, .72);
+      z-index: 5;
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 76% 8%, rgba(232,168,80,.24), transparent 28%),
+        linear-gradient(180deg, rgba(73,42,30,.32), transparent 24%),
+        var(--base);
+    }
+
+    .scroll {
+      position: absolute;
+      inset: 36px 0 0;
+      overflow: hidden;
+      padding: 0 18px 172px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      margin-bottom: 14px;
+    }
+
+    .brand {
+      font-family: var(--serif);
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .meta {
+      margin-top: 3px;
+      font-family: var(--mono);
+      color: var(--text-3);
+      font-size: 10px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid rgba(245,242,236,.08);
+      background: rgba(245,242,236,.06);
+      display: grid;
+      place-items: center;
+      color: var(--text-2);
+      font-family: var(--mono);
+      font-size: 16px;
+    }
+
+    .continue {
+      margin: 0 -18px 24px;
+      min-height: 172px;
+      padding: 74px 18px 18px;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, transparent 0%, rgba(12,10,7,.52) 45%, var(--base) 100%),
+        linear-gradient(130deg, #794a2e 0%, #2e536c 58%, #15110d 100%);
+    }
+
+    .continue::before {
+      content: "";
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      right: -18px;
+      top: 24px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #d29b58, #5940a6 54%, #1d5f6b);
+      box-shadow: 0 18px 44px rgba(0,0,0,.5);
+      transform: rotate(8deg);
+      opacity: .9;
+    }
+
+    .continue-copy {
+      width: 190px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .label {
+      font-family: var(--mono);
+      color: var(--text-3);
+      font-size: 10px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .continue-title {
+      margin-top: 5px;
+      font-family: var(--serif);
+      font-size: 22px;
+      line-height: 1.08;
+    }
+
+    .continue-sub {
+      margin-top: 4px;
+      color: var(--text-2);
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+
+    .inline-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .play {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--text-1);
+      color: var(--base);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
+    }
+
+    .ghost-pill {
+      border: 1px solid rgba(245,242,236,.1);
+      background: rgba(245,242,236,.06);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-2);
+    }
+
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: var(--serif);
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .see-all {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-3);
+    }
+
+    .shelf {
+      display: flex;
+      gap: 11px;
+      margin-right: -18px;
+      overflow: hidden;
+    }
+
+    .album {
+      width: 92px;
+      flex: 0 0 auto;
+    }
+
+    .art {
+      width: 92px;
+      height: 92px;
+      border-radius: 9px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.42);
+    }
+
+    .art.one { background: linear-gradient(135deg, #a75736, #e8a850 48%, #273f66); }
+    .art.two { background: linear-gradient(135deg, #3b284f, #8057b4 48%, #2a7580); }
+    .art.three { background: linear-gradient(135deg, #193d35, #67a879 54%, #d1a15c); }
+    .art.four { background: linear-gradient(135deg, #5e212b, #bd5f5b 52%, #39223d); }
+    .art.five { background: linear-gradient(135deg, #12325e, #2b8fb1 54%, #d38d4f); }
+    .art.six { background: linear-gradient(135deg, #64441e, #a98e4b 54%, #282018); }
+
+    .album-title {
+      margin-top: 7px;
+      font-size: 11px;
+      color: var(--text-1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .album-sub {
+      margin-top: 2px;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .feed-tile {
+      width: 158px;
+      min-height: 104px;
+      border-radius: 10px;
+      padding: 12px;
+      flex: 0 0 auto;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(12,10,7,.08), rgba(12,10,7,.82)),
+        linear-gradient(135deg, #243f64, #94633d);
+      box-shadow: inset 0 0 0 1px rgba(245,242,236,.08);
+    }
+
+    .feed-tile.alt {
+      background:
+        linear-gradient(180deg, rgba(12,10,7,.08), rgba(12,10,7,.82)),
+        linear-gradient(135deg, #4b2b58, #2e7167);
+    }
+
+    .feed-kicker {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: rgba(245,242,236,.62);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .feed-title {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      font-family: var(--serif);
+      font-size: 17px;
+      line-height: 1.08;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      border: 1px solid rgba(245,242,236,.08);
+      background: rgba(245,242,236,.045);
+      border-radius: 999px;
+      padding: 9px 11px;
+      font-family: var(--mono);
+      color: var(--text-2);
+      font-size: 10px;
+    }
+
+    .snapshot {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 0;
+      gap: 10px;
+    }
+
+    .stat-num {
+      font-family: var(--serif);
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .stat-label {
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 8px;
+      color: var(--text-3);
+      line-height: 1.35;
+    }
+
+    .mini {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 72px;
+      height: 58px;
+      border-radius: 21px;
+      background: rgba(37,34,32,.95);
+      border: 1px solid rgba(245,242,236,.08);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      box-shadow: 0 12px 34px rgba(0,0,0,.48);
+      backdrop-filter: blur(18px);
+      z-index: 4;
+      overflow: hidden;
+    }
+
+    .mini::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 42%;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    .mini-art {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #a75736, #e8a850 48%, #273f66);
+      flex: 0 0 auto;
+    }
+
+    .mini-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .mini-title {
+      font-family: var(--serif);
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bars {
+      height: 11px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      margin-top: 3px;
+    }
+
+    .bar {
+      width: 2px;
+      border-radius: 2px;
+      background: var(--accent);
+      opacity: .8;
+    }
+
+    .mini-play {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--text-1);
+      color: var(--base);
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+
+    .nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 78px;
+      background: rgba(12,10,7,.86);
+      border-top: 1px solid rgba(245,242,236,.07);
+      backdrop-filter: blur(18px);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding-top: 9px;
+      z-index: 3;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 8px;
+      color: var(--text-3);
+    }
+
+    .nav-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background: var(--text-3);
+      opacity: .65;
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+    }
+
+    .nav-item.active .nav-dot {
+      background: var(--accent);
+      opacity: 1;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      align-items: start;
+      margin-top: 42px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      background: rgba(20,18,16,.46);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .panel-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .bad-stack,
+    .good-stack {
+      width: 100%;
+      height: 330px;
+      border-radius: 16px;
+      background: var(--base);
+      border: 1px solid rgba(245,242,236,.06);
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .fake-card {
+      height: 54px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 14px;
+    }
+
+    .fake-gap {
+      height: 68px;
+      border: 1px dashed rgba(192,99,90,.45);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 10px;
+      margin-bottom: 14px;
+    }
+
+    .flow-band {
+      height: 104px;
+      margin: -16px -16px 18px;
+      background:
+        linear-gradient(180deg, transparent, var(--base)),
+        linear-gradient(135deg, #71442c, #233d62);
+    }
+
+    .flow-row {
+      height: 42px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .flow-thumb {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, #a75736, #e8a850);
+    }
+
+    .flow-line {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--surface-high);
+      flex: 1;
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 42px;
+    }
+
+    .rule {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      background: rgba(20,18,16,.46);
+    }
+
+    .rule-num {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .rule-title {
+      font-family: var(--serif);
+      font-size: 17px;
+      margin-bottom: 7px;
+    }
+
+    .rule-body {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-2);
+    }
+
+    @media (max-width: 920px) {
+      .hero,
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+
+      .phone {
+        margin: 0 auto;
+      }
+
+      .research,
+      .rules {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Flow-first redesign study</div>
+        <h1>Less dashboard. More music.</h1>
+        <p class="lede">
+          The next Shuckler pass should make Home feel like one continuous music surface.
+          Artwork leads, sections breathe in a predictable rhythm, and cards are reserved for content that truly needs a separate entry point.
+        </p>
+        <div class="research">
+          <div class="note">
+            <strong>Apple</strong>
+            <span>Extend content to the edges, use clear hierarchy, and let controls sit above the canvas.</span>
+          </div>
+          <div class="note">
+            <strong>Material</strong>
+            <span>Use cards when content has varied behavior or needs extra separation, not as a default wrapper.</span>
+          </div>
+          <div class="note">
+            <strong>Spotify</strong>
+            <span>Keep browsing familiar while making the current listening context feel present and adaptive.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone" aria-label="Flow-first Home preview">
+        <div class="screen">
+          <div class="status"><span>9:41</span><span>5G 86%</span></div>
+          <div class="scroll">
+            <div class="topbar">
+              <div>
+                <div class="brand">Shuckler</div>
+                <div class="meta">42 songs in your room</div>
+              </div>
+              <div class="icon-button">...</div>
+            </div>
+
+            <section class="continue">
+              <div class="continue-copy">
+                <div class="label">Continue listening</div>
+                <div class="continue-title">Warm static for late nights</div>
+                <div class="continue-sub">Mira Vale · 2:14 left</div>
+                <div class="inline-actions">
+                  <div class="play">▶</div>
+                  <div class="ghost-pill">Queue 18</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head">
+                <div class="section-title">Recently added</div>
+                <div class="see-all">SEE ALL</div>
+              </div>
+              <div class="shelf">
+                <article class="album"><div class="art one"></div><div class="album-title">Low Lanterns</div><div class="album-sub">Nova & Ives</div></article>
+                <article class="album"><div class="art two"></div><div class="album-title">Afterimage</div><div class="album-sub">Blue Rooms</div></article>
+                <article class="album"><div class="art three"></div><div class="album-title">Quiet Engine</div><div class="album-sub">Sera Noon</div></article>
+                <article class="album"><div class="art four"></div><div class="album-title">Lumen Tape</div><div class="album-sub">Rill</div></article>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head">
+                <div class="section-title">Made from your library</div>
+                <div class="see-all">REFRESH</div>
+              </div>
+              <div class="shelf">
+                <article class="feed-tile"><div class="feed-kicker">Auto mix</div><div class="feed-title">Songs you keep coming back to</div></article>
+                <article class="feed-tile alt"><div class="feed-kicker">Discovery</div><div class="feed-title">Nearby sounds from your taste</div></article>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><div class="section-title">Quick starts</div></div>
+              <div class="chips">
+                <div class="chip">late night</div>
+                <div class="chip">recent downloads</div>
+                <div class="chip">never played</div>
+                <div class="chip">favorites</div>
+              </div>
+            </section>
+
+            <section class="section">
+              <div class="section-head"><div class="section-title">Your snapshot</div></div>
+              <div class="snapshot">
+                <div><div class="stat-num">42</div><div class="stat-label">songs saved</div></div>
+                <div><div class="stat-num">7h</div><div class="stat-label">this week</div></div>
+                <div><div class="stat-num">12</div><div class="stat-label">artists</div></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="mini">
+            <div class="mini-art"></div>
+            <div class="mini-copy">
+              <div class="mini-title">Warm static for late nights</div>
+              <div class="bars">
+                <div class="bar" style="height: 6px"></div>
+                <div class="bar" style="height: 10px"></div>
+                <div class="bar" style="height: 4px"></div>
+                <div class="bar" style="height: 11px"></div>
+                <div class="bar" style="height: 7px"></div>
+                <div class="bar" style="height: 9px"></div>
+              </div>
+            </div>
+            <div class="mini-play">Ⅱ</div>
+          </div>
+
+          <nav class="nav">
+            <div class="nav-item active"><div class="nav-dot"></div><div>Home</div></div>
+            <div class="nav-item"><div class="nav-dot"></div><div>Search</div></div>
+            <div class="nav-item"><div class="nav-dot"></div><div>Library</div></div>
+            <div class="nav-item"><div class="nav-dot"></div><div>Stats</div></div>
+          </nav>
+        </div>
+      </div>
+    </section>
+
+    <section class="comparison">
+      <div class="panel">
+        <div class="panel-title">Problem to avoid</div>
+        <div class="bad-stack">
+          <div class="fake-card"></div>
+          <div class="fake-gap">dead gap</div>
+          <div class="fake-card"></div>
+          <div class="fake-card"></div>
+          <div class="fake-card"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Target feel</div>
+        <div class="good-stack">
+          <div class="flow-band"></div>
+          <div class="flow-row"><div class="flow-thumb"></div><div class="flow-line"></div></div>
+          <div class="flow-row"><div class="flow-thumb"></div><div class="flow-line"></div></div>
+          <div class="flow-row"><div class="flow-thumb"></div><div class="flow-line"></div></div>
+          <div class="flow-row"><div class="flow-thumb"></div><div class="flow-line"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rules">
+      <article class="rule">
+        <div class="rule-num">01</div>
+        <div class="rule-title">One canvas</div>
+        <div class="rule-body">Home, Library, and Search should read as a single scrolling surface. Section backgrounds are rare.</div>
+      </article>
+      <article class="rule">
+        <div class="rule-num">02</div>
+        <div class="rule-title">Art first</div>
+        <div class="rule-body">Use album and playlist artwork as the strongest structure. Let labels and actions attach to the art.</div>
+      </article>
+      <article class="rule">
+        <div class="rule-num">03</div>
+        <div class="rule-title">Cards earn it</div>
+        <div class="rule-body">Keep cards for search results, downloads, modals, and complex mixed-action content.</div>
+      </article>
+      <article class="rule">
+        <div class="rule-num">04</div>
+        <div class="rule-title">Tight rhythm</div>
+        <div class="rule-body">Use repeatable 12, 16, and 24dp spacing. Collapse empty sections instead of preserving blank zones.</div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

@@ -17,7 +17,22 @@ Search redesign is now the active implementation slice:
 - Brand/icon cleanup is underway: user chose Direction A, keeping Shuckler and switching the mark to `catdoodle.png`.
 - Home visual redesign pass started: warm background, snapshot stats, redesigned hero, and quieter section headers.
 - Search visual redesign pass started: Base background, tokenized search field, horizontal recent/suggestion chips, section labels, and redesigned YouTube result cards.
+- Visual-token cleanup continued: onboarding pager dots no longer use `CircleShape`, and remaining hardcoded black/white UI overlays in Home, Library, Player, crop cover, and Equalizer were migrated to warm design tokens.
+- User feedback: the UI is improved but still feels too box/card-heavy, with awkward Home gaps. Planning shifted to a "flow-first" redesign direction before further implementation.
+- `DESIGN.md` now documents the flow-first direction, and `flow-redesign-preview.html` shows a proposed Home composition.
+- User approved the flow-first preview. Home implementation has started with the first composition slice: compact topbar, full-bleed continue-listening/search band, inline metrics, chip actions, and flat artwork shelves.
+- Library implementation has started: track browsing is no longer hidden inside the storage/download disclosure, maintenance tools moved lower, and shelves/track rows were flattened to reduce the card-stack feel.
+- Reported Library sheet gap was addressed by removing the forced minimum track-area height in sheet mode and allowing partial sheet expansion.
+- Reported Library mid-page gap was addressed by removing the large "No playlists yet" empty state from the collection flow.
+- Library chips now use flat tokenized pills instead of Material default filter chips.
+- Android Studio compile error at `LibraryScreen.kt:1613` was fixed by changing the mood-tag dialog chip call to the new local `FilterChip(label: String, selected: Boolean, onClick: () -> Unit)` signature.
+- Search idle recommendations now use a horizontal artwork shelf while preserving full result cards for searched results.
+- Search idle suggestions/empty copy were flattened to reduce card/panel feel.
+- Search now has a discovery starter surface so fresh/idle Search does not feel empty: topbar supporting copy plus starter query chips.
+- Search recommendation section now only renders while loading or when there are actual recommendation results, avoiding a blank section after empty fetches.
+- Search now fills space under non-empty recommendations with a compact "Keep exploring" chip row.
+- Stats flow pass started: tokenized time chips, quieter personality panel, flatter big stats and achievement surfaces.
 
 ## Next Best Work
 
-Run Android Studio sync/build again, then review Search result cards on a small phone viewport and device-test Home, Library -> Album Detail, Artist -> Album Detail, and Search download/preview flows.
+Run Android Studio sync/build for the Home, Library, shared header, Search, and Stats flow slices, then review Home, Library sheet/full tab, Search idle/results states, and Stats on device/emulator.

@@ -2,6 +2,7 @@ package com.shuckler.app.ui
 
 import android.graphics.Bitmap
 import com.shuckler.app.ui.theme.Amber
+import com.shuckler.app.ui.theme.Base
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.graphics.BitmapFactory
@@ -202,7 +203,7 @@ fun CropCoverDialog(
                     )
                 }
                 clipPath(path, clipOp = ClipOp.Difference) {
-                    drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.65f))
+                    drawRect(Base.copy(alpha = 0.72f))
                 }
 
                 val imgBitmap = bmp.asImageBitmap()

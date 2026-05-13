@@ -3,6 +3,7 @@ package com.shuckler.app.ui
 import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.size
 import coil.compose.AsyncImage
 import java.io.File
@@ -18,8 +19,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,9 +38,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -66,10 +66,6 @@ import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -114,6 +110,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -354,6 +357,7 @@ fun LibraryScreen(
     }
 
     Scaffold(
+        containerColor = Base,
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
     Column(
@@ -416,6 +420,7 @@ fun LibraryScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
                 .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -495,7 +500,10 @@ fun LibraryScreen(
             return@Scaffold
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SmartPlaylistType.entries.forEach { type ->
@@ -516,22 +524,14 @@ fun LibraryScreen(
                 }
             }
         }
-        if (filteredPlaylists.isEmpty() && searchQuery.isBlank()) {
-            EmptyState(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
-                title = "No playlists yet",
-                subtitle = "Create one to organize your music",
-                actionLabel = "Create playlist",
-                onAction = { showCreatePlaylistDialog = true }
-            )
-        }
         if (albumGroups.isNotEmpty() && searchQuery.isBlank()) {
             Text(
                 text = "Albums",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineSmall,
+                color = Text1,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp)
+                    .padding(top = 20.dp, bottom = 4.dp)
             )
             LazyRow(
                 modifier = Modifier.padding(bottom = 10.dp),
@@ -552,7 +552,8 @@ fun LibraryScreen(
             ) {
                 Text(
                     text = "Playlists",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Text1,
                     modifier = Modifier.weight(1f)
                 )
                 Box {
@@ -590,63 +591,6 @@ fun LibraryScreen(
                 }
             }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .clickable { downloadsExpanded = !downloadsExpanded },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = if (downloadsExpanded) "Storage & downloads" else "Show storage & downloads",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Icon(
-                imageVector = if (downloadsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (downloadsExpanded) "Collapse" else "Expand"
-            )
-        }
-        AnimatedVisibility(
-            visible = downloadsExpanded,
-            enter = expandVertically(animationSpec = tween(200)),
-            exit = shrinkVertically(animationSpec = tween(200))
-        ) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Used: ${formatBytes(storageUsed)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Free: ${formatBytes(storageAvailable)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (completedTracks.isNotEmpty()) {
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            TextButton(onClick = { showCleanUpDialog = true }) {
-                                Text("Clean up suggestions")
-                            }
-                            TextButton(onClick = { showClearAllConfirm = true }) {
-                                Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                        TextButton(onClick = { downloadManager.clearAllPlaybackPositions() }) {
-                            Text("Reset playback positions")
-                        }
-                    }
-                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -656,7 +600,8 @@ fun LibraryScreen(
                 ) {
                     Text(
                         text = "Your Library",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = Text1
                     )
                     var showTrackSortMenu by remember { mutableStateOf(false) }
                     Box {
@@ -679,7 +624,7 @@ fun LibraryScreen(
                         }
                     }
                 }
-                if (filteredTracks.isEmpty()) {
+        if (filteredTracks.isEmpty()) {
                     EmptyState(
                         icon = when {
                             searchQuery.isNotBlank() -> Icons.Default.Search
@@ -707,14 +652,14 @@ fun LibraryScreen(
                             else -> onOpenSearch
                         }
                     )
-                } else {
-                    AnimatedContent(
+        } else {
+            AnimatedContent(
                         targetState = isGridView,
                         transitionSpec = {
                             fadeIn(tween(if (reduceMotion) 0 else 200)) togetherWith
                                 fadeOut(tween(if (reduceMotion) 0 else 150))
                         },
-                        modifier = if (isSheetMode) Modifier.heightIn(min = 500.dp) else Modifier.heightIn(max = 400.dp),
+                        modifier = if (isSheetMode) Modifier.fillMaxWidth() else Modifier.heightIn(max = 400.dp),
                         label = "library_view_mode"
                     ) { showGrid ->
                     if (showGrid) {
@@ -924,6 +869,63 @@ fun LibraryScreen(
                     }
                     } // end list branch
                     } // end AnimatedContent
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 18.dp, bottom = 4.dp)
+                .clickable { downloadsExpanded = !downloadsExpanded },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = if (downloadsExpanded) "Hide manage tools" else "Manage storage & downloads",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                imageVector = if (downloadsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (downloadsExpanded) "Collapse" else "Expand"
+            )
+        }
+        AnimatedVisibility(
+            visible = downloadsExpanded,
+            enter = expandVertically(animationSpec = tween(200)),
+            exit = shrinkVertically(animationSpec = tween(200))
+        ) {
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Used: ${formatBytes(storageUsed)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Free: ${formatBytes(storageAvailable)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (completedTracks.isNotEmpty()) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(onClick = { showCleanUpDialog = true }) {
+                                Text("Clean up suggestions")
+                            }
+                            TextButton(onClick = { showClearAllConfirm = true }) {
+                                Text("Clear all downloads", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        TextButton(onClick = { downloadManager.clearAllPlaybackPositions() }) {
+                            Text("Reset playback positions")
+                        }
+                    }
                 }
             }
         }
@@ -982,19 +984,26 @@ private fun FilterChip(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val colors = if (selected)
-        FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) LocalAccentColor.current.copy(alpha = 0.18f) else SurfaceElevated.copy(alpha = 0.56f))
+            .border(
+                width = 1.dp,
+                color = if (selected) LocalAccentColor.current.copy(alpha = 0.7f) else Border,
+                shape = RoundedCornerShape(999.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) LocalAccentColor.current else Text2,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-    else
-        FilterChipDefaults.filterChipColors()
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        colors = colors
-    )
+    }
 }
 
 @Composable
@@ -1007,10 +1016,11 @@ private fun LibraryAlbumCard(
             .width(116.dp)
             .clickable(onClick = onClick)
     ) {
-        Card(
-            modifier = Modifier.size(104.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        Box(
+            modifier = Modifier
+                .size(104.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(SurfaceElevated)
         ) {
             if (album.artworkUrl != null) {
                 AsyncImage(
@@ -1023,14 +1033,14 @@ private fun LibraryAlbumCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .background(SurfaceElevated),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.LibraryMusic,
                         contentDescription = null,
                         modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Text3
                     )
                 }
             }
@@ -1038,7 +1048,7 @@ private fun LibraryAlbumCard(
         Text(
             text = album.title,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp)
@@ -1050,7 +1060,7 @@ private fun LibraryAlbumCard(
                 "${album.tracks.size} songs"
             ).joinToString(" / "),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Text3,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -1071,10 +1081,11 @@ private fun PlaylistCard(
             .padding(end = 8.dp)
             .clickable(onClick = onClick)
     ) {
-        Card(
-            modifier = Modifier.size(100.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(SurfaceElevated)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (playlist.coverImagePath != null && java.io.File(playlist.coverImagePath).exists()) {
@@ -1095,14 +1106,14 @@ private fun PlaylistCard(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(SurfaceElevated),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.PlaylistAdd,
                             contentDescription = null,
                             modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = Text3
                         )
                     }
                 }
@@ -1111,7 +1122,7 @@ private fun PlaylistCard(
         Text(
             text = playlist.name,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -1149,18 +1160,19 @@ private fun LibraryTrackItem(
         ),
         label = "favoriteScale"
     )
-    Card(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onPlayClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isCurrentlyPlaying) LocalAccentColor.current.copy(alpha = 0.12f) else Base)
+            .clickable(onClick = onPlayClick)
+            .padding(horizontal = 0.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -1170,7 +1182,7 @@ private fun LibraryTrackItem(
                         .width(4.dp)
                         .height(40.dp)
                         .padding(end = 8.dp)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(LocalAccentColor.current)
                 )
             }
             if (track.thumbnailUrl != null) {
@@ -1178,15 +1190,16 @@ private fun LibraryTrackItem(
                     model = track.thumbnailUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(48.dp)
-                        .padding(end = 12.dp)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(7.dp)),
+                    contentScale = ContentScale.Crop
                 )
             } else {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .padding(end = 12.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(SurfaceElevated)
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
@@ -1194,21 +1207,26 @@ private fun LibraryTrackItem(
                         modifier = Modifier
                             .size(24.dp)
                             .align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Text3
                     )
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp)
+            ) {
                 Text(
                     text = track.title,
                     style = MaterialTheme.typography.titleMedium,
+                    color = if (isCurrentlyPlaying) LocalAccentColor.current else Text1,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = track.artist,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Text2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clickable { onArtistClick(track.artist) }
@@ -1222,21 +1240,21 @@ private fun LibraryTrackItem(
                             Text(
                                 text = formatDurationMs(track.durationMs),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Text3
                             )
                         }
                         if (track.fileSizeBytes > 0) {
                             Text(
                                 text = formatBytes(track.fileSizeBytes),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Text3
                             )
                         }
                         if (track.playCount > 0) {
                             Text(
                                 text = if (track.playCount == 1) "Played once" else "Played ${track.playCount} times",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Text3
                             )
                         }
                         if (track.isExcludedFromShuffle) {
@@ -1244,7 +1262,7 @@ private fun LibraryTrackItem(
                                 Icons.Default.Clear,
                                 contentDescription = "Excluded from shuffle",
                                 modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = Text3
                             )
                         }
                     }
@@ -1264,7 +1282,7 @@ private fun LibraryTrackItem(
                     Icon(
                         imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (track.isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Text2
                     )
                 }
                 Icon(
@@ -1385,20 +1403,20 @@ private fun LibraryTrackGridItem(
         ),
         label = "gridFavScale"
     )
-    Card(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onPlayClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            .clickable(onClick = onPlayClick)
     ) {
         Box {
             if (track.thumbnailUrl != null) {
                 AsyncImage(
                     model = track.thumbnailUrl,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(10.dp)),
                     contentScale = ContentScale.Crop
                 )
             } else {
@@ -1406,14 +1424,15 @@ private fun LibraryTrackGridItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceElevated),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
                         modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Text3
                     )
                 }
             }
@@ -1423,7 +1442,7 @@ private fun LibraryTrackGridItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(LocalAccentColor.current)
                         .align(Alignment.BottomCenter)
                 )
             }
@@ -1438,7 +1457,7 @@ private fun LibraryTrackGridItem(
                     imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
                     modifier = Modifier.size(16.dp).scale(favoriteScale),
-                    tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Color.White.copy(alpha = 0.85f)
+                    tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Text1.copy(alpha = 0.85f)
                 )
             }
         }
@@ -1450,9 +1469,9 @@ private fun LibraryTrackGridItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = track.artist,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = track.artist,
+            style = MaterialTheme.typography.labelSmall,
+            color = Text3,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1584,16 +1603,16 @@ private fun MoodTagDialog(
                 ) {
                     PRESET_MOODS.chunked(4).forEach { chunk ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            chunk.forEach { mood ->
-                                FilterChip(
-                                    selected = selectedTags.contains(mood),
-                                    onClick = {
-                                        selectedTags = if (selectedTags.contains(mood))
-                                            selectedTags - mood else selectedTags + mood
-                                    },
-                                    label = { Text(mood) }
-                                )
-                            }
+	                            chunk.forEach { mood ->
+	                                FilterChip(
+	                                    label = mood,
+	                                    selected = selectedTags.contains(mood),
+	                                    onClick = {
+	                                        selectedTags = if (selectedTags.contains(mood))
+	                                            selectedTags - mood else selectedTags + mood
+	                                    }
+	                                )
+	                            }
                         }
                     }
                 }

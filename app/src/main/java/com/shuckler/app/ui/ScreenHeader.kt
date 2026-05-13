@@ -1,7 +1,6 @@
 package com.shuckler.app.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -19,6 +18,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.R
+import com.shuckler.app.ui.theme.Text1
 
 @Composable
 fun ScreenHeader(
@@ -37,8 +37,7 @@ fun ScreenHeader(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onSettingsClick)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clickable(onClick = onSettingsClick),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -51,9 +50,9 @@ fun ScreenHeader(
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             modifier = Modifier
-                .padding(start = 16.dp)
+                .padding(start = 12.dp)
                 .weight(1f)
         )
         trailingContent?.invoke()

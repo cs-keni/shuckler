@@ -3,6 +3,8 @@ package com.shuckler.app.ui
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,10 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,6 +49,8 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
@@ -104,46 +104,43 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Base)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         ScreenHeader(title = "Stats", onSettingsClick = onSettingsClick)
         val personality = personalityManager.computePersonality()
-        Card(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
-            shape = RoundedCornerShape(12.dp)
+                .padding(vertical = 8.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(LocalAccentColor.current.copy(alpha = 0.11f))
+                .border(1.dp, LocalAccentColor.current.copy(alpha = 0.22f), RoundedCornerShape(12.dp))
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Text(
+                text = personality.emoji,
+                style = MaterialTheme.typography.headlineLarge
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = personality.emoji,
-                    style = MaterialTheme.typography.headlineLarge
+                    text = "Listening personality",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Text3
                 )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Listening personality",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = personality.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = personality.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = personality.label,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Text1
+                )
+                Text(
+                    text = personality.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Text2
+                )
             }
         }
         Row(
@@ -151,16 +148,10 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             AnalyticsTimeRange.entries.forEach { tr ->
-                FilterChip(
+                AnalyticsChip(
+                    label = tr.label,
                     selected = timeRange == tr,
-                    onClick = { timeRange = tr },
-                    label = { Text(tr.label) },
-                    colors = if (timeRange == tr)
-                        FilterChipDefaults.filterChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    else FilterChipDefaults.filterChipColors()
+                    onClick = { timeRange = tr }
                 )
             }
         }
@@ -241,6 +232,32 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
 }
 
 @Composable
+private fun AnalyticsChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) LocalAccentColor.current.copy(alpha = 0.18f) else SurfaceElevated.copy(alpha = 0.56f))
+            .border(
+                width = 1.dp,
+                color = if (selected) LocalAccentColor.current.copy(alpha = 0.7f) else Border,
+                shape = RoundedCornerShape(999.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) LocalAccentColor.current else Text2
+        )
+    }
+}
+
+@Composable
 private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boolean) {
     Column(
         modifier = Modifier
@@ -248,9 +265,9 @@ private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boo
             .clip(RoundedCornerShape(12.dp))
             .background(
                 if (unlocked)
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    LocalAccentColor.current.copy(alpha = 0.14f)
                 else
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    SurfaceElevated.copy(alpha = 0.56f)
             )
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -264,9 +281,9 @@ private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boo
             text = badge.name,
             style = MaterialTheme.typography.labelMedium,
             color = if (unlocked)
-                MaterialTheme.colorScheme.onPrimaryContainer
+                Text1
             else
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                Text3,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -355,9 +372,7 @@ private fun RowScope.StatCard(label: String, value: String) {
     Column(
         modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceElevated)
-            .padding(12.dp)
+            .padding(vertical = 8.dp)
     ) {
         Text(
             text = value,
@@ -367,7 +382,7 @@ private fun RowScope.StatCard(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Text2
+            color = Text3
         )
     }
 }
@@ -442,7 +457,7 @@ private fun PlaylistStatCard(
             modifier = Modifier
                 .size(100.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .background(SurfaceElevated)
         ) {
             when {
                 playlist.coverImagePath != null && java.io.File(playlist.coverImagePath).exists() -> {
@@ -468,7 +483,7 @@ private fun PlaylistStatCard(
                         modifier = Modifier
                             .size(40.dp)
                             .align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Text3
                     )
                 }
             }
@@ -476,7 +491,7 @@ private fun PlaylistStatCard(
         Text(
             text = playlist.name,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp)
@@ -484,7 +499,7 @@ private fun PlaylistStatCard(
         Text(
             text = "$playCount plays",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = Text3
         )
     }
 }

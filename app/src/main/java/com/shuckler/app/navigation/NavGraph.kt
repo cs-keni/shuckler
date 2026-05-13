@@ -247,7 +247,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
 
     if (showLibrarySheet) {
         val librarySheetState = rememberModalBottomSheetState(
-            skipPartiallyExpanded = true,
+            skipPartiallyExpanded = false,
             confirmValueChange = { true }
         )
         ModalBottomSheet(

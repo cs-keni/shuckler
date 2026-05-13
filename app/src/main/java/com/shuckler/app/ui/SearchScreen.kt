@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -194,7 +198,7 @@ fun SearchScreen(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ScreenHeader(title = "Search", onSettingsClick = onSettingsClick)
+        SearchTopBar(onSettingsClick = onSettingsClick)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -309,6 +313,20 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+
+        val hasIdleDiscovery = lastSearchedQuery.isBlank() && !searchLoading && searchResults.isEmpty()
+        if (hasIdleDiscovery) {
+            DiscoveryStarter(
+                completedTrackCount = completedTracks.size,
+                onSearch = { query ->
+                    searchQuery = query
+                    focusManager.clearFocus()
+                    lastSearchedQuery = query
+                    youtubeDownloadError = null
+                    doSearch(query)
+                }
+            )
         }
 
         if (progress.isNotEmpty()) {
@@ -486,7 +504,10 @@ fun SearchScreen(
             }
         }
 
-        if (lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks)) {
+        val showRecommendations = lastSearchedQuery.isBlank() &&
+            RecommendationEngine.hasRecommendationData(context, completedTracks) &&
+            (recommendedLoading || recommendedResults.isNotEmpty())
+        if (showRecommendations) {
             SectionLabel("Recommended for you", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             if (recommendedLoading) {
                 Row(
@@ -503,20 +524,21 @@ fun SearchScreen(
                     )
                 }
             } else if (recommendedResults.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     recommendedResults.forEach { result ->
                         val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
-                        YouTubeResultItem(
+                        RecommendedSearchTile(
                             result = result,
                             isDownloading = downloadingVideoUrl == result.url,
                             isStreaming = streamingVideoUrl == result.url,
                             isPreviewing = previewingVideoUrl == result.url,
                             isDownloaded = isDownloaded,
-                            previewPositionMs = if (previewingVideoUrl == result.url) previewPositionMs else 0L,
-                            previewDurationMs = PreviewPlayer.previewDurationMs,
                             onPlayClick = {
                                 if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
                                 youtubeDownloadError = null
@@ -590,52 +612,168 @@ fun SearchScreen(
                 }
             }
         }
+        if (showRecommendations && recommendedResults.isNotEmpty()) {
+            SectionLabel("Keep exploring", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("live versions", "acoustic sessions", "covers", "deep cuts", "new releases").forEach { query ->
+                    SearchChip(
+                        text = query,
+                        onClick = {
+                            searchQuery = query
+                            focusManager.clearFocus()
+                            lastSearchedQuery = query
+                            youtubeDownloadError = null
+                            doSearch(query)
+                        }
+                    )
+                }
+            }
+        }
 
         val frequentSearches = remember { SearchPreferences.getFrequentSearches(context, minCount = 3) }
         val showTryThese = !searchLoading && searchResults.isEmpty() && frequentSearches.isNotEmpty() &&
-            !(lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks) && (recommendedLoading || recommendedResults.isNotEmpty()))
+            !showRecommendations
         if (showTryThese) {
             SectionLabel("Try these", modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 frequentSearches.take(5).forEach { suggestion ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                searchQuery = suggestion
-                                runSearch()
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = SurfaceElevated
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            suggestion,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Text1,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
+                    SearchChip(
+                        text = suggestion,
+                        onClick = {
+                            searchQuery = suggestion
+                            runSearch()
+                        }
+                    )
                 }
             }
         }
 
         val showEmptyState = downloads.isEmpty() && progress.isEmpty() && searchResults.isEmpty() &&
-            !searchLoading && recommendedResults.isEmpty() &&
-            !(lastSearchedQuery.isBlank() && RecommendationEngine.hasRecommendationData(context, completedTracks) && recommendedLoading)
+            !searchLoading && recommendedResults.isEmpty() && !hasIdleDiscovery &&
+            !showRecommendations
         if (showEmptyState) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 24.dp, horizontal = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(top = 6.dp, bottom = 18.dp, start = 16.dp, end = 16.dp),
+                horizontalAlignment = Alignment.Start
             ) {
                 Text(
                     "Search YouTube to find and download music.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Text2
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Text1
+                )
+                Text(
+                    "Your saved searches, recommendations, and active downloads will flow here.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Text3,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchTopBar(
+    onSettingsClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Search",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Text1
+            )
+            Text(
+                text = "Find songs, albums, sessions, and odd corners of YouTube.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Text3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+        androidx.compose.material3.IconButton(onClick = onSettingsClick) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = Text2
+            )
+        }
+    }
+}
+
+@Composable
+private fun DiscoveryStarter(
+    completedTrackCount: Int,
+    onSearch: (String) -> Unit
+) {
+    val lanes = remember(completedTrackCount) {
+        if (completedTrackCount > 0) {
+            listOf(
+                "songs like my library",
+                "live acoustic session",
+                "deep cuts playlist",
+                "new indie releases",
+                "late night drive"
+            )
+        } else {
+            listOf(
+                "lofi study music",
+                "indie pop essentials",
+                "jazz for late nights",
+                "workout mix",
+                "acoustic covers"
+            )
+        }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = if (completedTrackCount > 0) "Start from your taste" else "Start exploring",
+            style = MaterialTheme.typography.headlineSmall,
+            color = Text1
+        )
+        Text(
+            text = if (completedTrackCount > 0)
+                "Use your saved library as a jumping-off point, or search for something specific."
+            else
+                "Build your library by searching YouTube, previewing tracks, then saving the ones that feel right.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Text3
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            lanes.forEach { query ->
+                SearchChip(
+                    text = query,
+                    onClick = { onSearch(query) }
                 )
             }
         }
@@ -675,6 +813,113 @@ private fun SearchChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun RecommendedSearchTile(
+    result: YouTubeSearchResult,
+    isDownloading: Boolean,
+    isStreaming: Boolean,
+    isPreviewing: Boolean,
+    isDownloaded: Boolean,
+    onPlayClick: () -> Unit,
+    onPreviewClick: () -> Unit,
+    onStopPreviewClick: () -> Unit,
+    onDownloadClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(150.dp)
+            .clickable(onClick = if (isPreviewing) onStopPreviewClick else onPlayClick)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SurfaceElevated)
+            ) {
+                if (result.thumbnailUrl != null) {
+                    AsyncImage(
+                        model = result.thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .align(Alignment.Center),
+                        tint = Text3
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Base.copy(alpha = 0.92f))
+                            )
+                        )
+                )
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (isPreviewing) Red else Text1)
+                            .clickable(onClick = if (isPreviewing) onStopPreviewClick else onPlayClick)
+                            .padding(horizontal = 9.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isPreviewing) "STOP" else if (isStreaming) "..." else "PLAY",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isPreviewing) Text1 else Base
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Surface.copy(alpha = 0.88f))
+                            .clickable(onClick = onDownloadClick)
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isDownloading) "..." else if (isDownloaded) "SAVED" else "GET",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDownloaded) Text3 else LocalAccentColor.current
+                        )
+                    }
+                }
+            }
+            Text(
+                text = result.title,
+                style = MaterialTheme.typography.labelMedium,
+                color = Text1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 7.dp)
+            )
+            result.uploaderName?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Text3,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
     }
 }
 
