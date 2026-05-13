@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,15 +36,15 @@ fun ScreenHeader(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(CircleShape)
+                .clip(RoundedCornerShape(8.dp))
                 .clickable(onClick = onSettingsClick)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_shuckle),
+                painter = painterResource(R.drawable.catdoodle),
                 contentDescription = "Settings",
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(30.dp),
                 contentScale = ContentScale.Fit
             )
         }

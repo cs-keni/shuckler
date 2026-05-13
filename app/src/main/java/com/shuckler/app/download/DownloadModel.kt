@@ -26,6 +26,8 @@ data class DownloadedTrack(
     val lastPlayedMs: Long = 0L,
     val isFavorite: Boolean = false,
     val thumbnailUrl: String? = null,
+    val albumTitle: String? = null,
+    val albumYear: Int? = null,
     val status: DownloadStatus = DownloadStatus.COMPLETED,
     val downloadProgress: Int = 100,
     val errorMessage: String? = null,

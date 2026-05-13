@@ -71,6 +71,9 @@ import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.ui.OnboardingScreen
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
 import com.shuckler.app.ui.SettingsDialog
+import android.content.Intent
+import android.net.Uri
+import com.shuckler.app.lastfm.LocalLastFmScrobbler
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
@@ -164,6 +167,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
 
     val accessibilityPrefs = LocalAccessibilityPreferences.current
     val reduceMotion by accessibilityPrefs.reduceMotionFlow.collectAsState(initial = accessibilityPrefs.reduceMotion)
+    val lastFmScrobbler = LocalLastFmScrobbler.current
     if (showSettingsDialog) {
         SettingsDialog(
             autoDeleteAfterPlayback = downloadManager.autoDeleteAfterPlayback,
@@ -190,6 +194,14 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             onReduceMotionChange = { accessibilityPrefs.reduceMotion = it },
             highContrast = accessibilityPrefs.highContrast,
             onHighContrastChange = { accessibilityPrefs.highContrast = it },
+            lastFmConnected = lastFmScrobbler.isConnected,
+            lastFmUsername = lastFmScrobbler.username,
+            lastFmConfigured = lastFmScrobbler.isConfigured,
+            onLastFmConnect = {
+                val url = lastFmScrobbler.getAuthUrl()
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            },
+            onLastFmDisconnect = { lastFmScrobbler.disconnect() },
             onDismiss = { showSettingsDialog = false }
         )
     }

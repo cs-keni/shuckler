@@ -70,6 +70,13 @@ import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.preview.PreviewPlayer
 import com.shuckler.app.recommendation.RecommendationEngine
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.youtube.YouTubeSearchResult
 import java.io.File
@@ -149,11 +156,30 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .background(Base)
             .verticalScroll(rememberScrollState())
+            .padding(bottom = 24.dp)
     ) {
         ScreenHeader(
             title = "Home",
             onSettingsClick = onSettingsClick
+        )
+
+        val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+            in 0..11 -> "Good morning"
+            in 12..17 -> "Good afternoon"
+            else -> "Good evening"
+        }
+        Text(
+            text = greeting,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        LibrarySnapshot(
+            trackCount = completedTracks.size,
+            playlistCount = playlists.size,
+            recentCount = recentlyPlayed.size
         )
 
         if (mostPlayedTrack != null) {
@@ -174,19 +200,12 @@ fun HomeScreen(
                     viewModel.playTrackWithQueue(items, 0)
                 }
             )
+        } else {
+            HomeQuietHero(
+                hasTracks = completedTracks.isNotEmpty(),
+                onClick = { onSearchQuerySelected("") }
+            )
         }
-
-        val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
-            in 0..11 -> "Good morning"
-            in 12..17 -> "Good afternoon"
-            else -> "Good evening"
-        }
-        Text(
-            text = greeting,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
 
         if (completedTracks.isNotEmpty()) {
             Row(
@@ -242,12 +261,7 @@ fun HomeScreen(
         }
 
         if (recentSearches.isNotEmpty()) {
-            Text(
-                text = "Recent searches",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            SectionTitle("Recent searches")
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -274,12 +288,7 @@ fun HomeScreen(
         }
 
         if (RecommendationEngine.hasRecommendationData(context, completedTracks)) {
-            Text(
-                text = "Recommended for you",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            SectionTitle("Recommended for you")
             if (recommendedLoading) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -403,12 +412,7 @@ fun HomeScreen(
         }
 
         if (recentPlaylists.isNotEmpty()) {
-            Text(
-                text = "Your playlists",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            SectionTitle("Your playlists")
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -427,12 +431,7 @@ fun HomeScreen(
             }
         }
 
-        Text(
-            text = if (recentlyPlayed.isNotEmpty()) "Recently played" else "Quick picks",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-        )
+        SectionTitle(if (recentlyPlayed.isNotEmpty()) "Recently played" else "Quick picks")
         if (displayTracks.isNotEmpty()) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -471,11 +470,110 @@ fun HomeScreen(
 }
 
 @Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.headlineSmall,
+        color = Text1,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun LibrarySnapshot(
+    trackCount: Int,
+    playlistCount: Int,
+    recentCount: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SnapshotStat(label = "Tracks", value = trackCount.toString(), modifier = Modifier.weight(1f))
+        SnapshotStat(label = "Playlists", value = playlistCount.toString(), modifier = Modifier.weight(1f))
+        SnapshotStat(label = "Recent", value = recentCount.toString(), modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SnapshotStat(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Surface)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium,
+            color = LocalAccentColor.current,
+            maxLines = 1
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Text3,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun HomeQuietHero(
+    hasTracks: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .height(156.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        SurfaceElevated,
+                        Surface
+                    )
+                )
+            )
+            .padding(18.dp)
+    ) {
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart)
+        ) {
+            Text(
+                text = if (hasTracks) "Ready when you are" else "Your library is quiet.",
+                style = MaterialTheme.typography.titleMedium,
+                color = Text1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (hasTracks) "Search, import, or shuffle from your library." else "Search for something and download it to start.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Text2,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
             .height(180.dp)
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onPlay)
     ) {
         if (track.thumbnailUrl != null) {
@@ -497,7 +595,7 @@ private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        colors = listOf(Color.Transparent, Base.copy(alpha = 0.86f))
                     )
                 )
         )
@@ -509,12 +607,12 @@ private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
             Text(
                 text = "Most played",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.White.copy(alpha = 0.7f)
+                color = Text2
             )
             Text(
                 text = track.title,
                 style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                color = Text1,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -522,7 +620,7 @@ private fun HeroBanner(track: DownloadedTrack, onPlay: () -> Unit) {
                 Text(
                     text = track.artist,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = Text2,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -552,7 +650,7 @@ private fun QuickActionCard(
         modifier = modifier
             .height(80.dp)
             .scale(scale),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         interactionSource = interactionSource
     ) {
@@ -603,7 +701,7 @@ private fun PlaylistShortcutCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Column(
             modifier = Modifier
@@ -659,7 +757,7 @@ private fun TrackShortcutCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Column(
             modifier = Modifier
@@ -708,7 +806,7 @@ private fun RecommendedYouTubeCard(
 ) {
     Card(
         modifier = Modifier.size(width = 160.dp, height = 200.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {

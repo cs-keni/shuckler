@@ -70,6 +70,11 @@ fun SettingsDialog(
     onReduceMotionChange: (Boolean) -> Unit = {},
     highContrast: Boolean = false,
     onHighContrastChange: (Boolean) -> Unit = {},
+    lastFmConnected: Boolean = false,
+    lastFmUsername: String? = null,
+    lastFmConfigured: Boolean = false,
+    onLastFmConnect: () -> Unit = {},
+    onLastFmDisconnect: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
@@ -350,6 +355,57 @@ fun SettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text(
+                    text = "Last.fm",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 24.dp)
+                )
+                if (!lastFmConfigured) {
+                    Text(
+                        text = "Add API_KEY and API_SECRET to LastFmScrobbler.kt to enable scrobbling.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (lastFmConnected) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (lastFmUsername != null) "Connected as $lastFmUsername" else "Connected",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Scrobbles at 50% of each track",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = onLastFmDisconnect) {
+                            Text("Disconnect", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onLastFmConnect,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Text("Connect Last.fm", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Text(
+                        text = "Sign in to scrobble your listening history",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

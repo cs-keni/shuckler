@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -50,7 +51,7 @@ fun OnboardingScreen(
         OnboardingPage(
             title = "Shuckler: Your music, your way",
             body = "Download and stream music from YouTube. No subscriptions, no limits.",
-            iconRes = R.drawable.ic_shuckle
+            iconRes = R.drawable.catdoodle
         ),
         OnboardingPage(
             title = "Search & download",
@@ -107,7 +108,7 @@ fun OnboardingScreen(
                         Box(
                             modifier = Modifier
                                 .size(120.dp)
-                                .clip(CircleShape)
+                                .clip(RoundedCornerShape(24.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {

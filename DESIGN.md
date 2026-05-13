@@ -21,6 +21,22 @@ Seven principles that every decision traces back to.
 
 ---
 
+## Brand
+
+The app should not use character art, mascot art, or any asset derived from existing copyrighted characters.
+
+Current direction:
+- **Name:** Shuckler remains the working name until a deliberate rename is chosen.
+- **Mark:** User-created `catdoodle.png`, a simple black-line cat drawing. It is deliberately not derived from existing character art.
+- **Review artifact:** `brand-review.html` in the project root compares the current recommendation against possible rename directions.
+
+Implementation rules:
+- Use `R.drawable.catdoodle` for in-app brand marks.
+- Launcher foreground/background are vector drawables in `res/drawable`.
+- Do not reintroduce `ic_shuckle`, `shuckle.png`, `shuckle.svg`, or character-derived placeholders.
+
+---
+
 ## Color Tokens
 
 All colors are defined as tokens in `Color.kt` and referenced via `MaterialTheme`. No hardcoded color values anywhere in the composables.

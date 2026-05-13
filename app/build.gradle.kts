@@ -3,6 +3,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+fun localProp(name: String): String {
+    val f = rootProject.file("local.properties")
+    if (!f.exists()) return ""
+    return f.readLines().firstOrNull { it.startsWith("$name=") }?.removePrefix("$name=").orEmpty()
+}
+
 android {
     namespace = "com.shuckler.app"
     compileSdk = 36
@@ -19,6 +25,10 @@ android {
         // Spotify Client ID for playlist import. Add to gradle.properties: SPOTIFY_CLIENT_ID=your_id
         val spotifyId = project.findProperty("SPOTIFY_CLIENT_ID") as? String ?: ""
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyId\"")
+
+        // Last.fm credentials — stored in local.properties, which is excluded from git.
+        buildConfigField("String", "LAST_FM_API_KEY", "\"${localProp("LAST_FM_API_KEY")}\"")
+        buildConfigField("String", "LAST_FM_API_SECRET", "\"${localProp("LAST_FM_API_SECRET")}\"")
     }
 
     buildTypes {
@@ -42,7 +52,7 @@ android {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -58,11 +68,12 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("io.coil-kt:coil-compose:2.5.0")
-    implementation("androidx.compose.ui:ui-text-google-fonts")
-    implementation("androidx.palette:palette-ktx:1.0.0")
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.25.1")
+    implementation(libs.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.compose.ui.text.google.fonts)
+    implementation(libs.androidx.palette.ktx)
+    implementation(libs.newpipe.extractor)
+    implementation(libs.reorderable)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)

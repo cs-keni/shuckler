@@ -58,6 +58,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.ViewList
@@ -170,6 +172,8 @@ fun LibraryScreen(
     var storageAvailable by remember { mutableStateOf(0L) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
+    var selectedAlbumTracks by remember { mutableStateOf<List<DownloadedTrack>?>(null) }
+    var selectedArtist by remember { mutableStateOf<String?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
@@ -187,6 +191,24 @@ fun LibraryScreen(
     val reduceMotion by LocalAccessibilityPreferences.current.reduceMotionFlow.collectAsState(
         initial = LocalAccessibilityPreferences.current.reduceMotion
     )
+    val albumGroups = remember(completedTracks) {
+        completedTracks
+            .groupBy { libraryAlbumGroupKey(it) }
+            .map { (key, tracks) ->
+                val sortedTracks = tracks.sortedBy { it.title.lowercase() }
+                val firstTrack = sortedTracks.first()
+                LibraryAlbumGroup(
+                    key = key,
+                    title = firstTrack.albumTitle?.takeIf { it.isNotBlank() } ?: firstTrack.title,
+                    artist = firstTrack.artist,
+                    year = firstTrack.albumYear,
+                    artworkUrl = firstTrack.thumbnailUrl,
+                    tracks = sortedTracks
+                )
+            }
+            .sortedWith(compareByDescending<LibraryAlbumGroup> { it.tracks.maxOfOrNull { track -> track.downloadDateMs } ?: 0L }
+                .thenBy { it.title.lowercase() })
+    }
 
     LaunchedEffect(downloads) {
         storageUsed = withContext(Dispatchers.IO) { downloadManager.getTotalStorageUsed() }
@@ -231,6 +253,53 @@ fun LibraryScreen(
                 onPlaylistUpdated = { selectedPlaylist = it }
             )
         }
+        return
+    }
+
+    selectedAlbumTracks?.let { albumTracks ->
+        AlbumDetailScreen(
+            tracks = albumTracks,
+            currentPlayingTrackId = currentPlayingTrackId,
+            onBack = { selectedAlbumTracks = null },
+            onPlayTracks = { tracks, index ->
+                val items = tracks.map { track ->
+                    QueueItem(
+                        uri = Uri.fromFile(File(track.filePath)).toString(),
+                        title = track.title,
+                        artist = track.artist,
+                        trackId = track.id,
+                        thumbnailUrl = track.thumbnailUrl,
+                        startMs = track.startMs,
+                        endMs = track.endMs
+                    )
+                }
+                viewModel.playTrackWithQueue(items, index)
+            }
+        )
+        return
+    }
+
+    selectedArtist?.let { artist ->
+        ArtistDetailScreen(
+            artistName = artist,
+            tracks = completedTracks.filter { it.artist.equals(artist, ignoreCase = true) },
+            currentPlayingTrackId = currentPlayingTrackId,
+            onBack = { selectedArtist = null },
+            onPlayTracks = { tracks, index ->
+                val items = tracks.map { track ->
+                    QueueItem(
+                        uri = Uri.fromFile(File(track.filePath)).toString(),
+                        title = track.title,
+                        artist = track.artist,
+                        trackId = track.id,
+                        thumbnailUrl = track.thumbnailUrl,
+                        startMs = track.startMs,
+                        endMs = track.endMs
+                    )
+                }
+                viewModel.playTrackWithQueue(items, index)
+            }
+        )
         return
     }
 
@@ -392,6 +461,8 @@ fun LibraryScreen(
                 SmartPlaylistType.RECENTLY_ADDED -> completedTracks.sortedByDescending { it.downloadDateMs }
                 SmartPlaylistType.NEVER_PLAYED -> completedTracks.filter { it.playCount == 0 }
                 SmartPlaylistType.FAVORITES -> completedTracks.filter { it.isFavorite }
+                SmartPlaylistType.LONG_SESSIONS -> completedTracks.filter { it.durationMs > 300_000 }.sortedByDescending { it.playCount }
+                SmartPlaylistType.HIDDEN_GEMS -> completedTracks.filter { it.playCount in 1..2 }.sortedByDescending { it.downloadDateMs }
                 null -> emptyList()
             }
         }
@@ -406,6 +477,7 @@ fun LibraryScreen(
                     currentPlayingTrackId = currentPlayingTrackId,
                     onAddToPlaylist = { showAddToPlaylistTrack = it },
                     onMoodTag = { showMoodTagTrack = it },
+                    onArtistClick = { selectedArtist = it },
                     reduceMotion = reduceMotion,
                     trackToQueueItem = { t ->
                         QueueItem(
@@ -432,6 +504,8 @@ fun LibraryScreen(
                     SmartPlaylistType.RECENTLY_ADDED -> completedTracks.size
                     SmartPlaylistType.NEVER_PLAYED -> completedTracks.count { it.playCount == 0 }
                     SmartPlaylistType.FAVORITES -> completedTracks.count { it.isFavorite }
+                    SmartPlaylistType.LONG_SESSIONS -> completedTracks.count { it.durationMs > 300_000 }
+                    SmartPlaylistType.HIDDEN_GEMS -> completedTracks.count { it.playCount in 1..2 }
                 }
                 if (count > 0 || type == SmartPlaylistType.RECENTLY_ADDED) {
                     FilterChip(
@@ -450,6 +524,26 @@ fun LibraryScreen(
                 actionLabel = "Create playlist",
                 onAction = { showCreatePlaylistDialog = true }
             )
+        }
+        if (albumGroups.isNotEmpty() && searchQuery.isBlank()) {
+            Text(
+                text = "Albums",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 4.dp)
+            )
+            LazyRow(
+                modifier = Modifier.padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(albumGroups, key = { it.key }) { album ->
+                    LibraryAlbumCard(
+                        album = album,
+                        onClick = { selectedAlbumTracks = album.tracks }
+                    )
+                }
+            }
         }
         if (filteredPlaylists.isNotEmpty()) {
             Row(
@@ -800,6 +894,7 @@ fun LibraryScreen(
                                 },
                                 onAddToPlaylistClick = { showAddToPlaylistTrack = it },
                                 onMoodTagClick = { showMoodTagTrack = it },
+                                onArtistClick = { selectedArtist = it },
                                 reduceMotion = reduceMotion,
                                 onShareClick = { t ->
                                     val text = if (t.sourceUrl.isNotBlank()) t.sourceUrl else "${t.title} — ${t.artist}"
@@ -842,7 +937,9 @@ private enum class SmartPlaylistType(val label: String, val icon: androidx.compo
     MOST_PLAYED("Most played", Icons.Default.PlayArrow),
     RECENTLY_ADDED("Recently added", Icons.Default.LibraryMusic),
     NEVER_PLAYED("Never played", Icons.Default.Clear),
-    FAVORITES("Favorites", Icons.Default.Favorite)
+    FAVORITES("Favorites", Icons.Default.Favorite),
+    LONG_SESSIONS("Long sessions", Icons.Default.HourglassEmpty),
+    HIDDEN_GEMS("Hidden gems", Icons.Default.AutoAwesome)
 }
 
 private val PRESET_MOODS = listOf("chill", "workout", "focus", "party", "sleep", "road trip", "sad", "happy")
@@ -859,6 +956,24 @@ private enum class LibraryTrackSort(val label: String) {
     ARTIST("Artist"),
     DURATION("Duration"),
     PLAY_COUNT("Play count")
+}
+
+private data class LibraryAlbumGroup(
+    val key: String,
+    val title: String,
+    val artist: String,
+    val year: Int?,
+    val artworkUrl: String?,
+    val tracks: List<DownloadedTrack>
+)
+
+private fun libraryAlbumGroupKey(track: DownloadedTrack): String {
+    val albumTitle = track.albumTitle?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+    return if (albumTitle != null) {
+        "album:${track.artist.trim().lowercase()}:$albumTitle"
+    } else {
+        "art:${track.thumbnailUrl ?: track.id}"
+    }
 }
 
 @Composable
@@ -880,6 +995,66 @@ private fun FilterChip(
         label = { Text(label) },
         colors = colors
     )
+}
+
+@Composable
+private fun LibraryAlbumCard(
+    album: LibraryAlbumGroup,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(116.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Card(
+            modifier = Modifier.size(104.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+        ) {
+            if (album.artworkUrl != null) {
+                AsyncImage(
+                    model = album.artworkUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.LibraryMusic,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        Text(
+            text = album.title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Text(
+            text = listOfNotNull(
+                album.artist.takeIf { it.isNotBlank() },
+                album.year?.toString(),
+                "${album.tracks.size} songs"
+            ).joinToString(" / "),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
@@ -959,6 +1134,7 @@ private fun LibraryTrackItem(
     onAddToQueueClick: (DownloadedTrack) -> Unit = {},
     onAddToPlaylistClick: (DownloadedTrack) -> Unit = {},
     onMoodTagClick: (DownloadedTrack) -> Unit = {},
+    onArtistClick: (String) -> Unit = {},
     reduceMotion: Boolean = false,
     onSplitByChaptersClick: (DownloadedTrack) -> Unit = {},
     onExcludeFromShuffle: (DownloadedTrack, untilMs: Long?) -> Unit = { _, _ -> },
@@ -1034,7 +1210,8 @@ private fun LibraryTrackItem(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onArtistClick(track.artist) }
                 )
                 if (track.durationMs > 0 || track.fileSizeBytes > 0 || track.playCount > 0) {
                     Row(
@@ -1312,6 +1489,7 @@ private fun SmartPlaylistScreen(
     currentPlayingTrackId: String?,
     onAddToPlaylist: (DownloadedTrack) -> Unit,
     onMoodTag: (DownloadedTrack) -> Unit,
+    onArtistClick: (String) -> Unit,
     reduceMotion: Boolean = false,
     trackToQueueItem: (DownloadedTrack) -> QueueItem
 ) {
@@ -1356,6 +1534,7 @@ private fun SmartPlaylistScreen(
                         onAddToQueueClick = { viewModel.addToQueueEnd(trackToQueueItem(it)) },
                         onAddToPlaylistClick = onAddToPlaylist,
                         onMoodTagClick = onMoodTag,
+                        onArtistClick = onArtistClick,
                         reduceMotion = reduceMotion
                     )
                 }

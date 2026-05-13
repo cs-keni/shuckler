@@ -30,6 +30,7 @@ import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.shortcut.AppShortcutHandler
 import com.shuckler.app.spotify.LocalSpotifyAuthManager
+import com.shuckler.app.lastfm.LocalLastFmScrobbler
 import com.shuckler.app.ui.theme.ShucklerTheme
 import com.shuckler.app.BuildConfig
 import kotlinx.coroutines.launch
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
+        handleLastFmCallback(intent)
         requestNotificationPermission()
         enableEdgeToEdge()
         val app = application as ShucklerApplication
@@ -63,7 +65,8 @@ class MainActivity : ComponentActivity() {
                         LocalPlaylistManager provides (application as ShucklerApplication).playlistManager,
                         LocalAchievementManager provides app.achievementManager,
                         LocalListeningPersonalityManager provides app.listeningPersonalityManager,
-                        LocalSpotifyAuthManager provides app.spotifyAuthManager
+                        LocalSpotifyAuthManager provides app.spotifyAuthManager,
+                        LocalLastFmScrobbler provides app.lastFmScrobbler
                     ) {
                         Surface(modifier = Modifier.fillMaxSize()) {
                             ShucklerNavGraph()
@@ -85,6 +88,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
+        handleLastFmCallback(intent)
     }
 
     private fun handleShortcutIntent(intent: Intent?) {
@@ -101,6 +105,16 @@ class MainActivity : ComponentActivity() {
             if (handled) {
                 setIntent(Intent()) // Clear the redirect intent
             }
+        }
+    }
+
+    private fun handleLastFmCallback(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != "shuckler" || data.host != "lastfm") return
+        val token = data.getQueryParameter("token")?.takeIf { it.isNotBlank() } ?: return
+        lifecycleScope.launch {
+            (application as ShucklerApplication).lastFmScrobbler.exchangeToken(token)
+            setIntent(Intent())
         }
     }
 

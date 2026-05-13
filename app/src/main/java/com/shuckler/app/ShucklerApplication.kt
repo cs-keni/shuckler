@@ -8,6 +8,7 @@ import kotlinx.coroutines.SupervisorJob
 import com.shuckler.app.achievement.AchievementManager
 import com.shuckler.app.download.DownloadManager
 import com.shuckler.app.spotify.SpotifyAuthManager
+import com.shuckler.app.lastfm.LastFmScrobbler
 import com.shuckler.app.lyrics.LyricsRepository
 import com.shuckler.app.personality.ListeningPersonalityManager
 import com.shuckler.app.playlist.PlaylistManager
@@ -42,6 +43,10 @@ class ShucklerApplication : Application() {
 
     val spotifyAuthManager: SpotifyAuthManager by lazy {
         SpotifyAuthManager(applicationContext)
+    }
+
+    val lastFmScrobbler: LastFmScrobbler by lazy {
+        LastFmScrobbler(applicationContext)
     }
 
     val accessibilityPreferences: AccessibilityPreferences by lazy {

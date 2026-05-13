@@ -79,6 +79,10 @@ class PlayerViewModel(
         serviceConnection.service.value?.reorderQueue(fromIndex, toIndex)
     }
 
+    fun clearQueue() {
+        serviceConnection.service.value?.clearQueue()
+    }
+
     fun togglePlayPause() {
         val service = serviceConnection.service.value
         if (service != null) {

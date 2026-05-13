@@ -41,7 +41,8 @@ object SpotifyRepository {
     data class SpotifyTrack(
         val title: String,
         val artist: String,
-        val album: String?
+        val album: String?,
+        val albumYear: Int?
     )
 
     /**
@@ -193,8 +194,13 @@ object SpotifyRepository {
                     .mapNotNull { j -> artists?.optJSONObject(j)?.optString("name") }
                     .joinToString(", ")
                     .takeIf { it.isNotBlank() } ?: "Unknown"
-                val album = track.optJSONObject("album")?.optString("name")?.takeIf { it.isNotBlank() }
-                SpotifyTrack(title = title, artist = artist, album = album)
+                val albumObject = track.optJSONObject("album")
+                val album = albumObject?.optString("name")?.takeIf { it.isNotBlank() }
+                val albumYear = albumObject
+                    ?.optString("release_date")
+                    ?.take(4)
+                    ?.toIntOrNull()
+                SpotifyTrack(title = title, artist = artist, album = album, albumYear = albumYear)
             }
             val next = json.optString("next", "").takeIf { it.isNotBlank() } ?: ""
             Pair(tracks, next)

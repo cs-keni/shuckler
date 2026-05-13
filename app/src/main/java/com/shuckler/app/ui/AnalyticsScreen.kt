@@ -56,6 +56,7 @@ import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
 import com.shuckler.app.ui.theme.Text3
+import java.util.Calendar
 
 private enum class AnalyticsTimeRange(val label: String, val ms: Long?) {
     H24("24 hours", 24 * 60 * 60 * 1000L),
@@ -171,6 +172,7 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             StatCard(label = "Plays", value = "$totalPlayCount")
             StatCard(label = "Favorites", value = "$favoriteCount")
         }
+        WeeklyChart(completedTracks = completed)
         Text(
             text = "Achievements",
             style = MaterialTheme.typography.headlineSmall,
@@ -268,6 +270,82 @@ private fun RowScope.AchievementBadgeCard(badge: AchievementBadge, unlocked: Boo
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun WeeklyChart(completedTracks: List<DownloadedTrack>) {
+    val accentColor = LocalAccentColor.current
+    val now = remember { System.currentTimeMillis() }
+    val todayStart = remember {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    val dayMs = 86_400_000L
+    // Index 0 = 6 days ago, index 6 = today
+    val buckets = (0..6).map { daysAgo ->
+        val start = todayStart - (6 - daysAgo) * dayMs
+        val end = start + dayMs
+        val count = completedTracks.count { it.lastPlayedMs in start until end }
+        daysAgo to count
+    }
+    val maxCount = buckets.maxOfOrNull { it.second }.takeIf { it != null && it > 0 } ?: 1
+    val dayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    val todayDow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK) - 1
+
+    Text(
+        text = "This Week",
+        style = MaterialTheme.typography.headlineSmall,
+        color = Text1,
+        modifier = Modifier.padding(top = 20.dp, bottom = 12.dp)
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().height(100.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        buckets.forEach { (daysAgo, count) ->
+            val isToday = daysAgo == 6
+            val targetFraction = count.toFloat() / maxCount
+            val fillFraction by animateFloatAsState(
+                targetValue = targetFraction,
+                animationSpec = tween(600),
+                label = "wc_$daysAgo"
+            )
+            val barColor = if (isToday) accentColor else accentColor.copy(alpha = 0.45f)
+            val dowIndex = (todayDow - (6 - daysAgo) + 7) % 7
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                if (count > 0) {
+                    Text(
+                        text = "$count",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = barColor,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height((72 * fillFraction).coerceAtLeast(2f).dp)
+                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                        .background(barColor)
+                )
+                Text(
+                    text = dayLabels[dowIndex],
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isToday) accentColor else Text3,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
     }
 }
 

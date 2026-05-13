@@ -462,10 +462,12 @@ private fun SpotifyImportContent(
                                 if (best != null) {
                                     val id = downloadManager.startDownloadFromYouTube(
                                         best.url,
-                                        best.title,
-                                        best.uploaderName,
+                                        track.title,
+                                        track.artist,
                                         best.thumbnailUrl,
-                                        onWifiOnlyBlocked
+                                        onWifiOnlyBlocked,
+                                        albumTitle = track.album,
+                                        albumYear = track.albumYear
                                     )
                                     if (id.isNotBlank()) {
                                         var d = downloadManager.downloads.value.find { it.id == id }

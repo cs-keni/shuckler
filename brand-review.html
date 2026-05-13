@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shuckler Brand Review</title>
+  <style>
+    :root {
+      --base: #0C0A07;
+      --surface: #141210;
+      --elevated: #1C1A17;
+      --high: #252220;
+      --border: #2A2722;
+      --text1: #F5F2EC;
+      --text2: #8C8880;
+      --text3: #4A4843;
+      --accent: #E8A850;
+      --green: #6AB187;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--base);
+      color: var(--text1);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 56px 24px 72px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: end;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 28px;
+      margin-bottom: 32px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 42px;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 680px;
+      margin-top: 10px;
+      color: var(--text2);
+      font-size: 15px;
+    }
+
+    .status {
+      color: var(--accent);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      text-align: right;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card.recommended {
+      border-color: rgba(232, 168, 80, 0.65);
+      background: linear-gradient(180deg, rgba(232, 168, 80, 0.08), rgba(20, 18, 16, 0));
+    }
+
+    .label {
+      color: var(--accent);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .name {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      font-weight: 400;
+    }
+
+    .mark-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .app-icon {
+      width: 92px;
+      height: 92px;
+      border-radius: 22px;
+      background: linear-gradient(160deg, var(--surface), var(--high));
+      border: 1px solid rgba(245, 242, 236, 0.08);
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+    }
+
+    .small-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      background: var(--high);
+      display: grid;
+      place-items: center;
+    }
+
+    svg { display: block; }
+
+    .cat-img {
+      width: 74%;
+      height: 74%;
+      object-fit: contain;
+      background: #F5F2EC;
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .notes {
+      color: var(--text2);
+      font-size: 14px;
+    }
+
+    .meta {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      color: var(--text3);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .section {
+      margin-top: 34px;
+      padding: 22px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 8px;
+    }
+
+    .section h2 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-weight: 400;
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+
+    .tokens {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .swatch {
+      min-height: 72px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: end;
+      color: var(--text1);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .decision {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      color: var(--text2);
+      font-size: 14px;
+    }
+
+    @media (max-width: 880px) {
+      header, .grid, .decision, .tokens { grid-template-columns: 1fr; }
+      .status { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Brand Review</h1>
+        <p class="subtitle">Original logo and naming directions for the redesign. Direction A now uses the user-created cat doodle, keeping the current name while removing character-art risk.</p>
+      </div>
+      <div class="status">Review Needed</div>
+    </header>
+
+    <section class="grid" aria-label="Brand directions">
+      <article class="card recommended">
+        <div>
+          <div class="label">Direction A · Recommended</div>
+          <h2 class="name">Shuckler</h2>
+        </div>
+        <div class="mark-row">
+          <div class="app-icon">
+            <img class="cat-img" src="catdoodle.png" alt="Cat doodle">
+          </div>
+          <div class="small-icon">
+            <img class="cat-img" src="catdoodle.png" alt="">
+          </div>
+        </div>
+        <p class="notes">Keeps the current name, removes the IP risk, and uses your own simple cat doodle as the app mascot. Best fit for the current codebase and deep links.</p>
+        <div class="meta">Decision cost: low · Code impact: icon and image refs only</div>
+      </article>
+
+      <article class="card">
+        <div>
+          <div class="label">Direction B</div>
+          <h2 class="name">Sleeve</h2>
+        </div>
+        <div class="mark-row">
+          <div class="app-icon">
+            <svg width="72" height="72" viewBox="0 0 96 96" aria-hidden="true">
+              <path fill="#E8A850" d="M20 24q0-7 7-7h42q7 0 7 7v48q0 7-7 7H27q-7 0-7-7Z"/>
+              <path fill="#0C0A07" d="M30 29h36v8H30zM30 45h20v6H30zM30 57h28v6H30z"/>
+              <path fill="#F5F2EC" d="M54 43q8 0 13 6t3 14q-3 11-14 11-8 0-13-6t-3-14q3-11 14-11Z"/>
+              <path fill="#0C0A07" d="M55 53q4 0 5 4t-2 6q-4 3-7 0t-1-7q1-3 5-3Z"/>
+            </svg>
+          </div>
+        </div>
+        <p class="notes">A clean rename with a strong tie to album art. Good if you want a more grown-up product name, but it requires app name, docs, deep link, package, and repo identity decisions.</p>
+        <div class="meta">Decision cost: medium · Code impact: broad naming pass</div>
+      </article>
+
+      <article class="card">
+        <div>
+          <div class="label">Direction C</div>
+          <h2 class="name">Crate</h2>
+        </div>
+        <div class="mark-row">
+          <div class="app-icon">
+            <svg width="72" height="72" viewBox="0 0 96 96" aria-hidden="true">
+              <path fill="#F5F2EC" d="M18 34q0-7 7-7h46q7 0 7 7v35q0 7-7 7H25q-7 0-7-7Z"/>
+              <path fill="#0C0A07" d="M27 39h42v7H27zM27 52h42v5H27zM27 63h42v5H27z"/>
+              <path fill="#E8A850" d="M31 20h34q5 0 5 5v8H26v-8q0-5 5-5Z"/>
+            </svg>
+          </div>
+        </div>
+        <p class="notes">Library-first identity: collecting, sorting, listening history. Strong for a personal library app, weaker for streaming/search unless the app leans further into ownership.</p>
+        <div class="meta">Decision cost: medium · Code impact: broad naming pass</div>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>Palette</h2>
+      <p class="notes">The recommended mark uses only existing design tokens, so it feels native inside the current redesign and can still be tinted by album art elsewhere.</p>
+      <div class="tokens">
+        <div class="swatch" style="background:#0C0A07">Base<br>#0C0A07</div>
+        <div class="swatch" style="background:#141210">Surface<br>#141210</div>
+        <div class="swatch" style="background:#252220">Surface High<br>#252220</div>
+        <div class="swatch" style="background:#F5F2EC;color:#0C0A07">Text 1<br>#F5F2EC</div>
+        <div class="swatch" style="background:#E8A850;color:#0C0A07">Amber<br>#E8A850</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Decision Points</h2>
+      <div class="decision">
+        <p><strong>Keep Shuckler:</strong> fastest path. Replace all character artwork, keep package/deep links/docs mostly intact, and continue the UI redesign.</p>
+        <p><strong>Rename:</strong> safer long-term brand if you want to ship publicly under a more neutral name, but it should be a deliberate naming migration rather than incidental polish.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

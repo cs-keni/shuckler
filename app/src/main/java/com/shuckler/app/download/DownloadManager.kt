@@ -21,6 +21,7 @@ import com.shuckler.app.youtube.YouTubeRepository
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URL
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -156,14 +157,21 @@ class DownloadManager(private val context: Context) {
      * Use for direct MP3/audio URLs. For YouTube, prefer [startDownloadFromYouTube] (refetches URL on retry).
      * Returns the download id; progress and completion are exposed via [progress] and [downloads].
      */
-    fun startDownload(url: String, title: String? = null, artist: String? = null, thumbnailUrl: String? = null): String {
+    fun startDownload(
+        url: String,
+        title: String? = null,
+        artist: String? = null,
+        thumbnailUrl: String? = null,
+        albumTitle: String? = null,
+        albumYear: Int? = null
+    ): String {
         _lastDownloadError.value = null
         val id = UUID.randomUUID().toString()
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
 
         val job = scope.launch {
-            runDownload(id, url, safeTitle, safeArtist, thumbnailUrl)
+            runDownload(id, url, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -181,7 +189,9 @@ class DownloadManager(private val context: Context) {
         title: String? = null,
         artist: String? = null,
         thumbnailUrl: String? = null,
-        onWifiOnlyBlocked: (() -> Unit)? = null
+        onWifiOnlyBlocked: (() -> Unit)? = null,
+        albumTitle: String? = null,
+        albumYear: Int? = null
     ): String {
         if (wifiOnlyDownloads && !isConnectedToWifi()) {
             onWifiOnlyBlocked?.invoke()
@@ -193,7 +203,7 @@ class DownloadManager(private val context: Context) {
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
 
         val job = scope.launch {
-            runDownloadFromYouTube(id, videoUrl, safeTitle, safeArtist, thumbnailUrl)
+            runDownloadFromYouTube(id, videoUrl, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -221,7 +231,7 @@ class DownloadManager(private val context: Context) {
         _lastFailedDownloadId.value = null
         _lastFailedDownloadId.value = null
         val job = scope.launch {
-            runDownloadFromYouTube(id, track.sourceUrl, track.title, track.artist, track.thumbnailUrl)
+            runDownloadFromYouTube(id, track.sourceUrl, track.title, track.artist, track.thumbnailUrl, track.albumTitle, track.albumYear)
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -360,6 +370,8 @@ class DownloadManager(private val context: Context) {
                 val filePath = track.filePath
                 val artist = track.artist
                 val thumb = track.thumbnailUrl
+                val albumTitle = track.albumTitle
+                val albumYear = track.albumYear
                 val newTracks = chapters.mapIndexed { idx, ch ->
                     DownloadedTrack(
                         id = UUID.randomUUID().toString(),
@@ -371,6 +383,8 @@ class DownloadManager(private val context: Context) {
                         fileSizeBytes = 0L, // Shared file
                         downloadDateMs = track.downloadDateMs,
                         thumbnailUrl = thumb,
+                        albumTitle = albumTitle,
+                        albumYear = albumYear,
                         startMs = ch.startMs,
                         endMs = ch.endMs
                     )
@@ -424,7 +438,15 @@ class DownloadManager(private val context: Context) {
         }
     }
 
-    private suspend fun runDownloadFromYouTube(id: String, videoUrl: String, title: String, artist: String, thumbnailUrl: String? = null) {
+    private suspend fun runDownloadFromYouTube(
+        id: String,
+        videoUrl: String,
+        title: String,
+        artist: String,
+        thumbnailUrl: String? = null,
+        albumTitle: String? = null,
+        albumYear: Int? = null
+    ) {
         withContext(Dispatchers.IO) {
             val maxAttempts = 5
             var lastError: Exception? = null
@@ -441,7 +463,18 @@ class DownloadManager(private val context: Context) {
                         continue
                     }
                 }
-                val result = runDownloadAttempt(id, streamUrl, title, artist, thumbnailUrl, partialFile, resumeFromByte)
+                val result = runDownloadAttempt(
+                    id = id,
+                    urlString = streamUrl,
+                    metadataSourceUrl = videoUrl,
+                    title = title,
+                    artist = artist,
+                    thumbnailUrl = thumbnailUrl,
+                    albumTitle = albumTitle,
+                    albumYear = albumYear,
+                    existingPartialFile = partialFile,
+                    resumeFromByte = resumeFromByte
+                )
                 when (result) {
                     is DownloadAttemptResult.Success -> return@withContext
                     is DownloadAttemptResult.Failure -> {
@@ -475,9 +508,12 @@ class DownloadManager(private val context: Context) {
     private fun runDownloadAttempt(
         id: String,
         urlString: String,
+        metadataSourceUrl: String,
         title: String,
         artist: String,
         thumbnailUrl: String?,
+        albumTitle: String?,
+        albumYear: Int?,
         existingPartialFile: File? = null,
         resumeFromByte: Long = 0L
     ): DownloadAttemptResult {
@@ -528,7 +564,7 @@ class DownloadManager(private val context: Context) {
                 val available = getAvailableSpace()
                 if (available < totalExpected) {
                     response.close()
-                    failDownload(id, urlString, title, artist, "Not enough space. Need ${totalExpected / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
+                    failDownload(id, metadataSourceUrl, title, artist, "Not enough space. Need ${totalExpected / (1024 * 1024)} MB, only ${available / (1024 * 1024)} MB free.")
                     return DownloadAttemptResult.Success
                 }
             }
@@ -561,7 +597,7 @@ class DownloadManager(private val context: Context) {
                 updateProgress(id, totalRead, totalExpected ?: totalRead, percent ?: 0, bytesPerSecond)
             }
 
-            completeDownload(id, file.absolutePath, urlString, title, artist, file.length(), thumbnailUrl)
+            completeDownload(id, file.absolutePath, metadataSourceUrl, title, artist, file.length(), thumbnailUrl, albumTitle, albumYear)
             outputStream.close()
             outputStream = null
             response.close()
@@ -585,9 +621,28 @@ class DownloadManager(private val context: Context) {
         return header.substring(slash + 1).trim().toLongOrNull()
     }
 
-    private suspend fun runDownload(id: String, urlString: String, title: String, artist: String, thumbnailUrl: String? = null) {
+    private suspend fun runDownload(
+        id: String,
+        urlString: String,
+        title: String,
+        artist: String,
+        thumbnailUrl: String? = null,
+        albumTitle: String? = null,
+        albumYear: Int? = null
+    ) {
         withContext(Dispatchers.IO) {
-            when (val result = runDownloadAttempt(id, urlString, title, artist, thumbnailUrl, null, 0L)) {
+            when (val result = runDownloadAttempt(
+                id = id,
+                urlString = urlString,
+                metadataSourceUrl = urlString,
+                title = title,
+                artist = artist,
+                thumbnailUrl = thumbnailUrl,
+                albumTitle = albumTitle,
+                albumYear = albumYear,
+                existingPartialFile = null,
+                resumeFromByte = 0L
+            )) {
                 is DownloadAttemptResult.Success -> { }
                 is DownloadAttemptResult.Failure -> {
                     clearProgress(id)
@@ -625,7 +680,17 @@ class DownloadManager(private val context: Context) {
         _progress.value = _progress.value - id
     }
 
-    private fun completeDownload(id: String, filePath: String, sourceUrl: String, title: String, artist: String, fileSizeBytes: Long = 0L, thumbnailUrl: String? = null) {
+    private fun completeDownload(
+        id: String,
+        filePath: String,
+        sourceUrl: String,
+        title: String,
+        artist: String,
+        fileSizeBytes: Long = 0L,
+        thumbnailUrl: String? = null,
+        albumTitle: String? = null,
+        albumYear: Int? = null
+    ) {
         Log.d(TAG, "completeDownload: $title -> $filePath")
         val track = DownloadedTrack(
             id = id,
@@ -637,7 +702,9 @@ class DownloadManager(private val context: Context) {
             downloadProgress = 100,
             fileSizeBytes = fileSizeBytes,
             downloadDateMs = System.currentTimeMillis(),
-            thumbnailUrl = thumbnailUrl
+            thumbnailUrl = thumbnailUrl,
+            albumTitle = albumTitle?.takeIf { it.isNotBlank() },
+            albumYear = albumYear
         )
         _downloads.value = _downloads.value + track
         saveMetadata(_downloads.value)
@@ -666,7 +733,7 @@ class DownloadManager(private val context: Context) {
         return try {
             val json = metadataFile.readText()
             val arr = JSONArray(json)
-                List(arr.length()) { i ->
+            List(arr.length()) { i ->
                 val obj = arr.getJSONObject(i)
                 val path = obj.optString(KEY_FILE_PATH, "")
                 val size = obj.optLong(KEY_FILE_SIZE, 0L)
@@ -685,6 +752,8 @@ class DownloadManager(private val context: Context) {
                     lastPlayedMs = obj.optLong(KEY_LAST_PLAYED_MS, 0L),
                     isFavorite = obj.optBoolean(KEY_IS_FAVORITE, false),
                     thumbnailUrl = obj.optString(KEY_THUMBNAIL_URL, "").takeIf { it.isNotBlank() },
+                    albumTitle = obj.optString(KEY_ALBUM_TITLE, "").takeIf { it.isNotBlank() },
+                    albumYear = obj.optInt(KEY_ALBUM_YEAR, -1).takeIf { it > 0 },
                     status = DownloadStatus.COMPLETED,
                     downloadProgress = 100,
                     startMs = startMs,
@@ -717,6 +786,8 @@ class DownloadManager(private val context: Context) {
                         put(KEY_LAST_PLAYED_MS, track.lastPlayedMs)
                         put(KEY_IS_FAVORITE, track.isFavorite)
                         put(KEY_THUMBNAIL_URL, track.thumbnailUrl ?: "")
+                        put(KEY_ALBUM_TITLE, track.albumTitle ?: "")
+                        track.albumYear?.let { put(KEY_ALBUM_YEAR, it) }
                         track.startMs?.let { put(KEY_START_MS, it) }
                         track.endMs?.let { put(KEY_END_MS, it) }
                         if (track.lastPositionMs > 0) put(KEY_LAST_POSITION_MS, track.lastPositionMs)
@@ -777,6 +848,8 @@ class DownloadManager(private val context: Context) {
         private const val KEY_LAST_PLAYED_MS = "lastPlayedMs"
         private const val KEY_IS_FAVORITE = "isFavorite"
         private const val KEY_THUMBNAIL_URL = "thumbnailUrl"
+        private const val KEY_ALBUM_TITLE = "albumTitle"
+        private const val KEY_ALBUM_YEAR = "albumYear"
         private const val KEY_START_MS = "startMs"
         private const val KEY_END_MS = "endMs"
         private const val KEY_LAST_POSITION_MS = "lastPositionMs"

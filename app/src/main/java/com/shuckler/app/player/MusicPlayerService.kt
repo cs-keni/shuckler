@@ -36,6 +36,11 @@ import com.shuckler.app.R
 import com.shuckler.app.equalizer.EqualizerPreferences
 import com.shuckler.app.ShucklerApplication
 import com.shuckler.app.widget.NowPlayingWidgetProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -191,6 +196,10 @@ class MusicPlayerService : Service() {
 
     /** Last time we saved playback position (for periodic save every 5 seconds). */
     private var lastSavePositionTimeMs: Long = 0L
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scrobbledCurrentTrack = false
+    private var currentTrackStartTimeSec = 0L
 
     private val MIN_POSITION_TO_RESUME_MS = 10_000L
     private val MIN_REMAINING_TO_RESUME_MS = 5_000L
@@ -403,6 +412,15 @@ class MusicPlayerService : Service() {
         _currentTrackThumbnailUrl.value = item.thumbnailUrl
         currentArtworkBitmap = null
         item.thumbnailUrl?.let { url -> loadArtworkForNotification(url) }
+        // Reset scrobble state and fire "now playing"
+        scrobbledCurrentTrack = false
+        currentTrackStartTimeSec = System.currentTimeMillis() / 1000L
+        val scrobbler = (applicationContext as? ShucklerApplication)?.lastFmScrobbler
+        if (scrobbler?.isConnected == true && item.title.isNotBlank()) {
+            serviceScope.launch {
+                scrobbler.updateNowPlaying(item.artist, item.title)
+            }
+        }
     }
 
     /** Track if we've added the playlist listener (for gapless mode) to avoid duplicates. */
@@ -490,6 +508,24 @@ class MusicPlayerService : Service() {
     /**
      * Move a queue item from one position to another. Updates currentQueueIndex if it points to a moved item.
      */
+    fun clearQueue() {
+        val current = queue.getOrNull(currentQueueIndex)
+        queue.clear()
+        if (current != null) {
+            queue.add(current)
+            currentQueueIndex = 0
+        }
+        if (useGaplessPlaylist()) {
+            _exoPlayer?.let { player ->
+                val currentItem = if (current != null) player.currentMediaItem else null
+                player.clearMediaItems()
+                currentItem?.let { player.setMediaItem(it) }
+            }
+        }
+        updateQueueInfo()
+        updateNotification()
+    }
+
     fun reorderQueue(fromIndex: Int, toIndex: Int) {
         if (fromIndex !in queue.indices || toIndex !in queue.indices || fromIndex == toIndex) return
         val item = queue.removeAt(fromIndex)
@@ -577,6 +613,18 @@ class MusicPlayerService : Service() {
             val dur = player.duration
             _playbackPositionMs.value = position
             _durationMs.value = if (dur == C.TIME_UNSET) 0L else dur
+            // Scrobble at 50% playback threshold
+            if (!scrobbledCurrentTrack && dur != C.TIME_UNSET && dur > 0 && position >= dur / 2) {
+                scrobbledCurrentTrack = true
+                val title = _currentTrackTitle.value
+                val artist = _currentTrackArtist.value
+                val scrobbler = (applicationContext as? ShucklerApplication)?.lastFmScrobbler
+                if (scrobbler?.isConnected == true && title.isNotBlank()) {
+                    serviceScope.launch {
+                        scrobbler.scrobble(artist, title, currentTrackStartTimeSec)
+                    }
+                }
+            }
             // Periodic save for "Continue listening" (every 5 seconds)
             val now = System.currentTimeMillis()
             if (now - lastSavePositionTimeMs >= 5000L) {
@@ -663,6 +711,7 @@ class MusicPlayerService : Service() {
             }
             ACTION_CANCEL_SLEEP_TIMER -> cancelSleepTimer()
             ACTION_TOGGLE_SHUFFLE -> toggleShuffle()
+            ACTION_CLEAR_QUEUE -> clearQueue()
         }
         return START_STICKY
     }
@@ -1145,6 +1194,7 @@ class MusicPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        serviceScope.cancel()
         stopPositionUpdates()
         mediaSession?.isActive = false
         mediaSession?.release()
@@ -1173,6 +1223,7 @@ class MusicPlayerService : Service() {
         const val ACTION_START_SLEEP_TIMER = "com.shuckler.app.START_SLEEP_TIMER"
         const val ACTION_CANCEL_SLEEP_TIMER = "com.shuckler.app.CANCEL_SLEEP_TIMER"
         const val ACTION_TOGGLE_SHUFFLE = "com.shuckler.app.TOGGLE_SHUFFLE"
+        const val ACTION_CLEAR_QUEUE = "com.shuckler.app.CLEAR_QUEUE"
         const val EXTRA_URI = "uri"
         const val EXTRA_SLEEP_DURATION_MS = "sleep_duration_ms"
         const val EXTRA_SLEEP_END_OF_TRACK = "sleep_end_of_track"
