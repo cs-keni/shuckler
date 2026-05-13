@@ -19,10 +19,10 @@
 
 - Checkpoint commit `dbcdc25` was pushed to `origin/main` before continuing new work, per user request.
 - Search screen now uses the redesign token system instead of Material default surface colors. Result actions moved below the metadata row to reduce narrow-screen overflow risk.
-- Codex still cannot run Gradle in this WSL shell; use Android Studio sync/build for compile verification.
-- Latest visual cleanup removed `CircleShape` from onboarding pager indicators and migrated hardcoded black/white overlay values in UI composables to existing warm tokens. `git diff --check` passes for the touched files; Java/Gradle verification remains blocked in WSL.
+- Codex WSL now has OpenJDK 17 and `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` persisted in `~/.zshrc`.
+- Latest visual cleanup removed `CircleShape` from onboarding pager indicators and migrated hardcoded black/white overlay values in UI composables to existing warm tokens. `git diff --check` passes for the touched files.
 - User reported the redesigned UI still feels gappy and too much like stacked boxes. Added a flow-first planning section to `DESIGN.md` and created `flow-redesign-preview.html`; no Compose implementation was changed for this planning pass.
-- First flow-first implementation slice targets Home only. Existing behavior is preserved, but visual structure changed substantially. Codex still cannot compile due to missing Java in WSL, so Android Studio verification is required.
+- First flow-first implementation slice targets Home only. Existing behavior is preserved, but visual structure changed substantially.
 - Library flow slice separates browsing from storage maintenance. The previous structure hid the track list inside the collapsed storage/download disclosure, which made the Library feel like a utility panel before a collection.
 - Library sheet gap was likely caused by `heightIn(min = 500.dp)` applied only in `isSheetMode`; removed that forced minimum and let the bottom sheet partially expand.
 - Library mid-page gap was caused by the `No playlists yet` empty state rendering before Albums even when album/track content existed. Removed that block from the main collection flow.
@@ -34,3 +34,8 @@
 - Added "Keep exploring" chips under non-empty recommendations to prevent the Search idle surface from ending abruptly below the recommendation shelf.
 - Stats still used old Material default chips/cards; first Stats flow pass replaced those with tokenized chips, inline accent panel, and flatter metric surfaces.
 - Stats `DESIGN.md` target includes Top artists; added a ranked artist bar section using play count, falling back to track count when plays are zero.
+- User reported Android Studio Gradle build succeeded after the latest redesign work.
+- Codex-side Gradle now starts with `GRADLE_USER_HOME=.gradle`, but WSL cannot use the Windows Android SDK build tools because they contain `.exe` binaries. `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ./gradlew :app:compileDebugKotlin` reaches SDK resolution, then fails on missing Linux `aapt` in build-tools `36.0.0`. A separate Linux Android SDK install would be needed for full WSL Gradle checks.
+- Now Playing polish moved the queue sheet and playback controls off default Material surfaces/chips and onto Base, album accent, and warm text tokens. `PlayerScreen.kt` no longer has Material `FilterChip` usage.
+- Settings polish grouped options with DM section headers and tokenized segmented choices while preserving existing settings behavior.
+- Android Studio compile caught that this Material3 version does not expose `FilledIconButtonDefaults`; switched the play button colors to `IconButtonDefaults.filledIconButtonColors`.

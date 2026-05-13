@@ -1,15 +1,20 @@
 package com.shuckler.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
@@ -22,7 +27,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.shuckler.app.ui.theme.BorderSubtle
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 import kotlin.math.roundToInt
 
 private val DOWNLOAD_QUALITY_OPTIONS = listOf(
@@ -78,9 +91,19 @@ fun SettingsDialog(
     onDismiss: () -> Unit
 ) {
     var checked by remember(autoDeleteAfterPlayback) { mutableStateOf(autoDeleteAfterPlayback) }
+    val accentColor = LocalAccentColor.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Settings") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = {
+            Text(
+                text = "Settings",
+                style = MaterialTheme.typography.titleLarge,
+                color = Text1
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -88,6 +111,7 @@ fun SettingsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                SettingsSectionTitle("Playback")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -96,12 +120,12 @@ fun SettingsDialog(
                     Text(
                         text = "Crossfade",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text2
                     )
                     Text(
                         text = if (crossfadeDurationMs == 0) "Off" else "${crossfadeDurationMs / 1000} s",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        color = accentColor
                     )
                 }
                 Slider(
@@ -116,7 +140,7 @@ fun SettingsDialog(
                 Text(
                     text = "Download quality (YouTube)",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Text2,
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 Row(
@@ -125,32 +149,23 @@ fun SettingsDialog(
                 ) {
                     DOWNLOAD_QUALITY_OPTIONS.forEach { (value, label) ->
                         val selected = downloadQuality == value
-                        Button(
+                        SettingsChoiceButton(
+                            label = label,
+                            selected = selected,
                             onClick = { onDownloadQualityChange(value) },
-                            modifier = Modifier.weight(1f),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
                 Text(
                     text = "Best = highest bitrate; High = second-highest; Data saver = smallest file. M4A preferred when available.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text3
                 )
                 Text(
                     text = "Sleep timer",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Text2,
                     modifier = Modifier.padding(top = 16.dp)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -173,22 +188,17 @@ fun SettingsDialog(
                                     }
                                     else -> false
                                 }
-                                Button(
+                                SettingsChoiceButton(
+                                    label = label,
+                                    selected = isSelected,
                                     onClick = {
                                         if (durationMs == null) onCancelSleepTimer()
                                         else if (durationMs == -1L) onStartSleepTimer(0L, true)
                                         else onStartSleepTimer(durationMs, false)
                                     },
                                     modifier = Modifier.weight(1f),
-                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                        else MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                ) {
-                                    Text(label, style = MaterialTheme.typography.labelSmall)
-                                }
+                                    small = true
+                                )
                             }
                         }
                     }
@@ -201,7 +211,7 @@ fun SettingsDialog(
                     Text(
                         text = "Fade out last 1 min",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text2
                     )
                     Switch(
                         checked = sleepTimerFadeLastMinute,
@@ -219,19 +229,19 @@ fun SettingsDialog(
                     Text(
                         text = "Equalizer",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text1
                     )
                     Text(
                         text = "Bass, treble, presets",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                 }
+                SettingsSectionTitle("App")
                 Text(
                     text = "Open on launch",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 16.dp)
+                    color = Text2
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
@@ -244,18 +254,13 @@ fun SettingsDialog(
                         ) {
                             rowOptions.forEach { (value, label) ->
                                 val selected = defaultTab == value
-                                Button(
+                                SettingsChoiceButton(
+                                    label = label,
+                                    selected = selected,
                                     onClick = { onDefaultTabChange(value) },
                                     modifier = Modifier.weight(1f),
-                                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                        containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                                        else MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                ) {
-                                    Text(label, style = MaterialTheme.typography.labelSmall)
-                                }
+                                    small = true
+                                )
                             }
                         }
                     }
@@ -268,7 +273,7 @@ fun SettingsDialog(
                     Text(
                         text = "Download only on Wi‑Fi",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text2
                     )
                     Switch(
                         checked = wifiOnlyDownloads,
@@ -278,12 +283,12 @@ fun SettingsDialog(
                 Text(
                     text = "When on, downloads won't start on cellular. Connect to Wi‑Fi to download.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text3
                 )
                 Text(
                     text = "Delete after playback (except favorites)",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Text2,
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 Row(
@@ -294,6 +299,7 @@ fun SettingsDialog(
                     Text(
                         text = "Remove track when it finishes, unless it's a favorite",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = Text1,
                         modifier = Modifier.weight(1f)
                     )
                     Switch(
@@ -307,14 +313,9 @@ fun SettingsDialog(
                 Text(
                     text = "When on, tracks are removed automatically when they finish playing, unless they are marked as favorites.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text3
                 )
-                Text(
-                    text = "Accessibility",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
+                SettingsSectionTitle("Accessibility")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -323,7 +324,7 @@ fun SettingsDialog(
                     Text(
                         text = "Reduce motion",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text2
                     )
                     Switch(
                         checked = reduceMotion,
@@ -333,7 +334,7 @@ fun SettingsDialog(
                 Text(
                     text = "Minimize or disable animations for a simpler experience.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text3
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -343,7 +344,7 @@ fun SettingsDialog(
                     Text(
                         text = "High contrast",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text2
                     )
                     Switch(
                         checked = highContrast,
@@ -353,19 +354,14 @@ fun SettingsDialog(
                 Text(
                     text = "Use higher contrast colors for better visibility.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text3
                 )
-                Text(
-                    text = "Last.fm",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 24.dp)
-                )
+                SettingsSectionTitle("Connections")
                 if (!lastFmConfigured) {
                     Text(
                         text = "Add API_KEY and API_SECRET to LastFmScrobbler.kt to enable scrobbling.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                 } else if (lastFmConnected) {
                     Row(
@@ -377,12 +373,12 @@ fun SettingsDialog(
                             Text(
                                 text = if (lastFmUsername != null) "Connected as $lastFmUsername" else "Connected",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Text1
                             )
                             Text(
                                 text = "Scrobbles at 50% of each track",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Text3
                             )
                         }
                         TextButton(onClick = onLastFmDisconnect) {
@@ -393,9 +389,9 @@ fun SettingsDialog(
                     Button(
                         onClick = onLastFmConnect,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accentColor.copy(alpha = 0.22f),
+                            contentColor = accentColor
                         )
                     ) {
                         Text("Connect Last.fm", style = MaterialTheme.typography.labelMedium)
@@ -403,7 +399,7 @@ fun SettingsDialog(
                     Text(
                         text = "Sign in to scrobble your listening history",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                 }
                 Row(
@@ -420,20 +416,60 @@ fun SettingsDialog(
                     Text(
                         text = "Show tutorial",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        color = accentColor
                     )
                     Text(
                         text = "Walk through how to use the app",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Text3
                     )
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done")
+                Text("Done", color = accentColor)
             }
         }
     )
+}
+
+@Composable
+private fun SettingsSectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.headlineSmall,
+        color = Text1,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+}
+
+@Composable
+private fun SettingsChoiceButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    small: Boolean = false
+) {
+    val accentColor = LocalAccentColor.current
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) accentColor.copy(alpha = 0.18f) else SurfaceElevated)
+            .border(
+                width = 1.dp,
+                color = if (selected) accentColor.copy(alpha = 0.28f) else BorderSubtle,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = if (small) 8.dp else 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
+            color = if (selected) accentColor else Text2
+        )
+    }
 }

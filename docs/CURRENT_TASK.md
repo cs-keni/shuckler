@@ -8,11 +8,12 @@ In progress: design completion work from `DESIGN.md`.
 
 ## Active Slice
 
-Search redesign is now the active implementation slice:
+Now Playing and Settings redesign are now the active implementation slice:
 - Library track artist names open an artist detail screen.
 - Artist detail shows a blurred artwork hero, Songs section, Albums artwork shelf, Play All, Shuffle, and currently-playing highlighting.
-- Codex restored context from `CLAUDE.md`, `DESIGN.md`, and shared docs; no compileable local Java environment is available in this WSL shell.
-- User confirmed the project builds successfully in Android Studio on 2026-05-12.
+- Codex restored context from `CLAUDE.md`, `DESIGN.md`, and shared docs.
+- User confirmed the project builds successfully in Android Studio on 2026-05-13.
+- Codex WSL now has OpenJDK 17 and `JAVA_HOME` configured. Local Gradle starts, but full WSL compile checks need a Linux Android SDK because the current Android SDK is the Windows install with `.exe` build-tools.
 - Album metadata and Album Detail are now being added as the next `DESIGN.md` slice.
 - Brand/icon cleanup is underway: user chose Direction A, keeping Shuckler and switching the mark to `catdoodle.png`.
 - Home visual redesign pass started: warm background, snapshot stats, redesigned hero, and quieter section headers.
@@ -33,7 +34,9 @@ Search redesign is now the active implementation slice:
 - Search now fills space under non-empty recommendations with a compact "Keep exploring" chip row.
 - Stats flow pass started: tokenized time chips, quieter personality panel, flatter big stats and achievement surfaces.
 - Stats follow-up added a dedicated topbar and Top artists ranked bar section from `DESIGN.md`.
+- Now Playing flow polish continued: queue sheet uses the warm Base canvas, flat tokenized rows, accent wash for the current track, album-accent progress/controls, and custom action chips instead of Material `FilterChip`.
+- Settings dialog polish continued: warm tokenized dialog surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 copy hierarchy.
 
 ## Next Best Work
 
-Run Android Studio sync/build for the Home, Library, shared header, Search, and Stats flow slices, then review Home, Library sheet/full tab, Search idle/results states, and Stats on device/emulator.
+Android Studio build/run the Now Playing and Settings slice, then device-review Home, Library sheet/full tab, Search idle/results states, Stats, Now Playing, Queue, Lyrics, and Settings.

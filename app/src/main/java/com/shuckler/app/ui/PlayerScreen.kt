@@ -15,6 +15,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +35,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.layout.onSizeChanged
 import android.view.HapticFeedbackConstants
@@ -57,8 +60,8 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -79,7 +82,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -118,8 +120,11 @@ import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
 import coil.compose.AsyncImage
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.BorderSubtle
 import com.shuckler.app.ui.theme.DmSerifDisplay
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.SurfaceHigh
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
 import com.shuckler.app.ui.theme.Text3
@@ -173,7 +178,9 @@ fun PlayerScreen(
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showQueueSheet = false },
-            sheetState = sheetState
+            sheetState = sheetState,
+            containerColor = Base,
+            contentColor = Text1
         ) {
             var localQueue by remember { mutableStateOf(queueItems) }
             var isDragActive by remember { mutableStateOf(false) }
@@ -208,7 +215,8 @@ fun PlayerScreen(
                 ) {
                     Text(
                         text = "Queue",
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Text1
                     )
                     if (localQueue.size > 1) {
                         TextButton(onClick = {
@@ -230,8 +238,9 @@ fun PlayerScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 8.dp)
-                            .shadow(4.dp, RoundedCornerShape(12.dp))
-                            .background(albumColor.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(albumColor.copy(alpha = 0.16f))
+                            .border(1.dp, albumColor.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -283,10 +292,16 @@ fun PlayerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .shadow(elevation, RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(
                                         if (isCurrent) albumColor.copy(alpha = 0.12f)
-                                        else if (isDragging) MaterialTheme.colorScheme.surfaceVariant
-                                        else MaterialTheme.colorScheme.surface
+                                        else if (isDragging) SurfaceHigh
+                                        else Base
+                                    )
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isCurrent) albumColor.copy(alpha = 0.16f) else BorderSubtle,
+                                        shape = RoundedCornerShape(10.dp)
                                     )
                                     .clickable {
                                         viewModel.playQueueItemAt(index)
@@ -309,14 +324,14 @@ fun PlayerScreen(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            .background(SurfaceElevated),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             Icons.Default.PlayArrow,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = Text2
                                         )
                                     }
                                 }
@@ -324,20 +339,20 @@ fun PlayerScreen(
                                     Text(
                                         text = item.title,
                                         style = MaterialTheme.typography.titleSmall,
-                                        color = if (isCurrent) albumColor else MaterialTheme.colorScheme.onSurface,
+                                        color = if (isCurrent) albumColor else Text1,
                                         maxLines = 1
                                     )
                                     Text(
                                         text = item.artist,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = Text2,
                                         maxLines = 1
                                     )
                                 }
                                 Icon(
                                     imageVector = Icons.Default.DragHandle,
                                     contentDescription = "Drag to reorder",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    tint = Text3,
                                     modifier = Modifier
                                         .size(24.dp)
                                         .draggableHandle()
@@ -443,14 +458,15 @@ fun PlayerScreen(
                     Icon(
                         Icons.Default.ExpandMore,
                         contentDescription = "Collapse player",
-                        modifier = Modifier.padding(4.dp)
+                        modifier = Modifier.padding(4.dp),
+                        tint = Text1
                     )
                 }
             } else {
                 Box(modifier = Modifier.size(48.dp))
             }
             IconButton(onClick = { showSettingsDialog = true }) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Text1)
             }
         }
         // Breathing glow + art container
@@ -527,7 +543,7 @@ fun PlayerScreen(
                     AudioVisualizerCanvas(
                         fftData = fft,
                         modifier = Modifier.fillMaxSize(),
-                        barColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                        barColor = albumColor.copy(alpha = 0.25f),
                         barCount = 32
                     )
                 }
@@ -553,32 +569,35 @@ fun PlayerScreen(
                         .size(196.dp)
                         .shadow(elevation = 16.dp, shape = artShape, clip = false)
                         .clip(artShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                        .background(SurfaceElevated),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = "No album art",
                         modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = Text2
                     )
                 }
             }
         }
         Text(
             text = trackTitle,
-            style = MaterialTheme.typography.titleLarge
+            style = MaterialTheme.typography.displayLarge,
+            color = Text1,
+            textAlign = TextAlign.Center
         )
         Text(
             text = trackArtist,
             style = MaterialTheme.typography.bodyLarge,
+            color = Text2,
             modifier = Modifier.padding(bottom = 4.dp)
         )
         if (queueInfo.second > 1) {
             Text(
                 text = "Track ${queueInfo.first} of ${queueInfo.second}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Text3,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
@@ -595,12 +614,12 @@ fun PlayerScreen(
                     imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                     contentDescription = "View queue",
                     modifier = Modifier.padding(end = 6.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = albumColor
                 )
                 Text(
                     text = "Queue (${queueItems.size})",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = albumColor
                 )
             }
         }
@@ -621,12 +640,12 @@ fun PlayerScreen(
             Text(
                 text = formatPlaybackTime(positionMs),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Text3
             )
             Text(
                 text = formatPlaybackTime(durationMs),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Text3
             )
         }
         var isScrubbing by remember { mutableStateOf(false) }
@@ -638,8 +657,8 @@ fun PlayerScreen(
             animationSpec = tween(if (isScrubbing) 100 else 400),
             label = "scrubThumb"
         )
-        val scrubPrimaryColor = MaterialTheme.colorScheme.primary
-        val scrubTrackColor = MaterialTheme.colorScheme.onSurface
+        val scrubPrimaryColor = albumColor
+        val scrubTrackColor = Text1
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
@@ -722,7 +741,7 @@ fun PlayerScreen(
                     Icons.Default.SkipPrevious,
                     contentDescription = "Previous",
                     modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = Text1
                 )
             }
             FilledIconButton(
@@ -731,13 +750,17 @@ fun PlayerScreen(
                     viewModel.togglePlayPause()
                 },
                 modifier = Modifier.size(72.dp),
-                shape = MaterialTheme.shapes.extraLarge
+                shape = RoundedCornerShape(36.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = albumColor,
+                    contentColor = Base
+                )
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
                     modifier = Modifier.size(40.dp),
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    tint = Base
                 )
             }
             IconButton(
@@ -751,7 +774,7 @@ fun PlayerScreen(
                     Icons.Default.SkipNext,
                     contentDescription = "Next",
                     modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = Text1
                 )
             }
         }
@@ -765,47 +788,47 @@ fun PlayerScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterChip(
+            PlayerActionChip(
                 selected = shuffleEnabled,
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     viewModel.toggleShuffle()
-                },
-                label = {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle",
-                        modifier = Modifier.size(16.dp)
-                    )
                 }
-            )
-            FilterChip(
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Shuffle,
+                    contentDescription = "Shuffle",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            PlayerActionChip(
                 selected = repeatMode == Player.REPEAT_MODE_ONE,
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     viewModel.cycleLoopMode()
-                },
-                label = { Text("Loop") }
-            )
+                }
+            ) {
+                Text("Loop", style = MaterialTheme.typography.labelMedium)
+            }
             if (!isDefaultTrack && lyricsResult !is LyricsResult.NotFound) {
-                FilterChip(
+                PlayerActionChip(
                     selected = showLyricsSheet,
-                    onClick = { showLyricsSheet = true },
-                    label = {
-                        Icon(
-                            imageVector = Icons.Default.Lyrics,
-                            contentDescription = "Lyrics",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                )
+                    onClick = { showLyricsSheet = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lyrics,
+                        contentDescription = "Lyrics",
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
             Box {
-                FilterChip(
+                PlayerActionChip(
                     selected = false,
-                    onClick = { speedMenuExpanded = true },
-                    label = { Text(speedLabel(playbackSpeed)) }
-                )
+                    onClick = { speedMenuExpanded = true }
+                ) {
+                    Text(speedLabel(playbackSpeed), style = MaterialTheme.typography.labelMedium)
+                }
                 DropdownMenu(
                     expanded = speedMenuExpanded,
                     onDismissRequest = { speedMenuExpanded = false }
@@ -838,7 +861,7 @@ fun PlayerScreen(
                     else
                         "Sleep: stops in ${sleepTimerRemainingMs!! / 60_000} min",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = albumColor
                 )
                 androidx.compose.material3.TextButton(
                     onClick = { viewModel.cancelSleepTimer() }
@@ -849,6 +872,35 @@ fun PlayerScreen(
         }
 
     }
+    }
+}
+
+@Composable
+private fun PlayerActionChip(
+    selected: Boolean,
+    onClick: () -> Unit,
+    content: @Composable RowScope.() -> Unit
+) {
+    val accentColor = LocalAccentColor.current
+    val container = if (selected) accentColor.copy(alpha = 0.18f) else SurfaceElevated.copy(alpha = 0.86f)
+    val border = if (selected) accentColor.copy(alpha = 0.28f) else BorderSubtle
+    Row(
+        modifier = Modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(17.dp))
+            .background(container)
+            .border(1.dp, border, RoundedCornerShape(17.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        val contentColor = if (selected) accentColor else Text2
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides contentColor
+        ) {
+            content()
+        }
     }
 }
 
@@ -872,7 +924,9 @@ private fun LyricsFullScreenSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        modifier = Modifier.fillMaxHeight(0.95f)
+        modifier = Modifier.fillMaxHeight(0.95f),
+        containerColor = Base,
+        contentColor = Text1
     ) {
         Column(
             modifier = Modifier
@@ -1002,7 +1056,9 @@ private fun LyricsFullScreenSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(2.dp)
-                        .clip(RoundedCornerShape(1.dp))
+                        .clip(RoundedCornerShape(1.dp)),
+                    color = LocalAccentColor.current,
+                    trackColor = BorderSubtle
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
@@ -1049,7 +1105,7 @@ private fun LyricsSection(
                 Text(
                     text = "Loading lyrics…",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = Text2.copy(alpha = 0.7f)
                 )
             }
             is LyricsResult.NotFound -> {
@@ -1061,7 +1117,7 @@ private fun LyricsSection(
                 Text(
                     text = lyricsResult.text,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Text1,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 96.dp)
@@ -1103,7 +1159,7 @@ private fun LyricsSection(
                             Text(
                                 text = text,
                                 style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Text1
                             )
                         }
                         // Next line (about to play) - smaller, faded, doesn't compete with main
@@ -1132,7 +1188,7 @@ private fun LyricsSection(
                                 Text(
                                     text = lineText,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = Text2,
                                     modifier = Modifier.alpha(0.5f)
                                 )
                             } else {

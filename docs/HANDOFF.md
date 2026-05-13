@@ -58,6 +58,10 @@ Date: 2026-05-13
   - Flattened the big stat numbers and achievement badge surfaces.
   - Tokenized playlist stat fallback surfaces.
   - Added a dedicated Stats topbar and Top artists ranked bar section from `DESIGN.md`.
+- Continued Now Playing and Settings polish:
+  - Queue bottom sheet now uses the warm Base canvas, flat rows, subtle borders, and album-accent current-track wash.
+  - Now Playing progress, playback controls, action chips, lyrics sheet, and empty artwork state now use the album accent and warm design tokens instead of default Material chip/surface colors.
+  - Settings dialog now uses a warm tokenized surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 hierarchy.
 
 ## Checks
 
@@ -86,10 +90,20 @@ Date: 2026-05-13
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Search discovery pass.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/AnalyticsScreen.kt` passes after the recommendation gating and Stats flow pass.
 - Attempted `./gradlew :app:compileDebugKotlin` after the follow-up Stats work; still blocked by missing Java/JAVA_HOME in WSL.
+- User installed OpenJDK 17 in WSL; Codex persisted `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` in `~/.zshrc`.
+- `java -version` now reports OpenJDK `17.0.18`.
+- `GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon` now starts Gradle, downloads/configures dependencies, and reaches Android SDK resolution.
+- `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ANDROID_SDK_ROOT=/mnt/c/Users/nguye/AppData/Local/Android/Sdk GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon` fails because the visible SDK is the Windows SDK; build-tools `36.0.0` has `aapt.exe` but no Linux `aapt`.
+- User reported Android Studio Gradle build succeeded on 2026-05-13.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlayerScreen.kt app/src/main/java/com/shuckler/app/ui/SettingsDialog.kt docs/CURRENT_TASK.md docs/HANDOFF.md docs/ENGINEERING_LOG.md` passes after the Now Playing/Settings slice.
+- `rg` confirms no `FilterChip`, `CircleShape`, or targeted default `MaterialTheme.colorScheme` surface/primary usages remain in `PlayerScreen.kt` or `SettingsDialog.kt`.
+- Re-attempted `:app:compileDebugKotlin` from Codex after the Now Playing/Settings slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
+- Android Studio compile reported unresolved `FilledIconButtonDefaults` in `PlayerScreen.kt`; fixed by using `IconButtonDefaults.filledIconButtonColors`.
 
 ## Known Risks
 
-- Kotlin/Compose compile succeeded in Android Studio, but Codex still cannot run Gradle from this WSL shell.
+- Kotlin/Compose compile succeeded in Android Studio per user report on 2026-05-13.
+- Codex WSL now has OpenJDK 17 and `JAVA_HOME` configured, but local Gradle checks still need a Linux Android SDK. The Windows SDK is visible at `/mnt/c/Users/nguye/AppData/Local/Android/Sdk`, but its build-tools are Windows `.exe` binaries, so WSL Gradle fails looking for Linux `aapt`.
 - Album metadata now exists on `DownloadedTrack`, but only new Spotify playlist imports currently populate it.
 - Existing downloads will have null album metadata; they fall back to artwork/title grouping until reimported or enriched.
 - Older planning docs still mention the old character icon in historical phase notes; app resources and active design docs now point to the original mark.
@@ -97,15 +111,12 @@ Date: 2026-05-13
 
 ## Remaining Work
 
-- Run Android Studio sync/build after the latest album, brand, Home, and Search changes.
-- Run Android Studio sync/build after the latest visual-token cleanup.
-- Android Studio sync/build the Home flow implementation.
-- Android Studio sync/build the Home and Library flow implementation.
 - Device-review Home with empty library, some downloads but no plays, and active listening history.
 - Device-review Library in sheet and full-tab modes, including empty library, albums shelf, playlists shelf, list/grid track view, swipe delete, and Manage storage disclosure.
 - Device-review Search with no library, with saved tracks but no query, with recommendation data, and after a normal search.
 - Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
-- Continue with Analytics/Stats and Now Playing polish using the same flow-first rules.
+- Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
+- Continue remaining flow-first polish using `DESIGN.md`, especially Downloads/active download surfaces and any remaining boxed utility sections.
 - Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
 - Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
 - Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
