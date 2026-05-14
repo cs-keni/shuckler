@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -53,6 +54,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Clear
@@ -71,6 +73,9 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -132,7 +137,7 @@ import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
 import com.shuckler.app.ui.theme.Text3
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     initialPlaylistToOpen: Playlist? = null,
@@ -198,6 +203,7 @@ fun LibraryScreen(
     var showMoodTagTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
     var selectedSmartPlaylist by remember { mutableStateOf<SmartPlaylistType?>(null) }
     var showCleanUpDialog by remember { mutableStateOf(false) }
+    var showPlaylistsSheet by remember { mutableStateOf(false) }
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
     val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
     val currentPlayingTrackId = queueItems.getOrNull((queueInfo.first - 1).coerceIn(0, queueItems.size))?.trackId
@@ -389,6 +395,35 @@ fun LibraryScreen(
             }
         )
     }
+    if (showPlaylistsSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPlaylistsSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Base
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+                Text(
+                    text = "Playlists",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Text1,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                filteredPlaylists.forEach { playlist ->
+                    val entries = allEntries.filter { it.playlistId == playlist.id }.sortedBy { it.position }
+                    PlaylistCard(
+                        playlist = playlist,
+                        tracks = completedTracks,
+                        entries = entries,
+                        onClick = {
+                            showPlaylistsSheet = false
+                            selectedPlaylist = playlist
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -564,14 +599,27 @@ fun LibraryScreen(
             }
         }
         if (albumGroups.isNotEmpty() && searchQuery.isBlank()) {
-            Text(
-                text = "Albums",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Text1,
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 20.dp, bottom = 4.dp)
-            )
+                    .pressScale(0.98f)
+                    .clickable { libraryFilter = LibraryFilter.BY_ALBUM }
+                    .padding(top = 20.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Albums",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Text1,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "View all albums",
+                    tint = Text3,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             LazyRow(
                 modifier = Modifier.padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -589,7 +637,11 @@ fun LibraryScreen(
         }
         if (filteredPlaylists.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pressScale(0.98f)
+                    .clickable { showPlaylistsSheet = true }
+                    .padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -597,6 +649,12 @@ fun LibraryScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     color = Text1,
                     modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "View all playlists",
+                    tint = Text3,
+                    modifier = Modifier.size(20.dp)
                 )
                 Box {
                     IconButton(onClick = { showPlaylistSortMenu = true }) {
@@ -641,7 +699,7 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Your Library",
+                        text = "Downloads",
                         style = MaterialTheme.typography.headlineSmall,
                         color = Text1
                     )
@@ -1484,7 +1542,7 @@ private fun LibraryTrackItem(
             .clip(RoundedCornerShape(10.dp))
             .background(if (isCurrentlyPlaying) LocalAccentColor.current.copy(alpha = 0.12f) else Base)
             .clickable(onClick = onPlayClick)
-            .padding(horizontal = 0.dp, vertical = 8.dp),
+            .padding(horizontal = 0.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
