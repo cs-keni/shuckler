@@ -1,15 +1,16 @@
 
 ## Design System
 
-The canonical design reference is `DESIGN.md` in the project root.
+The canonical design reference is `docs/DESIGN.md`.
 
 Key decisions:
-- **Colors:** Token system in `Color.kt` — never hardcode colors in composables. See `DESIGN.md § Color Tokens`.
-- **Typography:** DM Serif Display (display/headers/empty states) + DM Mono (timestamps/metadata). No Instrument Serif, no italic for headers.
+- **Colors:** Token system in `Color.kt` — never hardcode colors in composables. See `docs/DESIGN.md § Color Tokens`.
+- **Typography:** Plus Jakarta Sans (display/headers) + DM Mono (timestamps/metadata). No Instrument Serif, no italic for headers.
 - **Album art:** Always `RoundedCornerShape` — never `CircleShape`.
 - **Mini player:** Floating pill above nav bar, not a full-width bottom bar.
 - **Accent color:** `LocalAccentColor` CompositionLocal — replaced at runtime by Palette API from album art.
-- **Preview:** `design-preview.html` in project root — open in browser to see all screens.
+- **Preview:** `docs/preview/design-preview.html` — open in browser to see all screens.
+- **Redesign backlog:** `docs/REDESIGN-v3.md` — post-launch v3 improvements, phased by risk.
 
 ## Skill routing
 
