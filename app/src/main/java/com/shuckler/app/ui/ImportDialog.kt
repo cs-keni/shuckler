@@ -2,6 +2,8 @@ package com.shuckler.app.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -23,8 +26,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -47,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,8 +62,16 @@ import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.spotify.LocalSpotifyAuthManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.spotify.SpotifyRepository
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Red
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 import com.shuckler.app.youtube.YouTubeRepository
-import com.shuckler.app.youtube.YouTubeSearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,10 +93,11 @@ fun ImportDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = Surface,
+        contentColor = Text1,
         dragHandle = null
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().background(Surface)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,21 +107,30 @@ fun ImportDialog(
             ) {
                 Text(
                     "Import playlist",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Text1
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Close")
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Text2)
                 }
             }
-            TabRow(selectedTabIndex = selectedTab) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Surface,
+                contentColor = LocalAccentColor.current
+            ) {
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
+                    selectedContentColor = LocalAccentColor.current,
+                    unselectedContentColor = Text2,
                     text = { Text("YouTube") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    selectedContentColor = LocalAccentColor.current,
+                    unselectedContentColor = Text2,
                     text = { Text("Spotify") }
                 )
             }
@@ -159,8 +181,9 @@ private fun YouTubeImportContent(
             onValueChange = { playlistUrl = it; error = null; playlistInfo = null },
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Paste YouTube playlist URL") },
-            leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
-            singleLine = true
+            leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = Text2) },
+            singleLine = true,
+            colors = importTextFieldColors()
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -181,13 +204,15 @@ private fun YouTubeImportContent(
                         }
                     }
                 },
-                enabled = !isLoading && playlistUrl.isNotBlank()
+                enabled = !isLoading && playlistUrl.isNotBlank(),
+                colors = importPrimaryButtonColors(),
+                shape = RoundedCornerShape(8.dp)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = Base
                     )
                 } else {
                     Text("Fetch playlist")
@@ -195,14 +220,14 @@ private fun YouTubeImportContent(
             }
             if (playlistInfo != null) {
                 TextButton(onClick = { playlistInfo = null; playlistUrl = "" }) {
-                    Text("Clear")
+                    Text("Clear", color = Text2)
                 }
             }
         }
         error?.let { msg ->
             Text(
                 msg,
-                color = MaterialTheme.colorScheme.error,
+                color = Red,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -210,13 +235,14 @@ private fun YouTubeImportContent(
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 "${info.name} (${info.items.size} tracks)",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = Text1
             )
             if (info.description != null) {
                 Text(
                     info.description.take(100) + if ((info.description.length) > 100) "…" else "",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Text2,
                     maxLines = 2
                 )
             }
@@ -231,7 +257,7 @@ private fun YouTubeImportContent(
                 Text(
                     "$alreadyHave already in library",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
             }
                 Button(
@@ -272,7 +298,9 @@ private fun YouTubeImportContent(
                         }
                         onImportComplete(playlist)
                     },
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 8.dp),
+                colors = importPrimaryButtonColors(),
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.size(8.dp))
@@ -281,6 +309,27 @@ private fun YouTubeImportContent(
         }
     }
 }
+
+@Composable
+private fun importPrimaryButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = LocalAccentColor.current,
+    contentColor = Base,
+    disabledContainerColor = SurfaceElevated,
+    disabledContentColor = Text3
+)
+
+@Composable
+private fun importTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Text1,
+    unfocusedTextColor = Text1,
+    focusedContainerColor = SurfaceElevated,
+    unfocusedContainerColor = SurfaceElevated,
+    focusedBorderColor = LocalAccentColor.current,
+    unfocusedBorderColor = Border,
+    focusedPlaceholderColor = Text3,
+    unfocusedPlaceholderColor = Text3,
+    cursorColor = LocalAccentColor.current
+)
 
 @Composable
 private fun SpotifyImportContent(
@@ -317,12 +366,12 @@ private fun SpotifyImportContent(
             Text(
                 "Spotify import requires setup.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Text2
             )
             Text(
                 "Add SPOTIFY_CLIENT_ID to gradle.properties. See IMPORT_SETUP.md for steps.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+                color = Red,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -339,7 +388,7 @@ private fun SpotifyImportContent(
                 Text(
                     "Connect your Spotify account to import playlists.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
@@ -348,13 +397,15 @@ private fun SpotifyImportContent(
                         spotifyAuthManager.saveCodeVerifier(verifier)
                         val url = SpotifyRepository.buildAuthUrl(clientId, verifier)
                         androidContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                    }
+                    },
+                    colors = importPrimaryButtonColors(),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(8.dp))
                     Text("Connect Spotify")
                 }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
+                error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 8.dp)) }
             }
         }
         selectedPlaylist == null -> {
@@ -376,14 +427,16 @@ private fun SpotifyImportContent(
                                 isLoading = false
                             }
                         },
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(16.dp),
+                        colors = importPrimaryButtonColors(),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                        if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Base)
                         else Text("Load my playlists")
                     }
                 } else if (isLoading) {
                     Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        CircularProgressIndicator(color = LocalAccentColor.current)
                     }
                 } else {
                     LazyColumn(
@@ -393,26 +446,26 @@ private fun SpotifyImportContent(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(playlists) { pl ->
-                            Card(
-                                onClick = {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(SurfaceElevated)
+                                    .clickable {
                                     selectedPlaylist = pl
                                     tracks = emptyList()
                                     scope.launch {
                                         val token = accessToken ?: return@launch
                                         tracks = SpotifyRepository.getPlaylistTracks(token, pl.id)
                                     }
-                                },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                }
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
                                     Text(
                                         pl.name,
                                         style = MaterialTheme.typography.titleMedium,
+                                        color = Text1,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         modifier = Modifier.weight(1f)
@@ -420,9 +473,8 @@ private fun SpotifyImportContent(
                                     Text(
                                         "${pl.trackCount} tracks",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Text2
                                     )
-                                }
                             }
                         }
                     }
@@ -441,10 +493,10 @@ private fun SpotifyImportContent(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(pl.name, style = MaterialTheme.typography.titleMedium)
-                    TextButton(onClick = { selectedPlaylist = null }) { Text("Back") }
+                    Text(pl.name, style = MaterialTheme.typography.titleMedium, color = Text1)
+                    TextButton(onClick = { selectedPlaylist = null }) { Text("Back", color = Text2) }
                 }
-                Text("${tracks.size} tracks. Each will be searched on YouTube and downloaded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${tracks.size} tracks. Each will be searched on YouTube and downloaded.", style = MaterialTheme.typography.bodySmall, color = Text2)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
@@ -486,9 +538,11 @@ private fun SpotifyImportContent(
                             onImportComplete(playlist)
                         }
                     },
-                    enabled = !isImporting && tracks.isNotEmpty()
+                    enabled = !isImporting && tracks.isNotEmpty(),
+                    colors = importPrimaryButtonColors(),
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    if (isImporting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                    if (isImporting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Base)
                     else Text("Import ${tracks.size} tracks from YouTube")
                 }
             }

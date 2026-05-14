@@ -1,8 +1,11 @@
 package com.shuckler.app.ui
 
 import android.graphics.Bitmap
-import com.shuckler.app.ui.theme.Amber
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import android.graphics.BitmapFactory
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,6 +65,7 @@ fun CropCoverDialog(
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var layoutSize by remember { mutableStateOf(IntSize.Zero) }
     val context = LocalContext.current
+    val accent = LocalAccentColor.current
 
     LaunchedEffect(imageUri) {
         bitmap = withContext(Dispatchers.IO) {
@@ -81,13 +86,13 @@ fun CropCoverDialog(
     val bmp = bitmap
     if (bmp == null) {
         Box(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).padding(24.dp),
+            modifier = Modifier.fillMaxSize().background(Surface).padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Loading…", color = MaterialTheme.colorScheme.onSurface)
+            Text("Loading…", color = Text1)
         }
     } else {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+    Column(modifier = Modifier.fillMaxSize().background(Surface)) {
     val imgW = bmp.width.toFloat()
     val imgH = bmp.height.toFloat()
     val minDim = min(imgW, imgH)
@@ -108,8 +113,8 @@ fun CropCoverDialog(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-            Text("Crop cover", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Text2) }
+            Text("Crop cover", style = MaterialTheme.typography.titleMedium, color = Text1, modifier = Modifier.weight(1f))
             Button(onClick = {
                 try {
                     val sw = cropSize.toInt().coerceAtLeast(1)
@@ -134,7 +139,12 @@ fun CropCoverDialog(
                 } catch (_: Exception) {
                     onDismiss()
                 }
-            }) { Text("Done") }
+            },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent,
+                    contentColor = Base
+                )
+            ) { Text("Done") }
         }
         Box(
             modifier = Modifier
@@ -214,7 +224,7 @@ fun CropCoverDialog(
                 )
 
                 drawRect(
-                    color = Amber.copy(alpha = 0.25f),
+                    color = accent.copy(alpha = 0.25f),
                     topLeft = Offset(cropLeft, cropTop),
                     size = Size(cropW, cropH)
                 )

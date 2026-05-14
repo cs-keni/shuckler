@@ -41,7 +41,8 @@ Flow-first `DESIGN.md` completion is the active implementation slice:
 - Playlist Detail flow polish continued: the screen now uses the warm Base canvas, tokenized header/actions/dialogs, flattened playlist track rows, rectangular artwork, and an accent wash for the currently playing row instead of card containers.
 - Artist Detail and Album Detail token polish continued: hero text, outline actions, flat rows, artwork placeholders, metadata, and currently-playing highlights now use design tokens instead of default Material surface/text colors.
 - Onboarding and Create surfaces now use the warm Base canvas, tokenized copy, accent actions, and rectangular brand artwork container.
+- Import dialog, Crop Cover, and Equalizer utility polish continued: modal surfaces, tabs, inputs, buttons, playlist rows, crop overlay, and EQ controls now use warm design tokens and runtime accent color instead of default Material surface/accent colors.
 
 ## Next Best Work
 
-Continue remaining `DESIGN.md` consistency passes on the less-polished surfaces: Import dialog, Crop Cover, Equalizer, and any remaining default Material color usage. Android Studio build/run should cover Home, Library sheet/full tab, Search idle/results, active downloads, Stats, Playlist Detail, Artist Detail, Album Detail, Onboarding, Create, Now Playing, Queue, Lyrics, and Settings.
+Do a final `DESIGN.md` sweep of remaining scattered defaults/function-name false positives in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph, then Android Studio build/run all redesigned flows.

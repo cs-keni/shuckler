@@ -50,3 +50,5 @@
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes. Codex-side Gradle remains blocked before Kotlin compilation by the Windows Android SDK build-tools lacking Linux `aapt`.
 - Artist Detail, Album Detail, Onboarding, and Create were tokenized after Playlist Detail. These screens were structurally close to `DESIGN.md` but still had default Material surface/text/accent usage in secondary states.
 - Re-attempting Codex-side Gradle after the detail/onboarding slice still fails before Kotlin compilation on the known Windows SDK `aapt` mismatch.
+- Import dialog, Crop Cover, and Equalizer were tokenized next. `rg` now finds no targeted default Material surface/primary color usages in those files.
+- A broad remaining-default scan still reports some expected function-name hits (`StatCard`, `ArtistAlbumCard`, local `FilterChip`, etc.) plus scattered real leftovers in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph.

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
@@ -21,6 +22,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ClipOp
@@ -45,9 +48,14 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.shuckler.app.equalizer.EqualizerPreferences
 import com.shuckler.app.player.MusicPlayerService
-import com.shuckler.app.ui.theme.Amber as ShucklerNeonYellow
-import com.shuckler.app.ui.theme.Base as ShucklerBlack
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -96,10 +104,14 @@ fun EqualizerDialog(
     val density = LocalDensity.current
     val dotRadiusPx = with(density) { 4.dp.toPx() }  // ~25% of original 16.dp
     val hitRadiusPx = with(density) { 20.dp.toPx() }  // Touch target stays larger for usability
+    val accent = LocalAccentColor.current
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Equalizer") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = { Text("Equalizer", style = MaterialTheme.typography.titleMedium) },
         text = {
             Column(
                 modifier = Modifier
@@ -115,7 +127,7 @@ fun EqualizerDialog(
                     Text(
                         text = "Enable",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Text1
                     )
                     Switch(
                         checked = enabled,
@@ -123,7 +135,14 @@ fun EqualizerDialog(
                             enabled = it
                             EqualizerPreferences.setEnabled(context, it)
                             service?.applyEqualizerFromPrefs()
-                        }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Base,
+                            checkedTrackColor = accent,
+                            uncheckedThumbColor = Text2,
+                            uncheckedTrackColor = SurfaceElevated,
+                            uncheckedBorderColor = Border
+                        )
                     )
                 }
 
@@ -131,13 +150,14 @@ fun EqualizerDialog(
                 Text(
                     text = "Preset",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
                 Box {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(SurfaceElevated)
                             .clickable { presetMenuExpanded = true }
                             .padding(12.dp, 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -146,17 +166,18 @@ fun EqualizerDialog(
                         Text(
                             text = presetLabel,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Text1
                         )
                         Icon(
                             imageVector = Icons.Default.ExpandMore,
                             contentDescription = "Expand presets",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = Text2
                         )
                     }
                     DropdownMenu(
                         expanded = presetMenuExpanded,
-                        onDismissRequest = { presetMenuExpanded = false }
+                        onDismissRequest = { presetMenuExpanded = false },
+                        containerColor = SurfaceElevated
                     ) {
                         EqualizerPreferences.PRESETS.forEachIndexed { index, (name, _) ->
                             DropdownMenuItem(
@@ -180,7 +201,7 @@ fun EqualizerDialog(
                 Text(
                     text = "Bands",
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
                 Box(
                     modifier = Modifier
@@ -229,7 +250,7 @@ fun EqualizerDialog(
                     if (w > 0 && h > 0 && n >= 2) {
                         val stepX = w / (n - 1)
                         val zeroY = dbToY(0)
-                        val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        val gridColor = Text2.copy(alpha = 0.3f)
 
                         Canvas(modifier = Modifier.fillMaxWidth().height(160.dp)) {
                             // 1. Grid: vertical lines at each band, horizontal line at 0dB
@@ -239,7 +260,7 @@ fun EqualizerDialog(
                             }
                             drawLine(gridColor, Offset(0f, zeroY), Offset(w, zeroY), strokeWidth = 1.5f)
 
-                            // 2. Gradient fill under curve (neon yellow at top -> black at bottom)
+                            // 2. Gradient fill under curve
                             val fillPath = Path().apply {
                                 moveTo(0f, dbToY(bandLevels[0]))
                                 for (i in 1 until n) {
@@ -252,7 +273,7 @@ fun EqualizerDialog(
                             clipPath(fillPath, clipOp = ClipOp.Intersect) {
                                 drawRect(
                                     brush = Brush.verticalGradient(
-                                        colors = listOf(ShucklerNeonYellow, ShucklerBlack),
+                                        colors = listOf(accent, Base),
                                         startY = 0f,
                                         endY = h
                                     )
@@ -268,7 +289,7 @@ fun EqualizerDialog(
                             }
                             drawPath(
                                 linePath,
-                                ShucklerNeonYellow.copy(alpha = 0.9f),
+                                accent.copy(alpha = 0.9f),
                                 style = Stroke(width = 2.5f)
                             )
 
@@ -277,7 +298,7 @@ fun EqualizerDialog(
                                 val cx = i * stepX
                                 val cy = dbToY(bandLevels[i])
                                 drawCircle(
-                                    color = ShucklerNeonYellow,
+                                    color = accent,
                                     radius = dotRadiusPx,
                                     center = Offset(cx, cy)
                                 )
@@ -300,14 +321,14 @@ fun EqualizerDialog(
                         Text(
                             text = label + " Hz",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Text3
                         )
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
+            TextButton(onClick = onDismiss) { Text("Done", color = accent) }
         }
     )
 }
