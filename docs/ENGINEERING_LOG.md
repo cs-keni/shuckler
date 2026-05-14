@@ -1,5 +1,17 @@
 # Engineering Log
 
+## 2026-05-14 (Claude Code — session 2)
+
+- Implemented Phases 2–4 of the Ambient Color + Animation System. Commit: `740648f`.
+- **`AccentExtensions.kt`** (new): five accent color helpers (`accentAmbient`, `accentWash`, `accentChipBg`, `accentChipBorder`, `accentAlbumGroup`) + `Modifier.pressScale()` extension. Press scale uses `awaitFirstDown(requireUnconsumed = false)` so it does not consume touch events and coexists cleanly with `Modifier.clickable`.
+- **Library Album View**: `BY_ALBUM` added to `LibraryFilter`. "By Album" chip in filter row routes to a new `AlbumGroupedList` composable. Album headers use DM Serif Display titles, 28×28dp thumbnails, spring-animated chevrons for collapse. Playing album header: accent tint at 6% + accent title color. Track rows indented 40dp, no art (implied by album header). Search filters album groups and their tracks. Sort dropdown hidden in BY_ALBUM mode.
+- **List Stagger Entrance**: `itemsIndexed` in flat `LazyColumn` and inside `AlbumGroupedList`. Items 0–4 stagger at 30ms intervals; items ≥5 appear instantly. `LaunchedEffect(track.id)` ensures animation only fires for new items, not scroll recompose.
+- **Album Art Bloom**: `rememberInfiniteTransition` in `LibraryAlbumCard`. `bloomPulse` 0→1→0 at 2000ms. Bloom box scales 1.0→1.18 and alpha 0.35→0.80 via infinite pulse, using `RoundedCornerShape(18.dp)` fill. Only visible when `isPlaying = true`; transition still runs cheaply when not playing.
+- **Download Spring Collapse**: `lingeringProgress` `SnapshotStateMap` in `SearchScreen` keeps cards alive after they leave the `progress` flow. `LaunchedEffect(isActive)` delays 1.5s then sets `cardVisible = false`, triggering `AnimatedVisibility` spring-shrink exit (`StiffnessLow` + `DampingRatioMediumBouncy`).
+- `pressScale(0.92f)` applied to `FilterChip`; `pressScale(0.96f)` applied to `LibraryAlbumCard`.
+- `showArt: Boolean = true` param added to `LibraryTrackItem`; album grouped rows pass `showArt = false`.
+- WSL Gradle still blocked (known). Build in Android Studio.
+
 ## 2026-05-14
 
 - Implemented ambient album color system across all screens. Commit: `033b408`.
