@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.playlist.Playlist
+import java.util.Calendar
 import org.json.JSONArray
 
 /**
@@ -22,11 +23,16 @@ object AchievementDefinitions {
         AchievementBadge("first_download", "First Download", "Download your first track", "📥"),
         AchievementBadge("first_playlist", "First Playlist", "Create your first playlist", "📋"),
         AchievementBadge("ten_favorites", "Music Lover", "Add 10 tracks to favorites", "❤️"),
-        AchievementBadge("hundred_plays", "Century", "Play 100 tracks", "🎵"),
+        AchievementBadge("hundred_plays", "Century", "Reach 100 total plays", "🎵"),
         AchievementBadge("library_50", "Collector", "Build a library of 50 tracks", "📚"),
         AchievementBadge("library_100", "Archivist", "Build a library of 100 tracks", "🏛️"),
         AchievementBadge("twenty_favorites", "Super Fan", "Add 20 tracks to favorites", "💖"),
-        AchievementBadge("five_playlists", "Organizer", "Create 5 playlists", "📂")
+        AchievementBadge("five_playlists", "Organizer", "Create 5 playlists", "📂"),
+        AchievementBadge("night_owl", "Night Owl", "Listen to music after midnight", "🦉"),
+        AchievementBadge("marathon", "Marathon", "Reach 500 total plays", "🏃"),
+        AchievementBadge("dedicated", "Dedicated", "Play any track 20 times", "🎯"),
+        AchievementBadge("explorer", "Explorer", "Collect tracks from 10+ artists", "🗺️"),
+        AchievementBadge("mood_setter", "Mood Setter", "Tag a track with a mood", "🎭")
     )
 
     fun get(id: String): AchievementBadge? = ALL.find { it.id == id }
@@ -82,6 +88,16 @@ class AchievementManager(private val context: Context) {
         if (completed.size >= 50) unlock("library_50")
         if (completed.size >= 100) unlock("library_100")
         if (playlists.size >= 5) unlock("five_playlists")
+        if (totalPlayCount >= 500) unlock("marathon")
+        if (completed.any { it.playCount >= 20 }) unlock("dedicated")
+        if (completed.map { it.artist }.filter { it.isNotBlank() }.distinct().size >= 10) unlock("explorer")
+        if (completed.any { it.moodTags.isNotEmpty() }) unlock("mood_setter")
+        if (completed.any { track ->
+            track.lastPlayedMs > 0 && Calendar.getInstance().run {
+                timeInMillis = track.lastPlayedMs
+                get(Calendar.HOUR_OF_DAY) in 0..4
+            }
+        }) unlock("night_owl")
 
         return newlyUnlocked
     }

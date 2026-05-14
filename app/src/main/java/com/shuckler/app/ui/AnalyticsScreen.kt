@@ -1,7 +1,10 @@
 package com.shuckler.app.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,6 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,7 +58,6 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
-import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.SurfaceElevated
@@ -83,6 +89,21 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     val cutoffMs = timeRange.ms?.let { now - it } ?: 0L
     val filteredTracks = if (timeRange == AnalyticsTimeRange.ALL) completed
         else completed.filter { it.lastPlayedMs >= cutoffMs }
+
+    val streakDays = remember(completed) {
+        val dayMs = 86_400_000L
+        val cal = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }
+        val todayStart = cal.timeInMillis
+        var streak = 0
+        for (daysAgo in 0..29) {
+            val start = todayStart - daysAgo * dayMs
+            if (completed.any { it.lastPlayedMs in start until start + dayMs }) streak++ else break
+        }
+        streak
+    }
 
     val totalPlayCount = filteredTracks.sumOf { it.playCount }
     val favoriteCount = filteredTracks.count { it.isFavorite }
@@ -176,6 +197,43 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
             StatCard(label = "Tracks", value = "${filteredTracks.size}")
             StatCard(label = "Plays", value = "$totalPlayCount")
             StatCard(label = "Favorites", value = "$favoriteCount")
+        }
+        if (streakDays > 0) {
+            val streakAccent = LocalAccentColor.current
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(streakAccent.copy(alpha = 0.12f))
+                    .border(1.dp, streakAccent.copy(alpha = 0.28f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🔥", style = MaterialTheme.typography.titleSmall)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "$streakDays-day streak",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Text1
+                    )
+                    Text(
+                        text = if (streakDays >= 7) "Week complete — legendary!" else "Keep it going",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Text3
+                    )
+                }
+            }
+        }
+        if (filteredTracks.any { it.playCount > 0 }) {
+            Text(
+                text = "Play Distribution",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Text1,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            DonutChart(tracks = filteredTracks)
         }
         WeeklyChart(completedTracks = completed)
         Text(
@@ -566,5 +624,118 @@ private fun PlaylistStatCard(
             style = MaterialTheme.typography.labelSmall,
             color = Text3
         )
+    }
+}
+
+@Composable
+private fun DonutChart(
+    tracks: List<DownloadedTrack>,
+    modifier: Modifier = Modifier
+) {
+    val accentColor = LocalAccentColor.current
+
+    val artistSlices = remember(tracks) {
+        tracks
+            .filter { it.artist.isNotBlank() && it.playCount > 0 }
+            .groupBy { it.artist }
+            .map { (artist, list) -> artist to list.sumOf { it.playCount } }
+            .sortedByDescending { it.second }
+    }
+
+    if (artistSlices.isEmpty()) return
+
+    val totalPlays = artistSlices.sumOf { it.second }
+    val top5 = artistSlices.take(5)
+    val othersPlays = totalPlays - top5.sumOf { it.second }
+
+    val sliceAlphas = listOf(1.0f, 0.75f, 0.55f, 0.38f, 0.24f)
+    val slices = top5.mapIndexed { i, (artist, plays) ->
+        Triple(artist, plays, accentColor.copy(alpha = sliceAlphas[i]))
+    } + if (othersPlays > 0) listOf(Triple("Others", othersPlays, Text3.copy(alpha = 0.4f))) else emptyList()
+
+    val sweepAngles = slices.map { (_, plays, _) -> 360f * plays / totalPlays }
+
+    val animatable = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        animatable.animateTo(1f, animationSpec = tween(900, easing = FastOutSlowInEasing))
+    }
+    val progress = animatable.value
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(148.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 30.dp.toPx()
+                val inset = strokeWidth / 2f
+                val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                val topLeft = Offset(inset, inset)
+                var startAngle = -90f
+                slices.forEachIndexed { i, (_, _, color) ->
+                    val sweep = (sweepAngles[i] * progress).coerceAtLeast(0f)
+                    drawArc(
+                        color = color,
+                        startAngle = startAngle,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
+                    )
+                    startAngle += sweepAngles[i]
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "$totalPlays",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Text1
+                )
+                Text(
+                    text = "plays",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Text3
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            slices.forEach { (artist, plays, color) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(color)
+                    )
+                    Text(
+                        text = artist,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Text2,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${((100f * plays / totalPlays) + 0.5f).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Text3
+                    )
+                }
+            }
+        }
     }
 }
