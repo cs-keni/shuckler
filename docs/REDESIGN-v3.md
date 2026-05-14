@@ -328,6 +328,143 @@ Add achievement triggers:
 
 Easter egg: If the user plays the same song 10 times in a row, show a fun `Snackbar` or animated overlay — "ok we get it, you love this song 😭" (with the crying emoji — this one warrants the exception).
 
+### 6.5 Listening Streak
+
+Track consecutive days where the user listened for at least 15 minutes. Display as a flame/streak chip on the Stats screen header (e.g., "🔥 7-day streak"). Reset if a day is skipped.
+
+Store `lastListenDateEpochDay` and `currentStreakDays` in DataStore/SharedPreferences alongside existing stats. Increment on session end if the current epoch day differs from last.
+
+This alone dramatically increases retention — streaks are one of the highest-leverage engagement mechanics.
+
+### 6.6 Shareable Stats Card
+
+Generate a screenshot-ready summary card in Stats: album art mosaic of top 5 tracks, total play time, top artist, streak, and the app name — all on a branded dark background with accent color. Render via `AndroidView` wrapping a `ComposeView` at fixed 1080×1080 resolution, then use `Bitmap.createBitmap` + `Canvas.drawBitmap` to export. Share via `ShareCompat`.
+
+---
+
+## Phase 7 — Feel & Micro-interactions
+
+This phase makes the app feel *premium*. None of these are features — they're sensory feedback loops that make every interaction satisfying. High impact, medium complexity.
+
+### 7.1 Haptic Feedback
+
+**File:** `app/src/main/java/com/shuckler/app/ui/PlayerScreen.kt` + `LibraryScreen.kt` + `SearchScreen.kt`
+
+Add `HapticFeedbackType` calls at key moments:
+- **Play/Pause toggle** — `haptic.performHapticFeedback(HapticFeedbackType.LongPress)` (satisfying "click" sensation)
+- **Download complete** — `HapticFeedbackType.LongPress` on the card spring-collapse
+- **Achievement unlock** — double pulse (two `HapticFeedbackType.LongPress` 100ms apart)
+- **Track favorited** — `HapticFeedbackType.LongPress`
+- **Swipe-to-delete confirm** — `HapticFeedbackType.LongPress`
+
+In Compose: `val haptic = LocalHapticFeedback.current` — no permissions needed, uses existing system APIs.
+
+### 7.2 Swipe Up from Mini Player → Now Playing
+
+**Files:** `MiniPlayerBar.kt`, `NavGraph.kt`
+
+The mini player pill should respond to an upward drag gesture that opens the Now Playing screen. This is a fundamental music app UX pattern (Spotify, Apple Music both do it).
+
+**Implementation:** Add `Modifier.pointerInput(Unit)` detecting a vertical swipe (velocity > 500 px/s upward) on the `MiniPlayerBar` composable. On trigger, navigate to the Now Playing route.
+
+```kotlin
+.pointerInput(Unit) {
+    detectVerticalDragGestures(
+        onDragEnd = { /* navigate if velocity was upward */ }
+    ) { _, dragAmount ->
+        if (dragAmount < -80f) { onNavigateToPlayer() }
+    }
+}
+```
+
+### 7.3 Swipe Down to Dismiss Now Playing → Mini Player
+
+**File:** `PlayerScreen.kt`
+
+Complement to 7.2 — swipe down on the Now Playing screen collapses it back to the mini player. Use `detectVerticalDragGestures` on the root `Column`. If drag exceeds 120dp downward, call `navController.navigateUp()`. Add a `graphicsLayer { translationY = dragOffset }` visual preview during the drag so it feels physically attached.
+
+### 7.4 Mini Player Progress Bar
+
+**File:** `MiniPlayerBar.kt`
+
+Add a thin (2dp) accent-colored line at the bottom edge of the mini player pill, showing track progress (0% → 100%). Use `LinearProgressIndicator` with `progress = positionMs / durationMs` and `color = LocalAccentColor.current`. This is the most elegant way to show playback position without adding any cognitive load.
+
+```kotlin
+LinearProgressIndicator(
+    progress = { (positionMs / durationMs.toFloat()).coerceIn(0f, 1f) },
+    modifier = Modifier
+        .fillMaxWidth()
+        .height(2.dp)
+        .align(Alignment.BottomCenter)
+        .clip(CircleShape),
+    color = LocalAccentColor.current,
+    trackColor = Color.Transparent
+)
+```
+
+### 7.5 Skeleton Loading States for Search
+
+**File:** `SearchScreen.kt`
+
+Replace the loading spinner on search results with shimmer skeleton cards — same height/layout as result cards, animated shimmer gradient sweeping left-to-right. The existing `Shimmer.kt` composable is already in the project; wire it up to the search loading state.
+
+This makes the app feel significantly faster — perceived performance improves even when actual latency is unchanged.
+
+### 7.6 Long-Press Context Menu on Tracks
+
+**Files:** `LibraryScreen.kt`, `SearchScreen.kt`, `PlaylistScreen.kt`
+
+Long-pressing any track should open a `ModalBottomSheet` with quick actions:
+- Play next (insert after current in queue)
+- Add to queue (append)
+- Add to playlist (submenu or dialog)
+- Share (YouTube link)
+- Delete (Library only)
+
+This removes clutter from the visible UI while giving power users direct access to the actions they need. Use `Modifier.combinedClickable(onLongClick = { showMenu = true })`.
+
+### 7.7 Undo Snackbar for Track Deletion
+
+**File:** `LibraryScreen.kt`
+
+After swipe-to-delete in Library, immediately remove the track from the list but show a `Snackbar` with "Undo" for 4 seconds. If Undo is tapped, re-insert the track at its original position. If the Snackbar dismisses naturally, commit the deletion.
+
+Pattern: keep a `deletedTrack: DownloadedTrack?` state variable. On swipe, set `deletedTrack = track` and remove from list. On `LaunchedEffect(deletedTrack)`, delay 4s then actually delete from disk/DB if still non-null.
+
+### 7.8 Sleep Timer Countdown Chip in Now Playing
+
+**File:** `PlayerScreen.kt`
+
+Already on the Phase 5 wishlist in `CURRENT_TASK.md`. When a sleep timer is active, show a small chip in the Now Playing action row: `⏱ 23:14` counting down. The `sleepTimerRemainingMs` state is already available. Tapping the chip cancels the timer.
+
+---
+
+## Phase 8 — Playback & Queue UX
+
+### 8.1 Loading State When Fetching Stream
+
+**File:** `PlayerScreen.kt` + `MiniPlayerBar.kt`
+
+When the user taps Play on a streamed (not downloaded) track, there's a delay while fetching the stream URL from YouTube. Currently this is silent — the UI looks like nothing happened. Show a subtle loading indicator:
+- In MiniPlayerBar: replace the play/pause icon with a `CircularProgressIndicator` while `isLoading = true`
+- In PlayerScreen: same on the main play button
+
+This prevents users from tapping Play multiple times thinking it didn't register.
+
+### 8.2 Offline / Downloaded Badge on Tracks
+
+**File:** `LibraryScreen.kt`, `SearchScreen.kt`
+
+In Search results, if a track is already in the Library (matched by video ID or title+artist), show a small "Downloaded" chip or a download-complete icon instead of the download button. This is partially implemented per `QOL.md` — verify coverage is complete.
+
+In Library, distinguish streamed-without-download tracks (if any) from fully downloaded ones with a small icon.
+
+### 8.3 Gapless Playback Verification
+
+**File:** `app/src/main/java/com/shuckler/app/player/`
+
+ExoPlayer supports gapless playback when tracks are pre-loaded into the `MediaItem` queue. Verify that the next track's `MediaItem` is queued before the current track ends (at least 15 seconds before). If not, pre-fetch the stream URL and add to the `ExoPlayer` queue. Silent win — no UI change needed.
+
 ---
 
 ## Implementation Order
@@ -363,6 +500,23 @@ Phase 6 — Stats (additive, low risk)
   6.2  Donut chart (Canvas, no dep)
   6.3  Tappable stats (clickable + nav)
   6.4  New achievements
+  6.5  Listening streak (DataStore)
+  6.6  Shareable stats card
+
+Phase 7 — Feel & Micro-interactions (high impact, mostly additive)
+  7.1  Haptic feedback (play/pause, download complete, achievement)
+  7.2  Swipe up mini player → Now Playing
+  7.3  Swipe down Now Playing → mini player
+  7.4  Mini player progress bar
+  7.5  Skeleton loading in Search
+  7.6  Long-press context menu on tracks
+  7.7  Undo snackbar for track deletion
+  7.8  Sleep timer countdown chip in Now Playing
+
+Phase 8 — Playback & queue UX
+  8.1  Loading state when fetching stream URL
+  8.2  Downloaded badge on Search results
+  8.3  Gapless playback verification
 ```
 
 ---
@@ -374,3 +528,6 @@ Phase 6 — Stats (additive, low risk)
 - **Font loading is async** — Plus Jakarta Sans via Google Fonts provider will fall back to system-default on first load. This is expected; the font caches after first run. No fallback font needs to be embedded unless offline font support is required.
 - **OkHttpDownloader** — check whether it shares a connection pool with the ExoPlayer streaming client before assuming downloads and playback are independent.
 - **pressScale + clickable** — the `awaitFirstDown(requireUnconsumed = false)` pattern is critical. Don't revert to `detectTapGestures(onPress)` which consumes events and breaks clickable.
+- **Haptic feedback** — `LocalHapticFeedback.current` is available in any composable, no permissions required. Prefer `HapticFeedbackType.LongPress` over `TextHandleMove` — more reliable across manufacturers.
+- **Swipe gestures on mini player** — test on physical device. The pill lives inside a `NavigationBar` container; touch events may need `Modifier.zIndex(1f)` + `consumeWindowInsets` to propagate correctly.
+- **QOL.md** — `docs/QOL.md` has a broader brainstorm backlog. Items in this doc represent the prioritized slice; everything else lives there for future passes.
