@@ -162,8 +162,6 @@ fun SearchScreen(
             scrollState.scrollTo(savedScrollOffset)
         }
     }
-    val previewingVideoUrl by PreviewPlayer.previewingVideoUrl.collectAsState(initial = null)
-    val previewPositionMs by PreviewPlayer.positionMs.collectAsState(initial = 0L)
     val accentColor = LocalAccentColor.current
 
     DisposableEffect(Unit) {
@@ -465,12 +463,9 @@ fun SearchScreen(
                         result = result,
                         isDownloading = downloadingVideoUrl == result.url,
                         isStreaming = streamingVideoUrl == result.url,
-                        isPreviewing = previewingVideoUrl == result.url,
                         isDownloaded = isDownloaded,
-                        previewPositionMs = if (previewingVideoUrl == result.url) previewPositionMs else 0L,
-                        previewDurationMs = PreviewPlayer.previewDurationMs,
                         onPlayClick = {
-                        if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                        PreviewPlayer.stop()
                         youtubeDownloadError = null
                         streamingVideoUrl = result.url
                         scope.launch {
@@ -506,21 +501,8 @@ fun SearchScreen(
                             streamingVideoUrl = null
                         }
                     },
-                    onPreviewClick = {
-                        youtubeDownloadError = null
-                        scope.launch {
-                            val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                            when (resultAudio) {
-                                is YouTubeRepository.AudioStreamResult.Success ->
-                                    PreviewPlayer.play(context, result.url, resultAudio.info.url)
-                                is YouTubeRepository.AudioStreamResult.Failure ->
-                                    youtubeDownloadError = resultAudio.message
-                            }
-                        }
-                    },
-                    onStopPreviewClick = { PreviewPlayer.stop() },
                     onDownloadClick = {
-                        if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                        PreviewPlayer.stop()
                         youtubeDownloadError = null
                         val id = downloadManager.startDownloadFromYouTube(
                             result.url,
@@ -559,10 +541,9 @@ fun SearchScreen(
                         result = result,
                         isDownloading = downloadingVideoUrl == result.url,
                         isStreaming = streamingVideoUrl == result.url,
-                        isPreviewing = previewingVideoUrl == result.url,
                         isDownloaded = isDownloaded,
                         onPlayClick = {
-                            if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                            PreviewPlayer.stop()
                             youtubeDownloadError = null
                             streamingVideoUrl = result.url
                             scope.launch {
@@ -598,21 +579,8 @@ fun SearchScreen(
                                 streamingVideoUrl = null
                             }
                         },
-                        onPreviewClick = {
-                            youtubeDownloadError = null
-                            scope.launch {
-                                val resultAudio = YouTubeRepository.getAudioStreamUrl(result.url, downloadManager.downloadQuality)
-                                when (resultAudio) {
-                                    is YouTubeRepository.AudioStreamResult.Success ->
-                                        PreviewPlayer.play(context, result.url, resultAudio.info.url)
-                                    is YouTubeRepository.AudioStreamResult.Failure ->
-                                        youtubeDownloadError = resultAudio.message
-                                }
-                            }
-                        },
-                        onStopPreviewClick = { PreviewPlayer.stop() },
                         onDownloadClick = {
-                            if (PreviewPlayer.isPreviewing(result.url)) PreviewPlayer.stop()
+                            PreviewPlayer.stop()
                             youtubeDownloadError = null
                             val id = downloadManager.startDownloadFromYouTube(
                                 result.url,
@@ -842,17 +810,14 @@ private fun RecommendedSearchTile(
     result: YouTubeSearchResult,
     isDownloading: Boolean,
     isStreaming: Boolean,
-    isPreviewing: Boolean,
     isDownloaded: Boolean,
     onPlayClick: () -> Unit,
-    onPreviewClick: () -> Unit,
-    onStopPreviewClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .width(150.dp)
-            .clickable(onClick = if (isPreviewing) onStopPreviewClick else onPlayClick)
+            .clickable(onClick = onPlayClick)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -897,14 +862,14 @@ private fun RecommendedSearchTile(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
-                            .background(if (isPreviewing) Red else Text1)
-                            .clickable(onClick = if (isPreviewing) onStopPreviewClick else onPlayClick)
+                            .background(Text1)
+                            .clickable(onClick = onPlayClick)
                             .padding(horizontal = 9.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (isPreviewing) "STOP" else if (isStreaming) "..." else "PLAY",
+                            text = if (isStreaming) "..." else "PLAY",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isPreviewing) Text1 else Base
+                            color = Base
                         )
                     }
                     Box(
@@ -949,13 +914,8 @@ private fun YouTubeResultItem(
     result: YouTubeSearchResult,
     isDownloading: Boolean,
     isStreaming: Boolean,
-    isPreviewing: Boolean,
     isDownloaded: Boolean,
-    previewPositionMs: Long,
-    previewDurationMs: Long,
     onPlayClick: () -> Unit,
-    onPreviewClick: () -> Unit,
-    onStopPreviewClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
     val accentColor = LocalAccentColor.current
@@ -1042,49 +1002,21 @@ private fun YouTubeResultItem(
                     .padding(top = 10.dp)
                     .horizontalScroll(rememberScrollState())
             ) {
-                if (isPreviewing) {
-                    Button(
-                        onClick = onStopPreviewClick,
-                        modifier = compactButtonModifier,
-                        contentPadding = compactButtonPadding,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Text1)
-                    ) {
-                        Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Text("Stop", modifier = Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelMedium)
-                    }
-                } else {
-                    Button(
-                        onClick = onPlayClick,
-                        enabled = !isDownloading && !isStreaming,
-                        modifier = compactButtonModifier,
-                        contentPadding = compactButtonPadding,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = accentColor,
-                            contentColor = Base,
-                            disabledContainerColor = Surface,
-                            disabledContentColor = Text3
-                        )
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Text(if (isStreaming) "..." else "Play", modifier = Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelMedium)
-                    }
-                    Button(
-                        onClick = onPreviewClick,
-                        enabled = !isDownloading,
-                        modifier = compactButtonModifier,
-                        contentPadding = compactButtonPadding,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Surface,
-                            contentColor = Text1,
-                            disabledContainerColor = Surface,
-                            disabledContentColor = Text3
-                        )
-                    ) {
-                        Text("Preview", style = MaterialTheme.typography.labelMedium)
-                    }
+                Button(
+                    onClick = onPlayClick,
+                    enabled = !isDownloading && !isStreaming,
+                    modifier = compactButtonModifier,
+                    contentPadding = compactButtonPadding,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = Base,
+                        disabledContainerColor = Surface,
+                        disabledContentColor = Text3
+                    )
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Text(if (isStreaming) "..." else "Play", modifier = Modifier.padding(start = 4.dp), style = MaterialTheme.typography.labelMedium)
                 }
                 Button(
                     onClick = onDownloadClick,
@@ -1100,25 +1032,6 @@ private fun YouTubeResultItem(
                     )
                 ) {
                     Text(if (isDownloading) "..." else if (isDownloaded) "Downloaded" else "Download", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-            if (isPreviewing && previewDurationMs > 0) {
-                val progress = (previewPositionMs.toFloat() / previewDurationMs).coerceIn(0f, 1f)
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp),
-                        color = accentColor,
-                        trackColor = Surface
-                    )
-                    Text(
-                        text = "Preview: ${previewPositionMs / 1000}s / ${previewDurationMs / 1000}s",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Text3,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
                 }
             }
         }

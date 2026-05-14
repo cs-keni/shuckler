@@ -6,6 +6,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
@@ -392,7 +393,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                 val direction = if (toIndex > fromIndex) 1 else -1
                 val slideSpec: androidx.compose.animation.core.FiniteAnimationSpec<IntOffset> =
                     if (reduceMotion) tween(durationMillis = 0)
-                    else spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                    else tween(durationMillis = 280, easing = FastOutSlowInEasing)
                 slideInHorizontally(
                     animationSpec = slideSpec,
                     initialOffsetX = { fullWidth -> direction * fullWidth }

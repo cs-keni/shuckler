@@ -829,6 +829,7 @@ fun LibraryScreen(
                             )
                             SwipeToDismissBox(
                                 state = dismissState,
+                                modifier = Modifier.clip(RoundedCornerShape(8.dp)),
                                 backgroundContent = {
                                     val progress = dismissState.progress
                                     val iconScale by animateFloatAsState(

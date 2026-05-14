@@ -531,7 +531,7 @@ fun PlayerScreen(
                     modifier = Modifier
                         .size(196.dp)
                         .scale(glowScale)
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(18.dp))
                         .background(albumColor.copy(alpha = glowAlpha * 0.9f))
                 )
                 if (thumbnailUrl != null) {
