@@ -48,3 +48,5 @@
 - User asked to keep implementing `DESIGN.md` before doing a full visual review. Gap scan showed the core flow-first screens are close, but detail/utility surfaces still need consistency passes.
 - Playlist Detail was still using Material cards/default colors for track rows and dialogs. It now uses Base, Surface, SurfaceElevated, Text1/Text2/Text3, Red, and LocalAccentColor directly, with flat track rows and rectangular artwork.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes. Codex-side Gradle remains blocked before Kotlin compilation by the Windows Android SDK build-tools lacking Linux `aapt`.
+- Artist Detail, Album Detail, Onboarding, and Create were tokenized after Playlist Detail. These screens were structurally close to `DESIGN.md` but still had default Material surface/text/accent usage in secondary states.
+- Re-attempting Codex-side Gradle after the detail/onboarding slice still fails before Kotlin compilation on the known Windows SDK `aapt` mismatch.

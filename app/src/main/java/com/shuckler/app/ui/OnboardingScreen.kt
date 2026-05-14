@@ -2,6 +2,10 @@ package com.shuckler.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,7 +90,7 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onComplete) {
-                    Text("Skip", color = MaterialTheme.colorScheme.primary)
+                    Text("Skip", color = LocalAccentColor.current)
                 }
             }
 
@@ -107,7 +111,7 @@ fun OnboardingScreen(
                             modifier = Modifier
                                 .size(120.dp)
                                 .clip(RoundedCornerShape(24.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                .background(SurfaceElevated),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -122,14 +126,14 @@ fun OnboardingScreen(
                     Text(
                         text = pages[page].title,
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Text1,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = pages[page].body,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Text2,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -150,9 +154,9 @@ fun OnboardingScreen(
                             .clip(RoundedCornerShape(4.dp))
                             .background(
                                 if (pagerState.currentPage == index)
-                                    MaterialTheme.colorScheme.primary
+                                    LocalAccentColor.current
                                 else
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    Text2.copy(alpha = 0.45f)
                             )
                     )
                 }
@@ -171,7 +175,11 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LocalAccentColor.current,
+                    contentColor = Base
+                ),
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
                     if (pagerState.currentPage < pages.size - 1) "Next" else "Get started"

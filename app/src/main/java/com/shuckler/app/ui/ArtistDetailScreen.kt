@@ -48,7 +48,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
 import kotlin.random.Random
 
 @Composable
@@ -136,7 +140,7 @@ fun ArtistDetailScreen(
                         .padding(start = 8.dp, top = 12.dp)
                         .align(Alignment.TopStart)
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Text2)
                 }
                 Column(
                     modifier = Modifier
@@ -146,14 +150,14 @@ fun ArtistDetailScreen(
                     Text(
                         text = artistName,
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Text1,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "${artistTracks.size} songs",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Text2,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -189,13 +193,13 @@ fun ArtistDetailScreen(
                         }
                     },
                     enabled = artistTracks.isNotEmpty(),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    border = BorderStroke(1.dp, Border),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Shuffle, contentDescription = null, tint = Text1, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Shuffle", style = MaterialTheme.typography.labelLarge)
+                    Text("Shuffle", style = MaterialTheme.typography.labelLarge, color = Text1)
                 }
             }
         }
@@ -237,7 +241,7 @@ private fun SectionLabel(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.headlineSmall,
-        color = MaterialTheme.colorScheme.onSurface,
+        color = Text1,
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp)
     )
 }
@@ -254,7 +258,7 @@ private fun ArtistSongRow(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(
-                if (isPlaying) LocalAccentColor.current.copy(alpha = 0.12f) else MaterialTheme.colorScheme.background
+                if (isPlaying) LocalAccentColor.current.copy(alpha = 0.12f) else Base
             )
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -262,7 +266,7 @@ private fun ArtistSongRow(
         Text(
             text = index.toString(),
             style = MaterialTheme.typography.bodySmall,
-            color = if (isPlaying) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isPlaying) LocalAccentColor.current else Text2,
             modifier = Modifier.width(24.dp)
         )
         if (track.thumbnailUrl != null) {
@@ -279,10 +283,10 @@ private fun ArtistSongRow(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(SurfaceElevated),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.MusicNote, contentDescription = null, tint = Text2, modifier = Modifier.size(20.dp))
             }
         }
         Column(
@@ -293,7 +297,7 @@ private fun ArtistSongRow(
             Text(
                 text = track.title,
                 style = MaterialTheme.typography.titleSmall,
-                color = if (isPlaying) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface,
+                color = if (isPlaying) LocalAccentColor.current else Text1,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -303,7 +307,7 @@ private fun ArtistSongRow(
                     if (track.playCount > 0) "${track.playCount} plays" else null
                 ).joinToString(" / "),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Text2,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -335,16 +339,16 @@ private fun ArtistAlbumCard(
                 modifier = Modifier
                     .size(96.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(SurfaceElevated),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.MusicNote, contentDescription = null, modifier = Modifier.size(28.dp))
+                Icon(Icons.Default.MusicNote, contentDescription = null, tint = Text2, modifier = Modifier.size(28.dp))
             }
         }
         Text(
             text = album.title,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp)
@@ -352,7 +356,7 @@ private fun ArtistAlbumCard(
         Text(
             text = listOfNotNull(album.year?.toString(), "${album.tracks.size} songs").joinToString(" / "),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Text2,
             maxLines = 1
         )
     }

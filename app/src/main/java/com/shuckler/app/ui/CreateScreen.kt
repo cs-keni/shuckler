@@ -1,10 +1,12 @@
 package com.shuckler.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,6 +17,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
 
 @Composable
 fun CreateScreen() {
@@ -31,6 +38,7 @@ fun CreateScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Base)
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -38,18 +46,23 @@ fun CreateScreen() {
         Text(
             text = "Create",
             style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = Text1,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         Text(
             text = "Create a new playlist to organize your music",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Text2,
             modifier = Modifier.padding(bottom = 24.dp)
         )
         Button(
             onClick = { showCreateDialog = true },
-            modifier = Modifier.padding(top = 8.dp)
+            modifier = Modifier.padding(top = 8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = LocalAccentColor.current,
+                contentColor = Base
+            ),
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text("Create playlist")
         }

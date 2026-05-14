@@ -75,6 +75,10 @@ Date: 2026-05-13
   - Playlist play/download actions now use the album accent and Text1/Text2/Text3 hierarchy.
   - Playlist track rows were flattened from Material cards to canvas rows with rectangular artwork and an accent wash for the currently playing row.
   - Playlist create/edit/add/delete dialogs now use warm tokenized surfaces, text fields, and action colors.
+- Continued detail/onboarding token polish:
+  - Artist Detail and Album Detail now use design tokens for hero text, outline actions, track rows, metadata, artwork placeholders, and currently-playing highlights.
+  - Onboarding now uses Base, SurfaceElevated, Text1/Text2, and the runtime accent for skip, pager, and primary actions.
+  - Create now uses Base, Text1/Text2, and the runtime accent for the playlist creation action.
 
 ## Checks
 
@@ -117,6 +121,9 @@ Date: 2026-05-13
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes after the Playlist Detail flow polish.
 - `rg` confirms no `Card`, `CardDefaults`, or targeted default Material surface/primary color usages remain in `PlaylistScreen.kt`.
 - Re-attempted `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ANDROID_SDK_ROOT=/mnt/c/Users/nguye/AppData/Local/Android/Sdk GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon`; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/AlbumDetailScreen.kt app/src/main/java/com/shuckler/app/ui/ArtistDetailScreen.kt app/src/main/java/com/shuckler/app/ui/OnboardingScreen.kt app/src/main/java/com/shuckler/app/ui/CreateScreen.kt` passes after detail/onboarding token polish.
+- `rg` confirms no targeted default Material surface/primary color usages remain in `AlbumDetailScreen.kt`, `ArtistDetailScreen.kt`, `OnboardingScreen.kt`, or `CreateScreen.kt`; the remaining `ArtistAlbumCard` hits are function names, not Material card components.
+- Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the detail/onboarding slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
 
 ## Known Risks
 
@@ -135,9 +142,10 @@ Date: 2026-05-13
 - Device-review active, queued, failed, and completed download states if possible.
 - Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
 - Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
-- Continue remaining flow-first polish using `DESIGN.md`, especially Artist Detail, Album Detail, Import dialog, Onboarding, Create/utility screens, Crop Cover, Equalizer, and any remaining boxed/default-Material utility sections.
+- Continue remaining flow-first polish using `DESIGN.md`, especially Import dialog, Crop Cover, Equalizer, and any remaining boxed/default-Material utility sections.
 - Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
 - Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
 - Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
 - Device-test Playlist Detail after Android Studio build: cover collapse, Play, Download missing, swipe/remove/undo, edit cover, delete dialog, add-to-playlist dialog, and currently-playing row highlight.
+- Device-test Artist Detail, Album Detail, Onboarding, and Create after Android Studio build.
 - Consider a future metadata-enrichment pass for existing YouTube-only downloads that do not have album title/year.

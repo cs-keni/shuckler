@@ -39,7 +39,9 @@ Flow-first `DESIGN.md` completion is the active implementation slice:
 - Search idle recommendation flicker fixed: "Recommended for you" now renders only when visible recommendation tiles are available, and empty background refreshes no longer clear an already-visible shelf.
 - Downloads flow polish continued: waveform download cards now use the tighter 8dp card radius, token border, status labels for queued/done/failed states, and Library's storage/download disclosure uses warm token styling.
 - Playlist Detail flow polish continued: the screen now uses the warm Base canvas, tokenized header/actions/dialogs, flattened playlist track rows, rectangular artwork, and an accent wash for the currently playing row instead of card containers.
+- Artist Detail and Album Detail token polish continued: hero text, outline actions, flat rows, artwork placeholders, metadata, and currently-playing highlights now use design tokens instead of default Material surface/text colors.
+- Onboarding and Create surfaces now use the warm Base canvas, tokenized copy, accent actions, and rectangular brand artwork container.
 
 ## Next Best Work
 
-Continue remaining `DESIGN.md` consistency passes on the less-polished surfaces: Artist Detail, Album Detail, Import dialog, Onboarding, Create/utility screens, Crop Cover, Equalizer, and any remaining default Material color usage. Android Studio build/run should cover Home, Library sheet/full tab, Search idle/results, active downloads, Stats, Playlist Detail, Now Playing, Queue, Lyrics, and Settings.
+Continue remaining `DESIGN.md` consistency passes on the less-polished surfaces: Import dialog, Crop Cover, Equalizer, and any remaining default Material color usage. Android Studio build/run should cover Home, Library sheet/full tab, Search idle/results, active downloads, Stats, Playlist Detail, Artist Detail, Album Detail, Onboarding, Create, Now Playing, Queue, Lyrics, and Settings.
