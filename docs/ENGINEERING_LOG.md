@@ -1,5 +1,13 @@
 # Engineering Log
 
+## 2026-05-14 (Claude Code — session 5)
+
+- **Phase 5 (Download queue)**: replaced single `downloadingVideoUrl: String?` with `Set<String>` so multiple cards show loading indicators simultaneously. Added `Semaphore(2)` to `DownloadManager` to cap concurrent downloads at 2. Emit PENDING track + `DownloadProgress` entry immediately on enqueue so the `WaveformDownloadCard` appears with title/art right away; mark DOWNLOADING when semaphore is acquired. Fixed `completeDownload`/`failDownload` to replace (not append) existing pending entries. Fixed failed download card showing "DONE" instead of "FAILED". Renamed section label "Downloading" → "Download Queue". Commit: `cd94a60`.
+- **Phase 6 (Stats)**: Added 5 new achievements (Night Owl, Marathon, Dedicated, Explorer, Mood Setter) with unlock logic in `AchievementManager`. Added `DonutChart` composable (Canvas-drawn ring split by top-5 artists, 900ms entry animation). Added listening streak chip (counts consecutive days with plays from `lastPlayedMs`, shows 🔥 flame + "X-day streak"). Commit: `8bb34e1`.
+- **Phase 7.8 (Sleep timer chip)**: Upgraded from plain text row to an accent-colored pill chip with `Bedtime` icon, seconds countdown when under 1 minute, and a compact X dismiss button. Commit: `425ee55`.
+- **Phase 8 (Downloaded badge)**: Added 16dp green circle + `Check` icon overlaid on `YouTubeResultItem` thumbnail top-right when track is already downloaded. Commit: `425ee55`.
+- WSL Gradle still blocked (known). Build in Android Studio.
+
 ## 2026-05-14 (Claude Code — session 4)
 
 - **Repo cleanup**: moved all docs/HTML previews/setup guides out of root into `docs/` subdirs. Deleted stale files (`catdoodle.png` duplicate, `log.txt`, `project.txt`). Commit: `00dc9a4`.

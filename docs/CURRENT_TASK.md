@@ -24,10 +24,10 @@ Full details in `HANDOFF.md`.
 | 2 — Typography (Plus Jakarta Sans replaces DM Serif Display) | ✅ Done |
 | 3 — Ambient bloom (warm baseline, unified origin) | ✅ Done |
 | 4 — Library reorg (Downloads rename, tappable headers, spacing) | ✅ Done |
-| 5 — Downloads background queue | 🔲 Next |
-| 6 — Stats (color, donut chart, achievements, streak) | 🔲 Upcoming |
-| 7 — Feel & micro-interactions | ⬛ Partial (7.2 swipe-up done; haptic+progress bar already existed) |
-| 8 — Playback & queue UX | 🔲 Upcoming |
+| 5 — Downloads background queue | ✅ Done |
+| 6 — Stats (color, donut chart, achievements, streak) | ✅ Done |
+| 7 — Feel & micro-interactions | ✅ Done (7.2 swipe-up, 7.5 skeleton, 7.6 track menu, 7.8 sleep chip) |
+| 8 — Playback & queue UX | ✅ Done (stream loading state, downloaded badge) |
 
 ## What's Left (REDESIGN-v3 Phase 5+)
 
