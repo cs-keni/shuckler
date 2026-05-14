@@ -18,12 +18,11 @@ private val provider = GoogleFont.Provider(
 )
 
 @OptIn(ExperimentalTextApi::class)
-val DmSerifDisplay = FontFamily(
-    Font(
-        googleFont = GoogleFont("DM Serif Display"),
-        fontProvider = provider,
-        weight = FontWeight.Normal
-    )
+val PlusJakartaSans = FontFamily(
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Bold),
 )
 
 @OptIn(ExperimentalTextApi::class)
@@ -41,52 +40,52 @@ val DmMono = FontFamily(
 )
 
 val Typography = Typography(
-    // DM Serif Display — display and title roles
+    // Plus Jakarta Sans — display and title roles (modern, rounded, bubbly)
     displayLarge = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
         lineHeight = 34.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.3).sp
     ),
     headlineLarge = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.2).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 18.sp,
         lineHeight = 24.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.1).sp
     ),
     headlineSmall = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     titleLarge = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
-        letterSpacing = 0.sp
+        letterSpacing = (-0.2).sp
     ),
     titleMedium = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
         fontSize = 17.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
     titleSmall = TextStyle(
-        fontFamily = DmSerifDisplay,
-        fontWeight = FontWeight.Normal,
+        fontFamily = PlusJakartaSans,
+        fontWeight = FontWeight.Medium,
         fontSize = 15.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.sp

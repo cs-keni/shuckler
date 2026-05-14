@@ -93,6 +93,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -121,7 +122,7 @@ import com.shuckler.app.player.QueueItem
 import coil.compose.AsyncImage
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.BorderSubtle
-import com.shuckler.app.ui.theme.DmSerifDisplay
+import com.shuckler.app.ui.theme.PlusJakartaSans
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.SurfaceHigh
@@ -1013,7 +1014,8 @@ private fun LyricsFullScreenSheet(
                             Text(
                                 text = text,
                                 style = TextStyle(
-                                    fontFamily = DmSerifDisplay,
+                                    fontFamily = PlusJakartaSans,
+                                    fontWeight = FontWeight.Medium,
                                     fontSize = animSize.sp,
                                     lineHeight = (animSize * 1.5f).sp
                                 ),
