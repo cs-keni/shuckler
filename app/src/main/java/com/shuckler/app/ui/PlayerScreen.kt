@@ -524,19 +524,29 @@ fun PlayerScreen(
                 },
             contentAlignment = Alignment.Center
         ) {
-            // Breathing glow ring
-            if (!reduceMotion && thumbnailUrl != null && isPlaying) {
-                AsyncImage(
-                    model = thumbnailUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
+            // Breathing glow ring: blurred album art + accent color bloom
+            if (!reduceMotion && isPlaying) {
+                // Accent color bloom layer — pulses with the same glow rhythm
+                Box(
                     modifier = Modifier
                         .size(196.dp)
                         .scale(glowScale)
-                        .blur(28.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .alpha(glowAlpha)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(albumColor.copy(alpha = glowAlpha * 0.9f))
                 )
+                if (thumbnailUrl != null) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(196.dp)
+                            .scale(glowScale)
+                            .blur(28.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .alpha(glowAlpha)
+                    )
+                }
             }
             if (!reduceMotion) {
                 visualizerFftData?.let { fft ->

@@ -1079,6 +1079,7 @@ private fun AlbumGroupHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .pressScale(0.98f)
             .background(if (isPlaying) accent.copy(alpha = 0.06f) else Color.Transparent)
             .clickable(onClick = onToggle)
             .padding(vertical = 10.dp),
@@ -1393,6 +1394,7 @@ private fun PlaylistCard(
         modifier = Modifier
             .width(116.dp)
             .padding(end = 8.dp)
+            .pressScale(0.96f)
             .clickable(onClick = onClick)
     ) {
         Box(
