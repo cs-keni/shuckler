@@ -12,6 +12,14 @@
 - `showArt: Boolean = true` param added to `LibraryTrackItem`; album grouped rows pass `showArt = false`.
 - WSL Gradle still blocked (known). Build in Android Studio.
 
+## 2026-05-14 (Claude Code — session 3)
+
+- Fixed `mutableStateSetOf` → `mutableStateOf(emptySet<String>())` after build failure; compat issue with project's Compose runtime version. Commit: `4e90696`.
+- **Now Playing accent bloom**: added accent-colored `Box` behind the breathing glow ring in `PlayerScreen.kt`. Pulses with the same `glowScale`/`glowAlpha` infinite transition values. `albumColor.copy(alpha = glowAlpha * 0.9f)` fill. Rendered before blurred thumbnail glow for layered depth. Commit: `0a7a130`.
+- **Lyrics transitions confirmed already implemented**: `PlayerScreen.kt` already had `animateFloatAsState` on both `targetAlpha` and `targetSizeSp` per lyric line, matching `DESIGN.md` spec exactly. No changes needed.
+- **pressScale breadth**: applied to `PlaylistCard` (0.96f) and `AlbumGroupHeader` row (0.98f). All interactive surface elements in Library now have spring press feedback.
+- Phases 1–4 complete. Design system v2 fully implemented.
+
 ## 2026-05-14
 
 - Implemented ambient album color system across all screens. Commit: `033b408`.

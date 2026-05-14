@@ -4,52 +4,38 @@ Date: 2026-05-14
 
 ## Status
 
-Phase 1 ✅ · Phase 2 ✅ · Phase 3 ✅ · Phase 4 partial ⚙️
+**Phases 1–4 COMPLETE.** All ambient color + animation system work is done.
 
-All core ambient color + animation phases are implemented. Phase 4 polish remains.
+Last commit: `0a7a130`
 
-## What Was Implemented (commit `740648f`)
+## What Was Implemented (this session)
 
-**Phase 2 — Library Album View**
-- `BY_ALBUM` filter chip in Library → shows `AlbumGroupedList`
-- Collapsible album sections with DM Serif Display headers + spring chevron
-- Playing album: accent tint + accent title color
-- Indented track rows (40dp, no art)
-- Per-album stagger entrance animation
-- Search filtering across album groups
+**Phase 2** — Library Album View  
+**Phase 3** — List stagger, album art bloom, download spring collapse  
+**Phase 4** — Now Playing accent bloom, lyrics transitions (already done), pressScale breadth
 
-**Phase 3 — Animation System**
-- `AccentExtensions.kt`: 5 accent helpers + `Modifier.pressScale()` (non-consuming)
-- List stagger: first 5 items in flat list and album grouped list
-- Album art bloom: infinite pulsing glow behind playing album in shelf
-- Download spring collapse: 1.5s delay → `shrinkVertically(spring)` + `fadeOut`
+Full details in `HANDOFF.md`.
 
-**Phase 4 — Polish (partial)**
-- `pressScale` on FilterChip and LibraryAlbumCard
-- `showArt` param on LibraryTrackItem
+## What's Left (optional Phase 5 / future)
 
-## Remaining Work (Phase 4)
+These are nice-to-have improvements beyond the v2 spec:
 
-1. **Now Playing art bloom** — `PlayerScreen.kt`
-   - Find the breathing glow composable/animation
-   - Change glow color from static amber to `LocalAccentColor.current` at 35% opacity
-   - The rest of the glow mechanism (infinite animateFloat for scale/opacity) stays as-is
+1. **Shared-element transition** — pill → Now Playing screen art (requires Compose SharedTransition API or manual hero animation).
+2. **Track crossfade UI** — visual fade indicator when crossfade is active.
+3. **Sleep timer countdown chip** — visible chip in Now Playing action row when timer is running (state already available via `sleepTimerRemainingMs`).
+4. **Queue row press scale** — `pressScale` on reorderable queue rows.
+5. **Home shelf press scale** — shelf art tiles in HomeScreen.
+6. **Broader device testing** — bloom with dark/light/desaturated palettes, tablet layout.
 
-2. **Lyrics line transitions** — `PlayerScreen.kt`
-   - Active lyric line: `TextSize(15sp)`, `alpha = 1f`
-   - Adjacent lines: `13sp`, `alpha = 0.6f`
-   - Distant lines: `12sp`, `alpha = 0.35f`
-   - Use `animateFloatAsState` for size + alpha, triggered by `activeLineIndex` changes
-   - See `DESIGN.md § Lyrics`
+## Design Source of Truth
 
-3. **pressScale breadth** — `HomeScreen.kt`, `LibraryScreen.kt` (PlaylistCard, track rows)
-   - Apply `Modifier.pressScale()` to: shelf art tiles, playlist cards, track row touchable area
-   - Non-conflicting with `clickable` (uses `requireUnconsumed = false`)
+- `DESIGN.md` — canonical spec for all decisions
+- `color-redesign-preview.html` — interactive before/after for ambient color system
+- `design-preview.html` — all screens overview
 
 ## Notes for Codex
 
-- `AccentExtensions.kt` is in `com.shuckler.app.ui` package — import from there.
-- `Modifier.pressScale()` is `@Composable` so must be called in composable scope.
-- `AlbumGroupedList` reads `collapsedAlbums` as `SnapshotStateSet` — recomposition happens automatically when set changes.
-- `LibraryAlbumCard` always runs `rememberInfiniteTransition` but bloom Box is only rendered when `isPlaying = true`, so performance is fine.
-- WSL Gradle still blocked (known). Build in Android Studio.
+- `AccentExtensions.kt` is in `com.shuckler.app.ui` — import helpers from there.
+- `pressScale()` is `@Composable Modifier` — must be in composable scope.
+- `BY_ALBUM` filter state in LibraryScreen resets when navigating away (correct behavior).
+- `AlbumGroupedList` uses `var collapsedAlbums by mutableStateOf(emptySet<String>())` — `mutableStateSetOf` is not available in this Compose runtime version.
