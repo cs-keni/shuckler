@@ -4,9 +4,9 @@ Date: 2026-05-14
 
 ## Status
 
-**Phases 1–4 COMPLETE.** All ambient color + animation system work is done.
+**REDESIGN-v3 in progress.** Phases 1–4 + Phase 7.2 implemented this session.
 
-Last commit: `0a7a130`
+Last commit: see ENGINEERING_LOG.md session 4
 
 ## What Was Implemented (this session)
 
@@ -16,7 +16,20 @@ Last commit: `0a7a130`
 
 Full details in `HANDOFF.md`.
 
-## What's Left (optional Phase 5 / future)
+## REDESIGN-v3 Status
+
+| Phase | Status |
+|-------|--------|
+| 1 — Quick wins (Preview button, bloom corners, tab slide, Library corners) | ✅ Done |
+| 2 — Typography (Plus Jakarta Sans replaces DM Serif Display) | ✅ Done |
+| 3 — Ambient bloom (warm baseline, unified origin) | ✅ Done |
+| 4 — Library reorg (Downloads rename, tappable headers, spacing) | ✅ Done |
+| 5 — Downloads background queue | 🔲 Next |
+| 6 — Stats (color, donut chart, achievements, streak) | 🔲 Upcoming |
+| 7 — Feel & micro-interactions | ⬛ Partial (7.2 swipe-up done; haptic+progress bar already existed) |
+| 8 — Playback & queue UX | 🔲 Upcoming |
+
+## What's Left (REDESIGN-v3 Phase 5+)
 
 These are nice-to-have improvements beyond the v2 spec:
 

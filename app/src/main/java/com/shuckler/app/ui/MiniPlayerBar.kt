@@ -55,6 +55,10 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.random.Random
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 
 @Composable
 fun MiniPlayerBar(
@@ -117,6 +121,24 @@ fun MiniPlayerBar(
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 6.dp)
             .scale(pillScale)
+            .pointerInput(onTap) {
+                // Swipe-up gesture: threshold 36dp, non-consuming (coexists with tap)
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var totalY = 0f
+                    var fired = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (!change.pressed) break
+                        totalY += change.positionChange().y
+                        if (totalY < -36.dp.toPx() && !fired) {
+                            fired = true
+                            onTap()
+                        }
+                    }
+                }
+            }
     ) {
         Box(
             modifier = Modifier

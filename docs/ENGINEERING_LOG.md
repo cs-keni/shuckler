@@ -1,5 +1,16 @@
 # Engineering Log
 
+## 2026-05-14 (Claude Code — session 4)
+
+- **Repo cleanup**: moved all docs/HTML previews/setup guides out of root into `docs/` subdirs. Deleted stale files (`catdoodle.png` duplicate, `log.txt`, `project.txt`). Commit: `00dc9a4`.
+- **REDESIGN-v3.md**: full v3 planning doc created; 8 phases covering typography, bloom, Library reorg, downloads, stats, feel/micro-interactions, and playback polish. Commits: `a0b7985`, `bd580f7`.
+- **Phase 1 (Quick wins)**: removed Preview button from SearchScreen (both `YouTubeResultItem` and `RecommendedSearchTile` + both call sites). Fixed Now Playing accent bloom corner 24dp→18dp. Fixed Library orange SwipeToDismissBox corner bleed with `clip(RoundedCornerShape(8.dp))`. De-bounced tab slide from `DampingRatioMediumBouncy` spring to `tween(280ms, FastOutSlowInEasing)`. Commit: `aee4d05`.
+- **Phase 2 (Typography)**: replaced `DmSerifDisplay` with `PlusJakartaSans` (Normal/Medium/SemiBold/Bold) throughout `Type.kt`. Display=Bold, headline/titleLarge=SemiBold, smaller titles=Medium. Slight negative letterSpacing on display sizes. DM Mono unchanged. Fixed hardcoded `DmSerifDisplay` in `PlayerScreen.kt` lyrics view → `PlusJakartaSans Medium`. Commit: `81d58e1`.
+- **Phase 3 (Ambient bloom)**: two-layer `drawBehind` in NavGraph — persistent Amber baseline (9% alpha, 1.1x radius) always present + album accent overlay (15% alpha, 0.9x radius). Same top-center origin for unified light source. App never goes to cold black without music. Commit: `cdb3827`.
+- **Phase 4 (Library)**: renamed "Your Library" → "Downloads". Made "Albums" header tappable (ChevronRight icon, sets `BY_ALBUM` filter). Made "Playlists" header tappable (ChevronRight icon, opens `ModalBottomSheet` listing all playlists). `LibraryTrackItem` vertical padding 8dp→12dp. Commit: `c8c5eef`.
+- **Phase 7.2 (Swipe up mini player)**: added `pointerInput` with `awaitEachGesture` to pill outer Box in `MiniPlayerBar.kt`. Swipe upward ≥36dp calls `onTap()` opening Now Playing sheet. Non-consuming (`requireUnconsumed = false`), coexists with tap. Haptic and progress bar already implemented in prior sessions.
+- WSL Gradle still blocked (known). Build in Android Studio.
+
 ## 2026-05-14 (Claude Code — session 2)
 
 - Implemented Phases 2–4 of the Ambient Color + Animation System. Commit: `740648f`.
