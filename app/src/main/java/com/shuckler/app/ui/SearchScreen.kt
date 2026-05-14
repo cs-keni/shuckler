@@ -21,7 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import coil.compose.AsyncImage
 import androidx.compose.foundation.rememberScrollState
@@ -79,6 +81,7 @@ import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Green
 import com.shuckler.app.ui.theme.Red
 import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.SurfaceElevated
@@ -936,30 +939,48 @@ private fun YouTubeResultItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                if (result.thumbnailUrl != null) {
-                    AsyncImage(
-                        model = result.thumbnailUrl,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Surface)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
+                Box(modifier = Modifier.size(56.dp)) {
+                    if (result.thumbnailUrl != null) {
+                        AsyncImage(
+                            model = result.thumbnailUrl,
                             contentDescription = null,
                             modifier = Modifier
-                                .size(28.dp)
-                                .align(Alignment.Center),
-                            tint = Text3
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Surface),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                                tint = Text3
+                            )
+                        }
+                    }
+                    if (isDownloaded) {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .align(Alignment.TopEnd)
+                                .clip(CircleShape)
+                                .background(Green),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Downloaded",
+                                modifier = Modifier.size(10.dp),
+                                tint = androidx.compose.ui.graphics.Color.White
+                            )
+                        }
                     }
                 }
                 Column(

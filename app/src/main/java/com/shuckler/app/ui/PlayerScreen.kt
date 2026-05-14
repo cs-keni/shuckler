@@ -49,6 +49,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -858,26 +860,50 @@ fun PlayerScreen(
         }
 
         if (sleepTimerRemainingMs != null) {
+            val isEndOfTrack = sleepTimerRemainingMs == com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK
+            val timerLabel = when {
+                isEndOfTrack -> "Stops after this track"
+                sleepTimerRemainingMs!! < 60_000L -> "${sleepTimerRemainingMs!! / 1_000}s remaining"
+                else -> "${sleepTimerRemainingMs!! / 60_000} min remaining"
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
+                    .padding(top = 14.dp, bottom = 4.dp)
                     .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = if (sleepTimerRemainingMs == com.shuckler.app.player.MusicPlayerService.SLEEP_TIMER_END_OF_TRACK)
-                        "Sleep: at end of track"
-                    else
-                        "Sleep: stops in ${sleepTimerRemainingMs!! / 60_000} min",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = albumColor
-                )
-                androidx.compose.material3.TextButton(
-                    onClick = { viewModel.cancelSleepTimer() }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(albumColor.copy(alpha = 0.14f))
+                        .border(1.dp, albumColor.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                        .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Cancel")
+                    Icon(
+                        imageVector = Icons.Default.Bedtime,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = albumColor
+                    )
+                    Text(
+                        text = timerLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = albumColor
+                    )
+                    IconButton(
+                        onClick = { viewModel.cancelSleepTimer() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Cancel sleep timer",
+                            modifier = Modifier.size(14.dp),
+                            tint = albumColor.copy(alpha = 0.7f)
+                        )
+                    }
                 }
             }
         }
