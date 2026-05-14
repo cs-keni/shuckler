@@ -4,22 +4,25 @@ Date: 2026-05-14
 
 ## Status
 
-Design planning complete. Ready for Codex implementation of the v2 color/animation system.
+Phase 1 (Ambient Color System) COMPLETE — commit `033b408`. Phases 2–4 ready for Codex.
 
 ## Active Slice
 
-**Ambient Color + Animation System (v2)** — four implementation phases defined in `DESIGN.md § Ambient Color System (v2 Redesign)` and `DESIGN.md § Animation System (v2)`.
+**Ambient Color + Animation System (v2)** — Phase 1 implemented by Claude Code. Phases 2–4 remain.
 
 ### Context
 
-Claude Code ran `/design-consultation` on 2026-05-14 and produced:
-- Updated `DESIGN.md` with the Ambient Color System (v2) and Animation System (v2) sections.
-- Interactive preview at `color-redesign-preview.html` in project root — shows before/after comparison and live album color simulator.
-- The design problem diagnosed: `LocalAccentColor` (from album Palette API) was only used in Now Playing. The entire rest of the app (Library, Home, Search, Stats) was monochromatic warm-dark with no color. The v2 fix bleeds the accent color throughout as ambient light.
+Claude Code implemented Phase 1 on 2026-05-14:
+- NavGraph: radial gradient bloom from album accent, transparent Scaffold.
+- HomeScreen, SearchScreen, AnalyticsScreen: opaque backgrounds removed so bloom shows through.
+- LibraryScreen, PlaylistScreen: Scaffold made transparent.
+- MiniPlayerBar: whole-pill spring press scale + accent border.
+- Nav bar: Rounded icons, "Stats" label, dot indicator above selected tab, accent colors.
+- See `DESIGN.md § Ambient Color System (v2 Redesign)` and `color-redesign-preview.html` for visual spec.
 
-### What Codex Must Implement
+### What Codex Must Implement Next
 
-**Phase 1 — Ambient Background (highest priority, 30-minute win)**
+**Phase 1 — Ambient Background — ✅ DONE (Claude Code, 2026-05-14, commit 033b408)**
 
 1. Create `app/src/main/java/com/shuckler/app/ui/AccentExtensions.kt`:
    ```kotlin

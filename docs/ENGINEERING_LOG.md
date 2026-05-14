@@ -1,5 +1,15 @@
 # Engineering Log
 
+## 2026-05-14
+
+- Implemented ambient album color system across all screens. Commit: `033b408`.
+- NavGraph now applies a radial gradient bloom (14% opacity) behind all content using `animatedAccent` from Palette API. Scaffold `containerColor` is transparent so bloom bleeds through.
+- All screen outer columns/Scaffolds made transparent: HomeScreen, SearchScreen, AnalyticsScreen, LibraryScreen, PlaylistScreen. Removed opaque `background(Base)` blockers.
+- Nav bar redesigned: Rounded icon set (Home, Search, LibraryMusic, BarChart), "Stats" label, dot-above-icon selected indicator (spring animated), accent-colored selected state via `NavigationBarItemDefaults.colors()`, no ripple indicator.
+- MiniPlayerBar: added whole-pill spring press-scale (0.97f), accent-color border (22% opacity).
+- Fixed duplicate `tween` import in NavGraph.kt; added missing `Color` import in PlaylistScreen.kt.
+- DESIGN.md Phase 1 (Ambient Color System) is now fully implemented. Phases 2–4 remain for Codex or next Claude session.
+
 ## 2026-05-12
 
 - `DownloadedTrack` now has optional album title/year fields. Existing downloads and normal YouTube downloads may still have null album data and fall back to artwork/title grouping.
