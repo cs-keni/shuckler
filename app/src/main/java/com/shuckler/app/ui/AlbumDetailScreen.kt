@@ -19,7 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -108,7 +108,7 @@ fun AlbumDetailScreen(
                         .padding(start = 8.dp, top = 12.dp)
                         .align(Alignment.TopStart)
                 ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Text2)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Text2)
                 }
                 Row(
                     modifier = Modifier
