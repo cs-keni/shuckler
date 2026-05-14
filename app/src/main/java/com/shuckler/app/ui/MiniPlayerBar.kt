@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -101,11 +102,21 @@ fun MiniPlayerBar(
         label = "skipScale"
     )
 
+    // Whole-pill press scale
+    val pillInteractionSource = remember { MutableInteractionSource() }
+    val pillIsPressed by pillInteractionSource.collectIsPressedAsState()
+    val pillScale by animateFloatAsState(
+        targetValue = if (pillIsPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "pillScale"
+    )
+
     // Floating pill container with horizontal padding to create the "floating" effect
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp, vertical = 6.dp)
+            .scale(pillScale)
     ) {
         Box(
             modifier = Modifier
@@ -113,7 +124,16 @@ fun MiniPlayerBar(
                 .height(62.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(SurfaceHigh)
-                .clickable(onClick = onTap)
+                .border(
+                    width = 1.dp,
+                    color = accentColor.copy(alpha = 0.22f),
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .clickable(
+                    interactionSource = pillInteractionSource,
+                    indication = null,
+                    onClick = onTap
+                )
         ) {
             // Progress line along the bottom edge
             Box(

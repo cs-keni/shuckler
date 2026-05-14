@@ -18,12 +18,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.ModalBottomSheet
@@ -31,6 +38,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,12 +52,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
@@ -57,6 +69,7 @@ import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text3
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.Playlist
@@ -85,10 +98,10 @@ sealed class Screen(
     val title: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector
 ) {
-    data object Home : Screen("home", "Home", Icons.Default.Home)
-    data object Search : Screen("search", "Search", Icons.Default.Search)
-    data object Library : Screen("library", "Library", Icons.Default.LibraryMusic)
-    data object Analytics : Screen("analytics", "Analytics", Icons.Default.Analytics)
+    data object Home : Screen("home", "Home", Icons.Rounded.Home)
+    data object Search : Screen("search", "Search", Icons.Rounded.Search)
+    data object Library : Screen("library", "Library", Icons.Rounded.LibraryMusic)
+    data object Analytics : Screen("analytics", "Stats", Icons.Rounded.BarChart)
 }
 
 private val tabOrder = listOf(Screen.Home, Screen.Search, Screen.Library, Screen.Analytics)
@@ -280,10 +293,26 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     }
 
     CompositionLocalProvider(LocalAccentColor provides animatedAccent) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Base)
+            .drawBehind {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            animatedAccent.copy(alpha = 0.14f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width / 2f, 0f),
+                        radius = size.width * 0.85f
+                    )
+                )
+            }
+    ) {
     androidx.compose.material3.Scaffold(
         modifier = modifier,
-        containerColor = Base,
+        containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Column(
@@ -298,10 +327,35 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                     tonalElevation = 0.dp
                 ) {
                     tabOrder.forEach { screen ->
+                        val isSelected = currentScreen == screen
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
-                            selected = currentScreen == screen,
+                            icon = {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    // Tiny dot indicator above icon
+                                    val dotAlpha by animateFloatAsState(
+                                        targetValue = if (isSelected) 1f else 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessMedium
+                                        ),
+                                        label = "dot_${screen.route}"
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(width = 20.dp, height = 3.dp)
+                                            .clip(RoundedCornerShape(9999.dp))
+                                            .background(animatedAccent.copy(alpha = dotAlpha))
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Icon(
+                                        imageVector = screen.icon,
+                                        contentDescription = screen.title,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            },
+                            label = { Text(screen.title, fontSize = 10.sp) },
+                            selected = isSelected,
                             onClick = {
                                 if (screen == Screen.Library) {
                                     if (currentScreen != Screen.Library) previousScreen = currentScreen
@@ -310,7 +364,14 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                                 } else {
                                     currentScreen = screen
                                 }
-                            }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = animatedAccent,
+                                selectedTextColor = animatedAccent,
+                                unselectedIconColor = Text3,
+                                unselectedTextColor = Text3,
+                                indicatorColor = Color.Transparent
+                            )
                         )
                     }
                 }

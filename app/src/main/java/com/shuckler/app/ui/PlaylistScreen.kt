@@ -79,6 +79,7 @@ import com.shuckler.app.playlist.PlaylistEntry
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import androidx.compose.ui.graphics.Color
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
@@ -146,13 +147,12 @@ fun PlaylistDetailScreen(
 
     androidx.compose.material3.Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = Base,
+        containerColor = Color.Transparent,
         contentColor = Text1
     ) { paddingValues ->
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Base)
             .padding(paddingValues)
     ) {
         Row(

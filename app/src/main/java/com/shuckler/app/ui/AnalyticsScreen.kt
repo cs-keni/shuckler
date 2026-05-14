@@ -116,7 +116,6 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Base)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
