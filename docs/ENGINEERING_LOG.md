@@ -53,3 +53,16 @@
 - Import dialog, Crop Cover, and Equalizer were tokenized next. `rg` now finds no targeted default Material surface/primary color usages in those files.
 - A broad remaining-default scan still reports some expected function-name hits (`StatCard`, `ArtistAlbumCard`, local `FilterChip`, etc.) plus scattered real leftovers in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph.
 - Final scattered sweep replaced those real leftovers. Broad `rg` now finds no targeted default Material surface/primary color usages in UI/navigation; only two direct `Card(` calls remain as intentional design exceptions in Search result cards and Home recommendation image tiles.
+
+## 2026-05-14 (Claude Code — design planning session)
+
+- User reported the app feels "too black" and empty despite the full token sweep. Diagnosed the root cause: `LocalAccentColor` was used only in Now Playing; every other screen was monochromatic warm-dark.
+- Ran `/design-consultation` to plan a redesign. Result: the Ambient Color System (v2) and Animation System (v2) documented in `DESIGN.md`.
+- Key concept: "Ambient Album Atmosphere" — the Palette API accent color bleeds through the whole app as a radial gradient bloom at 12–18% opacity, as if the album cover is casting light on the entire interface.
+- New `AccentExtensions.kt` helpers documented (not yet implemented): `accentAmbient()`, `accentWash()`, `accentChipBg()`, `accentChipBorder()`, `accentAlbumGroup()`.
+- New `AmbientBackground.kt` composable documented (not yet implemented): wraps each screen scaffold, applies animated ambient bloom that cross-fades over 600ms when the playing track changes.
+- Six named animations documented in `DESIGN.md`: Ambient Transition, List Stagger Entrance, Tab Slide, Tab Press Feedback, Album Art Bloom, Download Spring Collapse.
+- Library Album-First view documented: "By Album" filter chip, album-grouped section headers with thumbnail, playing album header tint, collapse chevron.
+- Created `color-redesign-preview.html` — interactive before/after with live album color simulator.
+- Updated global `~/.claude/CLAUDE.md`: added requirement to commit+push after every implementation slice, and to always read Codex docs at session start.
+- No Compose source files were changed in this session — design planning only. Implementation is Codex's next task (see `CURRENT_TASK.md`).

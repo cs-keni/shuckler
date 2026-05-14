@@ -1,167 +1,36 @@
 # Handoff
 
-Date: 2026-05-13
+Date: 2026-05-14
 
-## Changed
+## Changed (Claude Code — 2026-05-14)
 
-- Added `ArtistDetailScreen` with blurred artwork hero, artist title, Songs list, Albums shelf, Play All, and Shuffle.
-- Wired Library track artist text to open the artist page.
-- Artist page playback uses the existing `QueueItem` / `PlayerViewModel.playTrackWithQueue` path.
-- Added shared AI task docs so future Codex/Claude sessions have a current handoff anchor.
-- Moved remaining hardcoded Gradle library coordinates into `gradle/libs.versions.toml`.
-- Bumped `desugar_jdk_libs` from `2.1.4` to `2.1.5`; left OkHttp `4.12.0`, Coil `2.5.0`, and reorderable `2.4.0` stable for now.
-- Rephrased the `gitignored` comment in `app/build.gradle.kts` to avoid the IDE typo warning.
-- Fixed NewPipe Extractor catalog version back to the JitPack tag form `v0.25.1`.
-- Added optional `albumTitle` and `albumYear` to `DownloadedTrack`, metadata persistence, retry/chapter propagation, and Spotify import propagation.
-- Added `AlbumDetailScreen` with blurred artwork hero, album metadata, Play All, Shuffle, and numbered track rows.
-- Added a Library Albums shelf and changed Artist page album cards to open Album Detail instead of playing immediately.
-- Preserved stable YouTube video URLs as `DownloadedTrack.sourceUrl` for YouTube downloads instead of storing temporary audio stream URLs.
-- Fixed `DownloadManager.kt` run-blocker by restoring `java.net.URL` import and correcting `loadMetadata()` indentation.
-- Added user-created `catdoodle.png` as the app mark and replaced launcher/header/onboarding usage of the old character image.
-- User chose Direction A from `brand-review.html`: keep the Shuckler name, use the cat doodle icon direction.
-- Removed old character image files: `app/src/main/res/drawable/ic_shuckle.png`, `shuckle.png`, and `shuckle.svg`.
-- Added `brand-review.html` with brand/name directions for user review.
-- Added brand guidance to `DESIGN.md`.
-- Updated Home screen visual language: warm Base background, library snapshot stats, rounded hero/empty hero, and quieter section headers.
-- Updated Search screen visual language: warm Base background, tokenized search field, recent/suggestion chips, section labels, redesigned result cards, rectangular art, and a separate horizontally scrollable action row to reduce narrow-screen overflow.
-- Continued design-system cleanup by removing remaining `CircleShape` usage from onboarding pager dots and replacing hardcoded black/white overlay colors in Home recommendations, Library grid favorite overlay, Player visualizer default, crop cover scrim, and Equalizer curve dots with warm design tokens.
-- Added a new `DESIGN.md` section, "Flow-First Redesign Direction", based on user feedback that Home still feels gappy and too box/card-heavy.
-- Added `flow-redesign-preview.html` as a planning-only preview artifact and opened it in the browser.
-- User approved the flow-first direction for implementation.
-- Implemented the first Home flow slice:
-  - Replaced the old `ScreenHeader` + greeting + boxed snapshot + separate hero stack with a compact Shuckler topbar, full-bleed continue-listening/search band, inline metrics, chip actions, and artwork-led shelves.
-  - Converted Home recent-search cards to tokenized chips.
-  - Converted Home playlist/track shortcut cards to flat artwork tiles with labels.
-  - Preserved existing playback, preview, download, recommendation, and playlist navigation behavior.
-- Continued the flow-first implementation into Library:
-  - Decoupled the track list from the collapsed storage/download maintenance section so browsing is visible by default.
-  - Moved storage/download maintenance behind a lower "Manage storage & downloads" disclosure.
-  - Flattened album and playlist shelves from card surfaces into artwork tiles with labels.
-  - Flattened track rows with a subtle now-playing accent wash instead of card containers.
-  - Set the Library scaffold background to `Base`.
-- Fixed the reported Library bottom-sheet gap by removing the forced `heightIn(min = 500.dp)` track-area minimum in sheet mode and allowing the Library bottom sheet to partially expand.
-- Fixed the reported Library mid-page gap between smart playlists and Albums by removing the large `No playlists yet` empty state from the middle of the collection flow.
-- Converted Library filter/mood/smart playlist chips away from Material default chips to flat tokenized pills, and made chip rows horizontally scrollable.
-- Fixed Android Studio compile error in `LibraryScreen.kt` around line 1613 by updating the mood-tag dialog's `FilterChip` call to the local tokenized chip signature (`label = mood`) instead of Material's composable `label = { Text(...) }` API.
-- Softened the shared `ScreenHeader` by removing the boxed background behind the cat mark.
-- Continued Search flow work:
-  - Idle "Recommended for you" now renders as a horizontal artwork shelf instead of a vertical stack of full result cards.
-  - Frequent "Try these" suggestions now render as horizontal token chips instead of stacked cards.
-  - Empty Search copy is now inline/left-aligned instead of centered like a standalone empty panel.
-  - Search now has a deterministic discovery starter surface so fresh/idle states do not feel empty: typography-led topbar, supporting copy, and starter query chips.
-  - Fixed recommendation-section flash/blank space by rendering "Recommended for you" only while loading or when non-empty recommendation results exist.
-  - Added a compact "Keep exploring" chip row under non-empty recommendations to avoid dead space below the recommendation shelf.
-  - Search result cards remain for actual search results because they carry multiple actions and progress state.
-- Continued the flow-first pass into Stats:
-  - Replaced Material default time-range chips with tokenized pill chips.
-  - Replaced the personality card surface with a quieter inline accent panel.
-  - Flattened the big stat numbers and achievement badge surfaces.
-  - Tokenized playlist stat fallback surfaces.
-  - Added a dedicated Stats topbar and Top artists ranked bar section from `DESIGN.md`.
-- Continued Now Playing and Settings polish:
-  - Queue bottom sheet now uses the warm Base canvas, flat rows, subtle borders, and album-accent current-track wash.
-  - Now Playing progress, playback controls, action chips, lyrics sheet, and empty artwork state now use the album accent and warm design tokens instead of default Material chip/surface colors.
-  - Settings dialog now uses a warm tokenized surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 hierarchy.
-- Fixed Search idle recommendation flicker:
-  - "Recommended for you" no longer renders during the background recommendation fetch.
-  - The recommendation shelf/title renders only when visible recommendation tiles are available.
-  - Empty background refreshes no longer clear an already-visible recommendation shelf.
-- Continued Downloads/utility polish:
-  - `WaveformDownloadCard` now supports `DownloadStatus` labels (`QUEUED`, `DONE`, `FAILED`) and uses the tighter tokenized 8dp card style.
-  - Search passes each active download's status into the waveform card.
-  - Library's "Manage storage & downloads" disclosure now uses warm token styling, subtle border, and tokenized action colors.
-- Continued Playlist Detail flow polish:
-  - Playlist Detail now uses the warm Base canvas and tokenized header/icon colors.
-  - Playlist play/download actions now use the album accent and Text1/Text2/Text3 hierarchy.
-  - Playlist track rows were flattened from Material cards to canvas rows with rectangular artwork and an accent wash for the currently playing row.
-  - Playlist create/edit/add/delete dialogs now use warm tokenized surfaces, text fields, and action colors.
-- Continued detail/onboarding token polish:
-  - Artist Detail and Album Detail now use design tokens for hero text, outline actions, track rows, metadata, artwork placeholders, and currently-playing highlights.
-  - Onboarding now uses Base, SurfaceElevated, Text1/Text2, and the runtime accent for skip, pager, and primary actions.
-  - Create now uses Base, Text1/Text2, and the runtime accent for the playlist creation action.
-- Continued utility-surface token polish:
-  - Import dialog now uses warm sheet/tabs/text fields/buttons, flattened Spotify playlist rows, and tokenized loading/error/copy states.
-  - Crop Cover now uses warm Surface/Base/Text tokens and the runtime accent for the crop highlight and Done action.
-  - Equalizer now uses warm dialog/dropdown/switch/chart tokens and the runtime accent for curve/fill/dots instead of the static amber alias.
-- Completed final scattered `DESIGN.md` sweep:
-  - Home loading/fallback copy and recommendation placeholder now use Text2/SurfaceElevated/accent tokens.
-  - Library destructive swipe states, clear-all confirmation, mood tag dialog, cleanup dialog, favorite icons, and smart-playlist empty state now use warm tokens.
-  - Shared EmptyState, MiniPlayer placeholder artwork, and NavigationBar content color now use design tokens.
+- Diagnosed the "too black / not enough color" problem: `LocalAccentColor` from album art Palette API was used only on Now Playing elements. Every other screen (Library, Home, Search, Stats) was monochromatic warm-dark.
+- Added `## Ambient Color System (v2 Redesign)` section to `DESIGN.md` — defines `AmbientBackground` composable, six dynamic tint helpers (`accentAmbient`, `accentWash`, `accentChipBg`, `accentChipBorder`, `accentAlbumGroup`), and a full inventory of where each token appears.
+- Added `## Library — Album-First View (v2)` section to `DESIGN.md` — album-grouped list with per-album section headers, playing album tint, and collapsed state.
+- Added `## Animation System (v2)` section to `DESIGN.md` — six named animations with Compose code: Ambient Transition, List Stagger Entrance, Tab Slide, Press Feedback, Album Art Bloom, Download Spring Collapse.
+- Updated Design Principle #06 from "Art as the only accent" to "Art as ambient light" to reflect the expanded color philosophy.
+- Created `color-redesign-preview.html` — interactive before/after comparison with live album color simulator (click color dots to see different Palette API extractions).
+- Updated `docs/CURRENT_TASK.md` with precise Codex implementation instructions for all four phases.
+- Updated global `~/.claude/CLAUDE.md` with: (a) requirement to always read docs at session start; (b) requirement to commit + push with a concise message after every meaningful implementation slice; (c) requirement to log commit hash in `docs/ENGINEERING_LOG.md`.
 
 ## Checks
 
-- Attempted `./gradlew :app:compileDebugKotlin`.
-- Blocked: WSL shell has no Linux Java install.
-- Attempted Windows Gradle/JDK paths through WSL.
-- Blocked: WSL interop failed with `UtilBindVsockAnyPort:307: socket failed 1`.
-- Codex re-checked on 2026-05-12:
-  - `gstack` is not available on PATH in this shell.
-  - `java -version` still fails because Linux Java is not installed.
-  - Android Studio JBR `java.exe` is present on Windows, but WSL interop still fails with `UtilBindVsockAnyPort:307: socket failed 1`.
-  - Source review confirms `ArtistDetailScreen` is wired from Library rows and Smart Playlist rows.
-- User reported Android Studio build succeeded on 2026-05-12.
-- After this handoff update, another Android Studio sync/build/run is needed because album metadata, Album Detail, brand/icon, Home redesign, and the `DownloadManager.kt` fix were added after the last successful build.
-- `git diff --check` passes for the files touched in the album-detail slice; full-worktree `git diff --check` still reports pre-existing trailing whitespace in `AndroidManifest.xml` Last.fm intent-filter lines.
-- `xdg-open` is unavailable and Windows Explorer interop failed, but `cmd.exe /c start` succeeded for opening `brand-review.html`.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search visual pass.
-- `git diff --check` passes for the latest visual cleanup files: `HomeScreen.kt`, `LibraryScreen.kt`, `OnboardingScreen.kt`, `PlayerScreen.kt`, `CropCoverDialog.kt`, and `EqualizerScreen.kt`.
-- `git diff --check -- DESIGN.md flow-redesign-preview.html` passes.
-- `java -version` still fails in this WSL shell because `java` is not installed/on PATH.
-- Attempted `./gradlew :app:compileDebugKotlin` after the Home flow implementation; blocked because `JAVA_HOME` is not set and no `java` command is available in PATH.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Library flow slice.
-- `git diff --check` passes for the Library sheet fix, shared header update, and Search recommendation shelf changes.
-- `./gradlew :app:compileDebugKotlin` still blocked in WSL: `JAVA_HOME` is not set and no `java` command is available.
-- After the `LibraryScreen.kt` line 1613 fix, Codex-side Gradle is still blocked by missing Java, so Android Studio should rerun `:app:compileDebugKotlin`.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Search discovery pass.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/AnalyticsScreen.kt` passes after the recommendation gating and Stats flow pass.
-- Attempted `./gradlew :app:compileDebugKotlin` after the follow-up Stats work; still blocked by missing Java/JAVA_HOME in WSL.
-- User installed OpenJDK 17 in WSL; Codex persisted `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64` in `~/.zshrc`.
-- `java -version` now reports OpenJDK `17.0.18`.
-- `GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon` now starts Gradle, downloads/configures dependencies, and reaches Android SDK resolution.
-- `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ANDROID_SDK_ROOT=/mnt/c/Users/nguye/AppData/Local/Android/Sdk GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon` fails because the visible SDK is the Windows SDK; build-tools `36.0.0` has `aapt.exe` but no Linux `aapt`.
-- User reported Android Studio Gradle build succeeded on 2026-05-13.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlayerScreen.kt app/src/main/java/com/shuckler/app/ui/SettingsDialog.kt docs/CURRENT_TASK.md docs/HANDOFF.md docs/ENGINEERING_LOG.md` passes after the Now Playing/Settings slice.
-- `rg` confirms no `FilterChip`, `CircleShape`, or targeted default `MaterialTheme.colorScheme` surface/primary usages remain in `PlayerScreen.kt` or `SettingsDialog.kt`.
-- Re-attempted `:app:compileDebugKotlin` from Codex after the Now Playing/Settings slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
-- Android Studio compile reported unresolved `FilledIconButtonDefaults` in `PlayerScreen.kt`; fixed by using `IconButtonDefaults.filledIconButtonColors`.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search recommendation flicker fix.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/WaveformDownloadCard.kt app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Downloads/utility polish.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes after the Playlist Detail flow polish.
-- `rg` confirms no `Card`, `CardDefaults`, or targeted default Material surface/primary color usages remain in `PlaylistScreen.kt`.
-- Re-attempted `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ANDROID_SDK_ROOT=/mnt/c/Users/nguye/AppData/Local/Android/Sdk GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon`; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/AlbumDetailScreen.kt app/src/main/java/com/shuckler/app/ui/ArtistDetailScreen.kt app/src/main/java/com/shuckler/app/ui/OnboardingScreen.kt app/src/main/java/com/shuckler/app/ui/CreateScreen.kt` passes after detail/onboarding token polish.
-- `rg` confirms no targeted default Material surface/primary color usages remain in `AlbumDetailScreen.kt`, `ArtistDetailScreen.kt`, `OnboardingScreen.kt`, or `CreateScreen.kt`; the remaining `ArtistAlbumCard` hits are function names, not Material card components.
-- Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the detail/onboarding slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/ImportDialog.kt app/src/main/java/com/shuckler/app/ui/CropCoverDialog.kt app/src/main/java/com/shuckler/app/ui/EqualizerScreen.kt` passes after utility-surface token polish.
-- `rg` confirms no targeted default Material surface/primary color usages remain in `ImportDialog.kt`, `CropCoverDialog.kt`, or `EqualizerScreen.kt`.
-- Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the utility-surface slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
-- `git diff --check -- app/src/main/java/com/shuckler/app/ui/EmptyState.kt app/src/main/java/com/shuckler/app/ui/MiniPlayerBar.kt app/src/main/java/com/shuckler/app/navigation/NavGraph.kt app/src/main/java/com/shuckler/app/ui/HomeScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the final scattered sweep.
-- Broad `rg` confirms no targeted `MaterialTheme.colorScheme.surface/surfaceVariant/primary/background/onSurface/onSurfaceVariant/outline/error/onError/onPrimary` usages remain in `app/src/main/java/com/shuckler/app/ui` or `app/src/main/java/com/shuckler/app/navigation`.
-- Broad `rg` still shows two direct `Card(` usages: Search result cards and Home recommendation image cards. These are intentional `DESIGN.md` card exceptions for mixed-action search results and art-backed recommendation tiles.
-- Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the final sweep; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
+- `git diff --check -- DESIGN.md color-redesign-preview.html docs/CURRENT_TASK.md docs/HANDOFF.md` — passes.
+- No Compose code was changed in this session; only design docs and the HTML preview.
+- Android Studio build state: last confirmed successful build was 2026-05-13 (user report).
 
 ## Known Risks
 
-- Kotlin/Compose compile succeeded in Android Studio per user report on 2026-05-13.
-- Codex WSL now has OpenJDK 17 and `JAVA_HOME` configured, but local Gradle checks still need a Linux Android SDK. The Windows SDK is visible at `/mnt/c/Users/nguye/AppData/Local/Android/Sdk`, but its build-tools are Windows `.exe` binaries, so WSL Gradle fails looking for Linux `aapt`.
-- Album metadata now exists on `DownloadedTrack`, but only new Spotify playlist imports currently populate it.
-- Existing downloads will have null album metadata; they fall back to artwork/title grouping until reimported or enriched.
-- Older planning docs still mention the old character icon in historical phase notes; app resources and active design docs now point to the original mark.
-- Repo already had many modified files before this slice; avoid broad formatting or cleanup until ownership is clear.
+- `AmbientBackground` must not double-apply `Modifier.background(Base)` if the screen scaffold already sets it. Codex should remove the existing `background(Base)` modifier from screen scaffolds when wrapping with `AmbientBackground`.
+- `animateColorAsState` for accent transition requires the `LocalAccentColor` to be updated on the main thread via the existing `PlayerViewModel` Palette extraction flow. Verify the extraction still happens correctly after wrapping screens with `AmbientBackground`.
+- Stagger entrance pitfall: `key = { item.id }` is required in `LazyColumn`. Index-based keys cause animation re-fire on every recompose. (See prior pitfall: `staggered-lazyrow-key-stability`)
+- Library "By Album" view depends on `DownloadedTrack.albumTitle` being non-null. Tracks downloaded before album metadata was added (pre-2026-05-12) will fall under "Unknown Album". This is acceptable until a metadata enrichment pass is done.
 
 ## Remaining Work
 
-- Device-review Home with empty library, some downloads but no plays, and active listening history.
-- Device-review Library in sheet and full-tab modes, including empty library, albums shelf, playlists shelf, list/grid track view, swipe delete, and Manage storage disclosure.
-- Device-review Search with no library, with saved tracks but no query, with recommendation data, and after a normal search.
-- Device-review active, queued, failed, and completed download states if possible.
-- Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
-- Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
-- Android Studio build/run all redesigned flows, then device-review against `DESIGN.md`.
-- Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
-- Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
-- Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
-- Device-test Playlist Detail after Android Studio build: cover collapse, Play, Download missing, swipe/remove/undo, edit cover, delete dialog, add-to-playlist dialog, and currently-playing row highlight.
-- Device-test Artist Detail, Album Detail, Onboarding, and Create after Android Studio build.
-- Device-test Import dialog, Crop Cover, and Equalizer after Android Studio build.
-- Consider a future metadata-enrichment pass for existing YouTube-only downloads that do not have album title/year.
+- **Phase 1 (Ambient):** Create `AccentExtensions.kt`, `AmbientBackground.kt`. Wrap all screen scaffolds. Update mini player border. Replace static amber chips with dynamic accent chips.
+- **Phase 2 (Library Album View):** Add "By Album" filter chip and grouped list composable to `LibraryScreen.kt`.
+- **Phase 3 (Animations):** List stagger, tab slide, press feedback, album bloom, download collapse.
+- **Phase 4 (Polish):** Extend press scale to all interactive elements, album bloom in Now Playing, lyrics line entrance.
+- Device review all screens after Phase 1 lands to confirm ambient color looks right across different album palettes (dark albums, light albums, desaturated albums).
+- Consider a future metadata enrichment pass for existing YouTube-only downloads that have null album title.

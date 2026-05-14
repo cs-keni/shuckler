@@ -16,7 +16,7 @@ Seven principles that every decision traces back to.
 | 03 | **Warmth over neutral** | `#0C0A07`, not `#000000`. A whisper of warmth makes the app feel like listening under a lamp, not in a server room. |
 | 04 | **Gestures are first-class** | Expand, dismiss, skip — via continuous gestures, not button taps. The UI feels physically held. |
 | 05 | **The DM type system** | DM Serif Display (emotional) + DM Mono (data). Same type family — intentional, cohesive, no cursive. |
-| 06 | **Art as the only accent** | Album Palette API tints every surface. An advantage no commercial streaming service can copy. |
+| 06 | **Art as ambient light** | Album Palette API color bleeds through the *entire* app as ambient atmosphere — not just the Now Playing screen. The whole interface is tinted by whatever you're listening to. An advantage no commercial streaming service can copy. |
 | 07 | **Your listening, visible** | History, stats, and scrobbling make the app feel like a living record of your taste — not just a player. |
 
 ---
@@ -468,8 +468,220 @@ A countdown timer in `MusicPlayerService`. When it expires, volume fades to 0 ov
 
 ---
 
+## Ambient Color System (v2 Redesign)
+
+> Preview artifact: `color-redesign-preview.html` in the project root. Includes an interactive color simulator.
+
+**The problem (solved in v2):** The `LocalAccentColor` extracted from album art was siloed to a handful of Now Playing elements. The rest of the app — Library, Home, Search, Stats — was monochromatic warm-dark with no sense that music was playing at all.
+
+**The fix:** The album accent is now treated as *ambient light*. It bleeds through the entire app as a subtle color cast, exactly the way a light source affects everything in a room — not just the object it's pointed at. The intensity is low (12–18% opacity). The effect is cumulative: accent text + accent wash on the playing row + ambient bloom on the background = a screen that clearly belongs to the music.
+
+### Ambient Layer — Implementation
+
+Every screen scaffold wraps its content with an `AmbientBackground` composable:
+
+```kotlin
+@Composable
+fun AmbientBackground(content: @Composable () -> Unit) {
+    val accent = LocalAccentColor.current
+    val animatedAccent by animateColorAsState(
+        targetValue = accent,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Base)
+            .drawBehind {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(animatedAccent.copy(alpha = 0.15f), Color.Transparent),
+                        center = Offset(size.width / 2f, 0f),
+                        radius = size.width * 0.75f
+                    )
+                )
+            }
+    ) { content() }
+}
+```
+
+When the track changes, `LocalAccentColor` updates and the 600ms `animateColorAsState` cross-fades the bloom smoothly. The whole room changes color.
+
+### Dynamic Tint Helpers
+
+Add to `AccentExtensions.kt` (new file):
+
+```kotlin
+@Composable fun accentAmbient()     = LocalAccentColor.current.copy(alpha = 0.15f)
+@Composable fun accentWash()        = LocalAccentColor.current.copy(alpha = 0.07f)
+@Composable fun accentChipBg()      = LocalAccentColor.current.copy(alpha = 0.12f)
+@Composable fun accentChipBorder()  = LocalAccentColor.current.copy(alpha = 0.40f)
+@Composable fun accentAlbumGroup()  = LocalAccentColor.current.copy(alpha = 0.05f)
+```
+
+### Where the accent now appears (full inventory)
+
+| Surface | Token / usage | Opacity |
+|---------|--------------|---------|
+| All screen backgrounds | `AmbientBackground` bloom | 15% |
+| Playing track row (all screens) | `accentWash()` as row background | 7% |
+| Playing track title text | `LocalAccentColor.current` | 100% |
+| Selected filter chip bg | `accentChipBg()` | 12% |
+| Selected filter chip border | `accentChipBorder()` | 40% |
+| Playing album (shelf) — glow ring | `accentWash()` + blur | 35% |
+| Playing album (shelf) — amp bars | `LocalAccentColor.current` | 100% |
+| Playing album section header | `accentAlbumGroup()` background | 5% |
+| Mini player border | `LocalAccentColor.current` | 20% |
+| Mini player progress line | `LocalAccentColor.current` | 90% |
+| Secondary labels (count, sort) | `LocalAccentColor.current` | 70% |
+| Now Playing (existing) | All existing usages | unchanged |
+
+---
+
+## Library — Album-First View (v2)
+
+The Library has a new "By Album" filter mode that groups tracks under their album. This is the recommended default for libraries with more than 5 albums.
+
+### Album-Grouped List Behavior
+
+- **Section headers:** Rectangular album thumbnail (28×28dp, 4dp radius) + album title in DM Serif Display + DM Mono metadata (artist · year · track count). A collapse chevron on the right — tap to collapse all tracks under that album.
+- **Playing album header:** Rendered with `accentAlbumGroup()` background, amber-tinted title text, amplitude bars in the thumbnail instead of artwork.
+- **Track rows under each album:** Indented 40dp from left edge to visually belong to the album block. No track numbers — index is implied by position.
+- **Album dividers:** A 1px `BorderSubtle` line between albums. No full-width card surfaces.
+- **Collapsed state:** Shows only the header row. Album tap expands with a stagger entrance.
+
+### Library Filter Chip Order
+
+```
+[All] [By Album] [Playlists] [Downloaded] [Moods]
+```
+
+"All" shows the flat track list (existing behavior). "By Album" shows the grouped view. The chips use `accentChipBg()` / `accentChipBorder()` when selected.
+
+---
+
+## Animation System (v2)
+
+Six named animations. Each has a trigger, a duration, and Compose implementation guidance. Do not add animations outside this list without a documented trigger rationale.
+
+### 1. Ambient Transition
+- **Trigger:** Playing track changes (accent color updates)
+- **Duration:** 600ms, `FastOutSlowInEasing`
+- **What:** The ambient bloom in `AmbientBackground` cross-fades from old accent to new accent via `animateColorAsState`. Interruptible — if the user skips repeatedly, the color chases the latest accent without queuing.
+
+### 2. List Stagger Entrance
+- **Trigger:** Screen loads, filter chip changes, album collapses/expands
+- **Duration:** 280ms per item, 30ms stagger, `FastOutSlowInEasing`
+- **What:** First 5 visible items fade in and slide up 8dp. Items at index ≥ 5 appear immediately to keep scroll performance clean.
+- **Critical pitfall:** Use `key = { item.id }` in `LazyColumn`, not index-based keys. Index keys re-trigger the animation on every recompose. (See prior pitfall learning: `staggered-lazyrow-key-stability`)
+
+```kotlin
+@Composable
+fun TrackRow(track: Track, index: Int, modifier: Modifier = Modifier) {
+    val delay = (minOf(index, 4) * 30).toLong()
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(track.id) { delay(delay); visible = true }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(280)) + slideInVertically(tween(280)) { 24 },
+        modifier = modifier
+    ) { /* row content */ }
+}
+```
+
+### 3. Tab Slide Transition
+- **Trigger:** Bottom navigation tab selection changes
+- **Duration:** 280ms, `FastOutSlowInEasing`
+- **What:** Content slides horizontally in the direction of the tab (left tap → right-to-left slide, right tap → left-to-right slide). Creates spatial memory — users learn the tab order through direction.
+
+```kotlin
+AnimatedContent(
+    targetState = selectedTab,
+    transitionSpec = {
+        val dir = if (targetState.index > initialState.index) 1 else -1
+        (slideInHorizontally(tween(280)) { it * dir } + fadeIn(tween(180))) togetherWith
+        (slideOutHorizontally(tween(280)) { -it * dir } + fadeOut(tween(120)))
+    },
+    label = "tab_transition"
+) { tab -> TabContent(tab) }
+```
+
+### 4. Press Feedback (Scale Pulse)
+- **Trigger:** Any tappable element — track rows, chips, shelf items, album cards, buttons, nav items
+- **Duration:** Spring physics (no fixed duration)
+- **What:** Scale to 0.94f on press, spring back with `DampingRatioMediumBouncy` on release.
+
+```kotlin
+@Composable
+fun Modifier.pressScale(): Modifier {
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "press_scale"
+    )
+    return this
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .pointerInput(Unit) {
+            detectTapGestures(
+                onPress = { pressed = true; tryAwaitRelease(); pressed = false }
+            )
+        }
+}
+```
+
+### 5. Album Art Bloom (Shelf)
+- **Trigger:** Currently-playing album is visible in a horizontal shelf
+- **Duration:** 2000ms, infinite, `RepeatMode.Reverse`
+- **What:** A blurred radial gradient of the album accent pulses behind the playing album's artwork in any shelf. Scale 0.95→1.05, opacity 0.4→0.9. No bloom on non-playing albums.
+
+```kotlin
+val bloomScale by animateFloatAsState(
+    targetValue = if (isPlaying) 1.05f else 0.95f,
+    animationSpec = infiniteRepeatable(
+        animation = tween(2000, easing = FastOutSlowInEasing),
+        repeatMode = RepeatMode.Reverse
+    ),
+    label = "album_bloom"
+)
+// Render as a Box with Modifier.graphicsLayer { scaleX = ...; scaleY = ... }
+// behind the artwork Box, filled with the accent color at 35% opacity + blur
+```
+
+### 6. Download Spring Collapse
+- **Trigger:** Download status transitions to `DONE`
+- **Duration:** Spring physics, `StiffnessLow`, `DampingRatioMediumBouncy`
+- **What:** 1.5s after completion, the waveform card spring-collapses vertically and disappears. The newly added track simultaneously enters the Library list with the Stagger Entrance animation.
+
+```kotlin
+AnimatedVisibility(
+    visible = downloadStatus != DownloadStatus.DONE || showForDelay,
+    exit = shrinkVertically(
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        )
+    ) + fadeOut(tween(200)),
+    label = "download_collapse"
+) { WaveformDownloadCard(track = track) }
+```
+
+### Animation rules
+
+- All spring animations use `Spring.DampingRatioMediumBouncy` + `Spring.StiffnessMedium` unless specified otherwise.
+- All duration-based animations use `FastOutSlowInEasing` unless specified otherwise.
+- Never animate layout parameters (width, height, padding) with `tween` — always use springs or `AnimatedVisibility`/`animateContentSize`.
+- No animation should block user input. Every animation is interruptible.
+
+---
+
 ## Design Preview
 
 The full interactive design preview is at `design-preview.html` in the project root. Open in any browser — no server required.
+
+The **color redesign** preview is at `color-redesign-preview.html`. Includes a live album-color simulator and before/after comparison of every ambient color change. Open this one first to understand the v2 direction.
 
 It includes all screens, live animations (waveform frontier, amplitude bars, breathing glow, shimmer), before/after comparisons, and the full feature overview.

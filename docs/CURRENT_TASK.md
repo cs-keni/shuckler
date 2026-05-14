@@ -4,46 +4,95 @@ Date: 2026-05-14
 
 ## Status
 
-Implementation-complete pending Android Studio build and user review.
+Design planning complete. Ready for Codex implementation of the v2 color/animation system.
 
 ## Active Slice
 
-Flow-first `DESIGN.md` completion is the active implementation slice:
-- Library track artist names open an artist detail screen.
-- Artist detail shows a blurred artwork hero, Songs section, Albums artwork shelf, Play All, Shuffle, and currently-playing highlighting.
-- Codex restored context from `CLAUDE.md`, `DESIGN.md`, and shared docs.
-- User confirmed the project builds successfully in Android Studio on 2026-05-13.
-- Codex WSL now has OpenJDK 17 and `JAVA_HOME` configured. Local Gradle starts, but full WSL compile checks need a Linux Android SDK because the current Android SDK is the Windows install with `.exe` build-tools.
-- Album metadata and Album Detail are now being added as the next `DESIGN.md` slice.
-- Brand/icon cleanup is underway: user chose Direction A, keeping Shuckler and switching the mark to `catdoodle.png`.
-- Home visual redesign pass started: warm background, snapshot stats, redesigned hero, and quieter section headers.
-- Search visual redesign pass started: Base background, tokenized search field, horizontal recent/suggestion chips, section labels, and redesigned YouTube result cards.
-- Visual-token cleanup continued: onboarding pager dots no longer use `CircleShape`, and remaining hardcoded black/white UI overlays in Home, Library, Player, crop cover, and Equalizer were migrated to warm design tokens.
-- User feedback: the UI is improved but still feels too box/card-heavy, with awkward Home gaps. Planning shifted to a "flow-first" redesign direction before further implementation.
-- `DESIGN.md` now documents the flow-first direction, and `flow-redesign-preview.html` shows a proposed Home composition.
-- User approved the flow-first preview. Home implementation has started with the first composition slice: compact topbar, full-bleed continue-listening/search band, inline metrics, chip actions, and flat artwork shelves.
-- Library implementation has started: track browsing is no longer hidden inside the storage/download disclosure, maintenance tools moved lower, and shelves/track rows were flattened to reduce the card-stack feel.
-- Reported Library sheet gap was addressed by removing the forced minimum track-area height in sheet mode and allowing partial sheet expansion.
-- Reported Library mid-page gap was addressed by removing the large "No playlists yet" empty state from the collection flow.
-- Library chips now use flat tokenized pills instead of Material default filter chips.
-- Android Studio compile error at `LibraryScreen.kt:1613` was fixed by changing the mood-tag dialog chip call to the new local `FilterChip(label: String, selected: Boolean, onClick: () -> Unit)` signature.
-- Search idle recommendations now use a horizontal artwork shelf while preserving full result cards for searched results.
-- Search idle suggestions/empty copy were flattened to reduce card/panel feel.
-- Search now has a discovery starter surface so fresh/idle Search does not feel empty: topbar supporting copy plus starter query chips.
-- Search recommendation section now only renders while loading or when there are actual recommendation results, avoiding a blank section after empty fetches.
-- Search now fills space under non-empty recommendations with a compact "Keep exploring" chip row.
-- Stats flow pass started: tokenized time chips, quieter personality panel, flatter big stats and achievement surfaces.
-- Stats follow-up added a dedicated topbar and Top artists ranked bar section from `DESIGN.md`.
-- Now Playing flow polish continued: queue sheet uses the warm Base canvas, flat tokenized rows, accent wash for the current track, album-accent progress/controls, and custom action chips instead of Material `FilterChip`.
-- Settings dialog polish continued: warm tokenized dialog surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 copy hierarchy.
-- Search idle recommendation flicker fixed: "Recommended for you" now renders only when visible recommendation tiles are available, and empty background refreshes no longer clear an already-visible shelf.
-- Downloads flow polish continued: waveform download cards now use the tighter 8dp card radius, token border, status labels for queued/done/failed states, and Library's storage/download disclosure uses warm token styling.
-- Playlist Detail flow polish continued: the screen now uses the warm Base canvas, tokenized header/actions/dialogs, flattened playlist track rows, rectangular artwork, and an accent wash for the currently playing row instead of card containers.
-- Artist Detail and Album Detail token polish continued: hero text, outline actions, flat rows, artwork placeholders, metadata, and currently-playing highlights now use design tokens instead of default Material surface/text colors.
-- Onboarding and Create surfaces now use the warm Base canvas, tokenized copy, accent actions, and rectangular brand artwork container.
-- Import dialog, Crop Cover, and Equalizer utility polish continued: modal surfaces, tabs, inputs, buttons, playlist rows, crop overlay, and EQ controls now use warm design tokens and runtime accent color instead of default Material surface/accent colors.
-- Final scattered sweep completed: Home fallback copy/placeholders, Library utility dialogs and destructive states, shared EmptyState, MiniPlayer placeholder art, and NavigationBar content now use design tokens instead of default Material color roles.
+**Ambient Color + Animation System (v2)** — four implementation phases defined in `DESIGN.md § Ambient Color System (v2 Redesign)` and `DESIGN.md § Animation System (v2)`.
+
+### Context
+
+Claude Code ran `/design-consultation` on 2026-05-14 and produced:
+- Updated `DESIGN.md` with the Ambient Color System (v2) and Animation System (v2) sections.
+- Interactive preview at `color-redesign-preview.html` in project root — shows before/after comparison and live album color simulator.
+- The design problem diagnosed: `LocalAccentColor` (from album Palette API) was only used in Now Playing. The entire rest of the app (Library, Home, Search, Stats) was monochromatic warm-dark with no color. The v2 fix bleeds the accent color throughout as ambient light.
+
+### What Codex Must Implement
+
+**Phase 1 — Ambient Background (highest priority, 30-minute win)**
+
+1. Create `app/src/main/java/com/shuckler/app/ui/AccentExtensions.kt`:
+   ```kotlin
+   package com.shuckler.app.ui
+   import androidx.compose.runtime.Composable
+   import androidx.compose.ui.graphics.Color
+   import com.shuckler.app.ui.theme.LocalAccentColor
+
+   @Composable fun accentAmbient()    = LocalAccentColor.current.copy(alpha = 0.15f)
+   @Composable fun accentWash()       = LocalAccentColor.current.copy(alpha = 0.07f)
+   @Composable fun accentChipBg()     = LocalAccentColor.current.copy(alpha = 0.12f)
+   @Composable fun accentChipBorder() = LocalAccentColor.current.copy(alpha = 0.40f)
+   @Composable fun accentAlbumGroup() = LocalAccentColor.current.copy(alpha = 0.05f)
+   ```
+
+2. Create `app/src/main/java/com/shuckler/app/ui/AmbientBackground.kt`:
+   ```kotlin
+   @Composable
+   fun AmbientBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+       val accent = LocalAccentColor.current
+       val animatedAccent by animateColorAsState(accent, tween(600, easing = FastOutSlowInEasing), label = "ambient")
+       Box(
+           modifier
+               .fillMaxSize()
+               .background(Base)
+               .drawBehind {
+                   drawRect(
+                       brush = Brush.radialGradient(
+                           colors = listOf(animatedAccent.copy(alpha = 0.15f), Color.Transparent),
+                           center = Offset(size.width / 2f, 0f),
+                           radius = size.width * 0.75f
+                       )
+                   )
+               },
+           content = content
+       )
+   }
+   ```
+
+3. Wrap each top-level screen scaffold's background with `AmbientBackground` instead of plain `Background(Base)`. Affected screens: `HomeScreen.kt`, `LibraryScreen.kt`, `SearchScreen.kt`, `AnalyticsScreen.kt`, `PlayerScreen.kt`, `PlaylistScreen.kt`, `ArtistDetailScreen.kt`, `AlbumDetailScreen.kt`.
+
+4. In `MiniPlayerBar.kt`: add `border = BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.20f))` to the pill container.
+
+5. Replace static `Amber` chip styling (selected state) in `LibraryScreen.kt`, `SearchScreen.kt`, `AnalyticsScreen.kt` with `accentChipBg()` background + `accentChipBorder()` border. (All other chip internals unchanged.)
+
+6. In all playing-track rows across all screens: use `accentWash()` as the row's background modifier instead of whatever static tint is there now. The title text of the playing track should use `LocalAccentColor.current` at full alpha.
+
+**Phase 2 — Library Album View**
+
+Add a "By Album" filter chip to `LibraryScreen.kt`. When active, group the track list by `DownloadedTrack.albumTitle` (fall back to "Unknown Album" when null). Render each album group as:
+- Album section header: 28×28dp thumbnail + DM Serif Display album name + DM Mono metadata row + collapse chevron.
+- Playing album header: `accentAlbumGroup()` background + amber title text + amp bars in thumbnail.
+- Track rows under that album: indent 40dp from left. Remove track row art (it's implied by the album header above).
+- Divider between albums: 1px `BorderSubtle`.
+
+See `DESIGN.md § Library — Album-First View (v2)` for full spec.
+
+**Phase 3 — Animation System**
+
+Implement all six animations from `DESIGN.md § Animation System (v2)`:
+1. Ambient Transition — already handled by Phase 1's `animateColorAsState`.
+2. List Stagger Entrance — `TrackRow` with `LaunchedEffect` + `AnimatedVisibility`. Use `key = { item.id }` not index.
+3. Tab Slide — `AnimatedContent` in `NavGraph.kt` tab host.
+4. Press Feedback — `Modifier.pressScale()` extension, apply to all tappable surfaces.
+5. Album Art Bloom — pulsing `animateFloatAsState` behind playing album in shelf composables.
+6. Download Spring Collapse — `AnimatedVisibility` with `shrinkVertically(spring(...))` exit in `WaveformDownloadCard.kt`.
+
+**Phase 4 — Polish**
+
+- Apply `Modifier.pressScale()` to all interactive elements not already covered.
+- Add album bloom to Now Playing art (extend existing breathing glow to use accent color bloom at 35% instead of static amber).
+- Lyrics line transitions: entrance animation for each lyric line as it becomes active.
 
 ## Next Best Work
 
-Android Studio build/run all redesigned flows, then device-review against `DESIGN.md`. Pay special attention to Home/Library/Search empty states, Playlist/Artist/Album detail, Import/Crop/Equalizer utility flows, and Now Playing/Queue/Settings.
+Codex: Start with Phase 1. It touches many files but requires no structural changes — only new composables and wrapper changes. Build and test after Phase 1 before moving to Phase 2. The `color-redesign-preview.html` file is the visual reference.
