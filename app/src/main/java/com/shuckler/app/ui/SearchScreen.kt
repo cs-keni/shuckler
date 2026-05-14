@@ -108,7 +108,7 @@ fun SearchScreen(
     var searchResults by remember { mutableStateOf<List<YouTubeSearchResult>>(emptyList()) }
     var searchLoading by remember { mutableStateOf(false) }
     var lastSearchedQuery by remember { mutableStateOf("") }
-    var downloadingVideoUrl by remember { mutableStateOf<String?>(null) }
+    var downloadingVideoUrls by remember { mutableStateOf(emptySet<String>()) }
     var streamingVideoUrl by remember { mutableStateOf<String?>(null) }
     var youtubeDownloadError by remember { mutableStateOf<String?>(null) }
     var searchError by remember { mutableStateOf<String?>(null) }
@@ -345,7 +345,7 @@ fun SearchScreen(
         }
 
         if (lingeringProgress.isNotEmpty()) {
-            SectionLabel("Downloading", modifier = Modifier.padding(horizontal = 16.dp))
+            SectionLabel("Download Queue", modifier = Modifier.padding(horizontal = 16.dp))
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -375,8 +375,11 @@ fun SearchScreen(
                                 artist = track?.artist ?: "",
                                 thumbnailUrl = track?.thumbnailUrl,
                                 progress = p,
-                                status = if (isActive) (track?.status ?: DownloadStatus.DOWNLOADING)
-                                         else DownloadStatus.COMPLETED
+                                status = when {
+                                    isActive -> track?.status ?: DownloadStatus.DOWNLOADING
+                                    track?.status == DownloadStatus.FAILED -> DownloadStatus.FAILED
+                                    else -> DownloadStatus.COMPLETED
+                                }
                             )
                         }
                     }
@@ -461,7 +464,7 @@ fun SearchScreen(
                     val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
                     YouTubeResultItem(
                         result = result,
-                        isDownloading = downloadingVideoUrl == result.url,
+                        isDownloading = result.url in downloadingVideoUrls,
                         isStreaming = streamingVideoUrl == result.url,
                         isDownloaded = isDownloaded,
                         onPlayClick = {
@@ -512,11 +515,10 @@ fun SearchScreen(
                             onWifiOnlyBlocked = onWifiOnlyBlocked
                         )
                         if (id.isNotEmpty()) {
-                            downloadingVideoUrl = result.url
+                            downloadingVideoUrls = downloadingVideoUrls + result.url
                             scope.launch {
-                                val urlToClear = result.url
                                 kotlinx.coroutines.delay(500)
-                                if (downloadingVideoUrl == urlToClear) downloadingVideoUrl = null
+                                downloadingVideoUrls = downloadingVideoUrls - result.url
                             }
                         }
                         }
@@ -539,7 +541,7 @@ fun SearchScreen(
                     val isDownloaded = completedTracks.any { it.sourceUrl == result.url }
                     RecommendedSearchTile(
                         result = result,
-                        isDownloading = downloadingVideoUrl == result.url,
+                        isDownloading = result.url in downloadingVideoUrls,
                         isStreaming = streamingVideoUrl == result.url,
                         isDownloaded = isDownloaded,
                         onPlayClick = {
@@ -590,10 +592,10 @@ fun SearchScreen(
                                 onWifiOnlyBlocked = onWifiOnlyBlocked
                             )
                             if (id.isNotEmpty()) {
-                                downloadingVideoUrl = result.url
+                                downloadingVideoUrls = downloadingVideoUrls + result.url
                                 scope.launch {
                                     kotlinx.coroutines.delay(500)
-                                    if (downloadingVideoUrl == result.url) downloadingVideoUrl = null
+                                    downloadingVideoUrls = downloadingVideoUrls - result.url
                                 }
                             }
                         }

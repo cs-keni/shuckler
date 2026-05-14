@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -52,6 +54,7 @@ class DownloadManager(private val context: Context) {
     val lastFailedDownloadId: StateFlow<String?> = _lastFailedDownloadId.asStateFlow()
 
     private val activeJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val downloadSemaphore = Semaphore(2)
 
     /** Total bytes used by completed downloads (from metadata). Recomputed when needed. */
     fun getTotalStorageUsed(): Long = _downloads.value
@@ -170,8 +173,18 @@ class DownloadManager(private val context: Context) {
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
 
+        _downloads.value = _downloads.value + DownloadedTrack(
+            id = id, title = safeTitle, artist = safeArtist,
+            filePath = "", sourceUrl = url,
+            status = DownloadStatus.PENDING, downloadProgress = 0,
+            thumbnailUrl = thumbnailUrl, albumTitle = albumTitle, albumYear = albumYear
+        )
+        _progress.value = _progress.value + (id to DownloadProgress(id, 0, 0, 0))
+
         val job = scope.launch {
-            runDownload(id, url, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
+            downloadSemaphore.withPermit {
+                runDownload(id, url, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
+            }
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -202,8 +215,18 @@ class DownloadManager(private val context: Context) {
         val safeTitle = title?.takeIf { it.isNotBlank() } ?: "Track ${id.take(8)}"
         val safeArtist = artist?.takeIf { it.isNotBlank() } ?: "Unknown"
 
+        _downloads.value = _downloads.value + DownloadedTrack(
+            id = id, title = safeTitle, artist = safeArtist,
+            filePath = "", sourceUrl = videoUrl,
+            status = DownloadStatus.PENDING, downloadProgress = 0,
+            thumbnailUrl = thumbnailUrl, albumTitle = albumTitle, albumYear = albumYear
+        )
+        _progress.value = _progress.value + (id to DownloadProgress(id, 0, 0, 0))
+
         val job = scope.launch {
-            runDownloadFromYouTube(id, videoUrl, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
+            downloadSemaphore.withPermit {
+                runDownloadFromYouTube(id, videoUrl, safeTitle, safeArtist, thumbnailUrl, albumTitle, albumYear)
+            }
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -229,9 +252,12 @@ class DownloadManager(private val context: Context) {
         if (track.status != DownloadStatus.FAILED || track.sourceUrl.isBlank()) return
         _lastDownloadError.value = null
         _lastFailedDownloadId.value = null
-        _lastFailedDownloadId.value = null
+        _downloads.value = _downloads.value.map { if (it.id == id) it.copy(status = DownloadStatus.PENDING, downloadProgress = 0) else it }
+        _progress.value = _progress.value + (id to DownloadProgress(id, 0, 0, 0))
         val job = scope.launch {
-            runDownloadFromYouTube(id, track.sourceUrl, track.title, track.artist, track.thumbnailUrl, track.albumTitle, track.albumYear)
+            downloadSemaphore.withPermit {
+                runDownloadFromYouTube(id, track.sourceUrl, track.title, track.artist, track.thumbnailUrl, track.albumTitle, track.albumYear)
+            }
         }
         activeJobs[id] = job
         job.invokeOnCompletion { activeJobs.remove(id) }
@@ -448,6 +474,9 @@ class DownloadManager(private val context: Context) {
         albumYear: Int? = null
     ) {
         withContext(Dispatchers.IO) {
+            _downloads.value = _downloads.value.map {
+                if (it.id == id && it.status == DownloadStatus.PENDING) it.copy(status = DownloadStatus.DOWNLOADING) else it
+            }
             val maxAttempts = 5
             var lastError: Exception? = null
             var partialFile: File? = null
@@ -631,6 +660,9 @@ class DownloadManager(private val context: Context) {
         albumYear: Int? = null
     ) {
         withContext(Dispatchers.IO) {
+            _downloads.value = _downloads.value.map {
+                if (it.id == id && it.status == DownloadStatus.PENDING) it.copy(status = DownloadStatus.DOWNLOADING) else it
+            }
             when (val result = runDownloadAttempt(
                 id = id,
                 urlString = urlString,
@@ -706,7 +738,7 @@ class DownloadManager(private val context: Context) {
             albumTitle = albumTitle?.takeIf { it.isNotBlank() },
             albumYear = albumYear
         )
-        _downloads.value = _downloads.value + track
+        _downloads.value = _downloads.value.filter { it.id != id } + track
         saveMetadata(_downloads.value)
     }
 
@@ -724,7 +756,7 @@ class DownloadManager(private val context: Context) {
             downloadProgress = 0,
             errorMessage = errorMessage
         )
-        _downloads.value = _downloads.value + track
+        _downloads.value = _downloads.value.filter { it.id != id } + track
         saveMetadata(_downloads.value.filter { it.status == DownloadStatus.COMPLETED })
     }
 
