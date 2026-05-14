@@ -4,7 +4,7 @@ Date: 2026-05-14
 
 ## Status
 
-In progress: design completion work from `DESIGN.md`.
+Implementation-complete pending Android Studio build and user review.
 
 ## Active Slice
 
@@ -42,7 +42,8 @@ Flow-first `DESIGN.md` completion is the active implementation slice:
 - Artist Detail and Album Detail token polish continued: hero text, outline actions, flat rows, artwork placeholders, metadata, and currently-playing highlights now use design tokens instead of default Material surface/text colors.
 - Onboarding and Create surfaces now use the warm Base canvas, tokenized copy, accent actions, and rectangular brand artwork container.
 - Import dialog, Crop Cover, and Equalizer utility polish continued: modal surfaces, tabs, inputs, buttons, playlist rows, crop overlay, and EQ controls now use warm design tokens and runtime accent color instead of default Material surface/accent colors.
+- Final scattered sweep completed: Home fallback copy/placeholders, Library utility dialogs and destructive states, shared EmptyState, MiniPlayer placeholder art, and NavigationBar content now use design tokens instead of default Material color roles.
 
 ## Next Best Work
 
-Do a final `DESIGN.md` sweep of remaining scattered defaults/function-name false positives in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph, then Android Studio build/run all redesigned flows.
+Android Studio build/run all redesigned flows, then device-review against `DESIGN.md`. Pay special attention to Home/Library/Search empty states, Playlist/Artist/Album detail, Import/Crop/Equalizer utility flows, and Now Playing/Queue/Settings.

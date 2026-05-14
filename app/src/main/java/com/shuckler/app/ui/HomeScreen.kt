@@ -265,11 +265,14 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = LocalAccentColor.current
+                    )
                     Text(
                         text = "Finding recommendations…",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Text2,
                         modifier = Modifier.padding(start = 8.dp)
                     )
                 }
@@ -432,7 +435,7 @@ fun HomeScreen(
             Text(
                 text = "Play some music to see your recently played or add favorites for quick picks.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Text2,
                 modifier = Modifier.padding(16.dp)
             )
         }
@@ -843,7 +846,8 @@ private fun RecommendedYouTubeCard(
     Card(
         modifier = Modifier.size(width = 160.dp, height = 200.dp),
         shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceElevated)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (result.thumbnailUrl != null) {
@@ -857,7 +861,7 @@ private fun RecommendedYouTubeCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(SurfaceElevated)
                 )
             }
 

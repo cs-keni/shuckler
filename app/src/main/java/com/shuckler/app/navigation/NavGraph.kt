@@ -56,6 +56,7 @@ import com.shuckler.app.ui.theme.Amber
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.Text1
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.Playlist
@@ -293,7 +294,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                 }
                 NavigationBar(
                     containerColor = Color.Transparent,
-                    contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
+                    contentColor = Text1,
                     tonalElevation = 0.dp
                 ) {
                     tabOrder.forEach { screen ->

@@ -46,6 +46,7 @@ import coil.request.ImageRequest
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.ui.theme.Amber
+import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.SurfaceHigh
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
@@ -149,7 +150,7 @@ fun MiniPlayerBar(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(RoundedCornerShape(7.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                            .background(SurfaceElevated),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(

@@ -78,6 +78,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -114,6 +115,7 @@ import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.Red
+import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
@@ -229,7 +231,10 @@ fun LibraryScreen(
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text("Clear all downloads?") },
+            containerColor = Surface,
+            titleContentColor = Text1,
+            textContentColor = Text2,
+            title = { Text("Clear all downloads?", style = MaterialTheme.typography.titleMedium) },
             text = { Text("This will delete all downloaded tracks and free storage. This cannot be undone.") },
             confirmButton = {
                 TextButton(
@@ -238,12 +243,12 @@ fun LibraryScreen(
                         showClearAllConfirm = false
                     }
                 ) {
-                    Text("Clear all", color = MaterialTheme.colorScheme.error)
+                    Text("Clear all", color = Red)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllConfirm = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Text2)
                 }
             }
         )
@@ -774,7 +779,7 @@ fun LibraryScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .background(
-                                                MaterialTheme.colorScheme.error.copy(
+                                                Red.copy(
                                                     alpha = (0.4f + progress * 0.6f).coerceIn(0f, 1f)
                                                 )
                                             )
@@ -784,7 +789,7 @@ fun LibraryScreen(
                                         Icon(
                                             Icons.Default.Delete,
                                             contentDescription = "Delete",
-                                            tint = MaterialTheme.colorScheme.onError,
+                                            tint = Text1,
                                             modifier = Modifier.size(28.dp).scale(iconScale)
                                         )
                                     }
@@ -1294,7 +1299,7 @@ private fun LibraryTrackItem(
                     Icon(
                         imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
-                        tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Text2
+                        tint = if (track.isFavorite) Red else Text2
                     )
                 }
                 Icon(
@@ -1469,7 +1474,7 @@ private fun LibraryTrackGridItem(
                     imageVector = if (track.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = if (track.isFavorite) "Unfavorite" else "Favorite",
                     modifier = Modifier.size(16.dp).scale(favoriteScale),
-                    tint = if (track.isFavorite) MaterialTheme.colorScheme.error else Text1.copy(alpha = 0.85f)
+                    tint = if (track.isFavorite) Red else Text1.copy(alpha = 0.85f)
                 )
             }
         }
@@ -1543,7 +1548,7 @@ private fun SmartPlaylistScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No tracks in this list", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No tracks in this list", color = Text2)
             }
         } else {
             LazyColumn(
@@ -1584,7 +1589,10 @@ private fun MoodTagDialog(
     var customTag by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Mood tags for \"${track.title}\"") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = { Text("Mood tags for \"${track.title}\"", style = MaterialTheme.typography.titleMedium) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
@@ -1597,7 +1605,8 @@ private fun MoodTagDialog(
                         onValueChange = { customTag = it },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Add custom tag") },
-                        singleLine = true
+                        singleLine = true,
+                        colors = libraryTextFieldColors()
                     )
                     TextButton(onClick = {
                         val t = customTag.trim().lowercase()
@@ -1606,7 +1615,7 @@ private fun MoodTagDialog(
                             customTag = ""
                         }
                     }) {
-                        Text("Add")
+                        Text("Add", color = LocalAccentColor.current)
                     }
                 }
                 Row(
@@ -1631,18 +1640,18 @@ private fun MoodTagDialog(
                 Text(
                     text = "Selected: ${selectedTags.joinToString(", ").ifEmpty { "None" }}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = { onSave(selectedTags) }) {
-                Text("Save")
+                Text("Save", color = LocalAccentColor.current)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = Text2)
             }
         }
     )
@@ -1664,16 +1673,19 @@ private fun CleanUpDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Clean up suggestions") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = { Text("Clean up suggestions", style = MaterialTheme.typography.titleMedium) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "Tracks you might want to remove: never played, or not played in 90+ days with fewer than 2 plays.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Text2
                 )
                 if (suggested.isEmpty()) {
-                    Text("Nothing to suggest! Your library looks tidy.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Nothing to suggest! Your library looks tidy.", color = Text2)
                 } else {
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 300.dp),
@@ -1690,13 +1702,13 @@ private fun CleanUpDialog(
                                     Text(
                                         "${track.artist} • ${if (track.playCount == 0) "Never played" else "Played ${track.playCount}x"}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = Text2,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
                                 TextButton(onClick = { onDelete(track.id) }) {
-                                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                                    Text("Remove", color = Red)
                                 }
                             }
                         }
@@ -1706,8 +1718,21 @@ private fun CleanUpDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done")
+                Text("Done", color = LocalAccentColor.current)
             }
         }
     )
 }
+
+@Composable
+private fun libraryTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Text1,
+    unfocusedTextColor = Text1,
+    focusedContainerColor = SurfaceElevated,
+    unfocusedContainerColor = SurfaceElevated,
+    focusedBorderColor = LocalAccentColor.current,
+    unfocusedBorderColor = Border,
+    focusedPlaceholderColor = Text3,
+    unfocusedPlaceholderColor = Text3,
+    cursorColor = LocalAccentColor.current
+)

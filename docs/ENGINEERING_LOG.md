@@ -52,3 +52,4 @@
 - Re-attempting Codex-side Gradle after the detail/onboarding slice still fails before Kotlin compilation on the known Windows SDK `aapt` mismatch.
 - Import dialog, Crop Cover, and Equalizer were tokenized next. `rg` now finds no targeted default Material surface/primary color usages in those files.
 - A broad remaining-default scan still reports some expected function-name hits (`StatCard`, `ArtistAlbumCard`, local `FilterChip`, etc.) plus scattered real leftovers in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph.
+- Final scattered sweep replaced those real leftovers. Broad `rg` now finds no targeted default Material surface/primary color usages in UI/navigation; only two direct `Card(` calls remain as intentional design exceptions in Search result cards and Home recommendation image tiles.

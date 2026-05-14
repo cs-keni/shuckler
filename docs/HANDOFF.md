@@ -83,6 +83,10 @@ Date: 2026-05-13
   - Import dialog now uses warm sheet/tabs/text fields/buttons, flattened Spotify playlist rows, and tokenized loading/error/copy states.
   - Crop Cover now uses warm Surface/Base/Text tokens and the runtime accent for the crop highlight and Done action.
   - Equalizer now uses warm dialog/dropdown/switch/chart tokens and the runtime accent for curve/fill/dots instead of the static amber alias.
+- Completed final scattered `DESIGN.md` sweep:
+  - Home loading/fallback copy and recommendation placeholder now use Text2/SurfaceElevated/accent tokens.
+  - Library destructive swipe states, clear-all confirmation, mood tag dialog, cleanup dialog, favorite icons, and smart-playlist empty state now use warm tokens.
+  - Shared EmptyState, MiniPlayer placeholder artwork, and NavigationBar content color now use design tokens.
 
 ## Checks
 
@@ -131,6 +135,10 @@ Date: 2026-05-13
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/ImportDialog.kt app/src/main/java/com/shuckler/app/ui/CropCoverDialog.kt app/src/main/java/com/shuckler/app/ui/EqualizerScreen.kt` passes after utility-surface token polish.
 - `rg` confirms no targeted default Material surface/primary color usages remain in `ImportDialog.kt`, `CropCoverDialog.kt`, or `EqualizerScreen.kt`.
 - Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the utility-surface slice; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/EmptyState.kt app/src/main/java/com/shuckler/app/ui/MiniPlayerBar.kt app/src/main/java/com/shuckler/app/navigation/NavGraph.kt app/src/main/java/com/shuckler/app/ui/HomeScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the final scattered sweep.
+- Broad `rg` confirms no targeted `MaterialTheme.colorScheme.surface/surfaceVariant/primary/background/onSurface/onSurfaceVariant/outline/error/onError/onPrimary` usages remain in `app/src/main/java/com/shuckler/app/ui` or `app/src/main/java/com/shuckler/app/navigation`.
+- Broad `rg` still shows two direct `Card(` usages: Search result cards and Home recommendation image cards. These are intentional `DESIGN.md` card exceptions for mixed-action search results and art-backed recommendation tiles.
+- Re-attempted `:app:compileDebugKotlin` with the Windows SDK path after the final sweep; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
 
 ## Known Risks
 
@@ -149,7 +157,7 @@ Date: 2026-05-13
 - Device-review active, queued, failed, and completed download states if possible.
 - Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
 - Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
-- Do a final `DESIGN.md` sweep of remaining scattered defaults/function-name false positives in Home, Library utility dialogs, EmptyState, MiniPlayer placeholder, and NavGraph.
+- Android Studio build/run all redesigned flows, then device-review against `DESIGN.md`.
 - Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
 - Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
 - Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
