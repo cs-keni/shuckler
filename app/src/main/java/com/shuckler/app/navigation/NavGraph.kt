@@ -299,14 +299,21 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .background(Base)
             .drawBehind {
+                val origin = Offset(size.width / 2f, 0f)
+                // Persistent warm baseline — always present even with no music
                 drawRect(
                     brush = Brush.radialGradient(
-                        colors = listOf(
-                            animatedAccent.copy(alpha = 0.14f),
-                            Color.Transparent
-                        ),
-                        center = Offset(size.width / 2f, 0f),
-                        radius = size.width * 0.85f
+                        colors = listOf(Amber.copy(alpha = 0.09f), Color.Transparent),
+                        center = origin,
+                        radius = size.width * 1.1f
+                    )
+                )
+                // Album accent overlay — animates with playing track color
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(animatedAccent.copy(alpha = 0.15f), Color.Transparent),
+                        center = origin,
+                        radius = size.width * 0.9f
                     )
                 )
             }
