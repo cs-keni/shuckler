@@ -210,6 +210,22 @@ fun LibraryScreen(
     val playlistManager = LocalPlaylistManager.current
     val playlists by playlistManager.playlists.collectAsState()
     val allEntries by playlistManager.allEntries.collectAsState()
+    val filteredPlaylists = remember(playlists, searchQuery, playlistSort, allEntries, completedTracks) {
+        val q = searchQuery.trim()
+        val filtered = if (q.isEmpty()) playlists else playlists.filter { it.name.contains(q, ignoreCase = true) }
+        when (playlistSort) {
+            LibraryPlaylistSort.ALPHABETICAL -> filtered.sortedBy { it.name.lowercase() }
+            LibraryPlaylistSort.RECENTLY_PLAYED -> filtered.sortedByDescending { p ->
+                allEntries.filter { it.playlistId == p.id }
+                    .mapNotNull { e -> completedTracks.find { it.id == e.trackId }?.lastPlayedMs ?: 0L }
+                    .maxOrNull() ?: 0L
+            }
+            LibraryPlaylistSort.MOST_LISTENED -> filtered.sortedByDescending { p ->
+                allEntries.filter { it.playlistId == p.id }
+                    .sumOf { e -> completedTracks.find { it.id == e.trackId }?.playCount ?: 0 }
+            }
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val reduceMotion by LocalAccessibilityPreferences.current.reduceMotionFlow.collectAsState(
@@ -518,22 +534,6 @@ fun LibraryScreen(
             }
         }
         var showPlaylistSortMenu by remember { mutableStateOf(false) }
-        val filteredPlaylists = remember(playlists, searchQuery, playlistSort, allEntries, completedTracks) {
-            val q = searchQuery.trim()
-            val filtered = if (q.isEmpty()) playlists else playlists.filter { it.name.contains(q, ignoreCase = true) }
-            when (playlistSort) {
-                LibraryPlaylistSort.ALPHABETICAL -> filtered.sortedBy { it.name.lowercase() }
-                LibraryPlaylistSort.RECENTLY_PLAYED -> filtered.sortedByDescending { p ->
-                    allEntries.filter { it.playlistId == p.id }
-                        .mapNotNull { e -> completedTracks.find { it.id == e.trackId }?.lastPlayedMs ?: 0L }
-                        .maxOrNull() ?: 0L
-                }
-                LibraryPlaylistSort.MOST_LISTENED -> filtered.sortedByDescending { p ->
-                    allEntries.filter { it.playlistId == p.id }
-                        .sumOf { e -> completedTracks.find { it.id == e.trackId }?.playCount ?: 0 }
-                }
-            }
-        }
         val smartPlaylistTracks = remember(completedTracks, selectedSmartPlaylist) {
             when (selectedSmartPlaylist) {
                 SmartPlaylistType.MOST_PLAYED -> completedTracks.sortedByDescending { it.playCount }
