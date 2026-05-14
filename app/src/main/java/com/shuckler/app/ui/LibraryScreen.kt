@@ -94,7 +94,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -1159,7 +1158,7 @@ private fun AlbumGroupedList(
     context: android.content.Context, // needed for shareText
     modifier: Modifier = Modifier
 ) {
-    val collapsedAlbums = remember { mutableStateSetOf<String>() }
+    var collapsedAlbums by remember { mutableStateOf(emptySet<String>()) }
 
     if (albumGroups.isEmpty()) {
         EmptyState(
@@ -1187,8 +1186,8 @@ private fun AlbumGroupedList(
                     isExpanded = isExpanded,
                     isPlaying = isPlayingAlbum,
                     onToggle = {
-                        if (isExpanded) collapsedAlbums.add(album.key)
-                        else collapsedAlbums.remove(album.key)
+                        collapsedAlbums = if (isExpanded) collapsedAlbums + album.key
+                                          else collapsedAlbums - album.key
                     }
                 )
             }
