@@ -40,11 +40,18 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -115,6 +122,18 @@ fun SearchScreen(
     val onWifiOnlyBlocked = LocalOnWifiOnlyBlocked.current
     val downloads by downloadManager.downloads.collectAsState(initial = emptyList())
     val progress by downloadManager.progress.collectAsState(initial = emptyMap())
+    // Keep completed download cards alive for spring-collapse animation
+    val lingeringProgress = remember { mutableStateMapOf<String, com.shuckler.app.download.DownloadProgress>() }
+    LaunchedEffect(progress) {
+        progress.forEach { (id, p) -> lingeringProgress[id] = p }
+        val gone = lingeringProgress.keys.toList().filter { it !in progress }
+        gone.forEach { id ->
+            scope.launch {
+                kotlinx.coroutines.delay(1500L)
+                lingeringProgress.remove(id)
+            }
+        }
+    }
     val completedTracks = remember(downloads) {
         downloads.filter { it.status == DownloadStatus.COMPLETED && it.filePath.isNotBlank() }
     }
@@ -327,21 +346,42 @@ fun SearchScreen(
             )
         }
 
-        if (progress.isNotEmpty()) {
+        if (lingeringProgress.isNotEmpty()) {
             SectionLabel("Downloading", modifier = Modifier.padding(horizontal = 16.dp))
             Column(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                progress.values.forEach { p ->
+                lingeringProgress.values.toList().forEach { p ->
                     val track = downloads.find { it.id == p.id }
-                    WaveformDownloadCard(
-                        title = track?.title ?: "Downloading…",
-                        artist = track?.artist ?: "",
-                        thumbnailUrl = track?.thumbnailUrl,
-                        progress = p,
-                        status = track?.status ?: DownloadStatus.DOWNLOADING
-                    )
+                    val isActive = p.id in progress
+                    key(p.id) {
+                        var cardVisible by remember { mutableStateOf(true) }
+                        LaunchedEffect(isActive) {
+                            if (!isActive) {
+                                kotlinx.coroutines.delay(1500L)
+                                cardVisible = false
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = cardVisible,
+                            exit = shrinkVertically(
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                )
+                            ) + fadeOut()
+                        ) {
+                            WaveformDownloadCard(
+                                title = track?.title ?: "Downloading…",
+                                artist = track?.artist ?: "",
+                                thumbnailUrl = track?.thumbnailUrl,
+                                progress = p,
+                                status = if (isActive) (track?.status ?: DownloadStatus.DOWNLOADING)
+                                         else DownloadStatus.COMPLETED
+                            )
+                        }
+                    }
                 }
             }
         }

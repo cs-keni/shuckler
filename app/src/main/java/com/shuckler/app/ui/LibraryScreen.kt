@@ -9,15 +9,21 @@ import coil.compose.AsyncImage
 import java.io.File
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +41,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -87,12 +94,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,6 +109,7 @@ import androidx.compose.ui.unit.dp
 import com.shuckler.app.download.DownloadStatus
 import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
+import com.shuckler.app.download.DownloadManager
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
@@ -114,6 +124,7 @@ import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.BorderSubtle
 import com.shuckler.app.ui.theme.LocalAccentColor
 import com.shuckler.app.ui.theme.Red
 import com.shuckler.app.ui.theme.Surface
@@ -158,6 +169,7 @@ fun LibraryScreen(
         val byFilter = when (libraryFilter) {
             LibraryFilter.ALL -> completedTracks
             LibraryFilter.FAVORITES -> completedTracks.filter { it.isFavorite }
+            LibraryFilter.BY_ALBUM -> completedTracks // grouping handled by AlbumGroupedList
         }
         val byMood = if (moodFilter != null) byFilter.filter { it.moodTags.contains(moodFilter) }
         else byFilter
@@ -215,6 +227,22 @@ fun LibraryScreen(
             }
             .sortedWith(compareByDescending<LibraryAlbumGroup> { it.tracks.maxOfOrNull { track -> track.downloadDateMs } ?: 0L }
                 .thenBy { it.title.lowercase() })
+    }
+    val searchFilteredAlbumGroups = remember(albumGroups, searchQuery) {
+        if (searchQuery.isBlank()) albumGroups
+        else albumGroups.mapNotNull { group ->
+            val matchingTracks = group.tracks.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.artist.contains(searchQuery, ignoreCase = true)
+            }
+            val groupMatches = group.title.contains(searchQuery, ignoreCase = true) ||
+                group.artist.contains(searchQuery, ignoreCase = true)
+            when {
+                groupMatches -> group
+                matchingTracks.isNotEmpty() -> group.copy(tracks = matchingTracks)
+                else -> null
+            }
+        }
     }
 
     LaunchedEffect(downloads) {
@@ -434,12 +462,17 @@ fun LibraryScreen(
             FilterChip(
                 label = "All",
                 selected = libraryFilter == LibraryFilter.ALL,
-                onClick = { libraryFilter = LibraryFilter.ALL }
+                onClick = { libraryFilter = LibraryFilter.ALL; moodFilter = null }
+            )
+            FilterChip(
+                label = "By Album",
+                selected = libraryFilter == LibraryFilter.BY_ALBUM,
+                onClick = { libraryFilter = LibraryFilter.BY_ALBUM; moodFilter = null }
             )
             FilterChip(
                 label = "Favorites",
                 selected = libraryFilter == LibraryFilter.FAVORITES,
-                onClick = { libraryFilter = LibraryFilter.FAVORITES }
+                onClick = { libraryFilter = LibraryFilter.FAVORITES; moodFilter = null }
             )
             val allMoods = completedTracks.flatMap { it.moodTags }.toSet().sorted()
             allMoods.take(5).forEach { mood ->
@@ -545,8 +578,11 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(albumGroups, key = { it.key }) { album ->
+                    val albumIsPlaying = currentPlayingTrackId != null &&
+                        album.tracks.any { it.id == currentPlayingTrackId }
                     LibraryAlbumCard(
                         album = album,
+                        isPlaying = albumIsPlaying,
                         onClick = { selectedAlbumTracks = album.tracks }
                     )
                 }
@@ -610,6 +646,7 @@ fun LibraryScreen(
                         style = MaterialTheme.typography.headlineSmall,
                         color = Text1
                     )
+                    if (libraryFilter != LibraryFilter.BY_ALBUM) {
                     var showTrackSortMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showTrackSortMenu = true }) {
@@ -630,8 +667,23 @@ fun LibraryScreen(
                             }
                         }
                     }
+                    }
                 }
-        if (filteredTracks.isEmpty()) {
+        if (libraryFilter == LibraryFilter.BY_ALBUM) {
+            AlbumGroupedList(
+                albumGroups = searchFilteredAlbumGroups,
+                currentPlayingTrackId = currentPlayingTrackId,
+                viewModel = viewModel,
+                downloadManager = downloadManager,
+                snackbarHostState = snackbarHostState,
+                onAddToPlaylist = { showAddToPlaylistTrack = it },
+                onMoodTag = { showMoodTagTrack = it },
+                onArtistClick = { selectedArtist = it },
+                reduceMotion = reduceMotion,
+                scope = scope,
+                context = context
+            )
+        } else if (filteredTracks.isEmpty()) {
                     EmptyState(
                         icon = when {
                             searchQuery.isNotBlank() -> Icons.Default.Search
@@ -722,7 +774,19 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredTracks, key = { it.id }) { track ->
+                        itemsIndexed(filteredTracks, key = { _, it -> it.id }) { index, track ->
+                            var itemVisible by remember(track.id) { mutableStateOf(index >= 5 || reduceMotion) }
+                            LaunchedEffect(track.id) {
+                                if (!itemVisible) {
+                                    kotlinx.coroutines.delay((index * 30L).coerceAtMost(120L))
+                                    itemVisible = true
+                                }
+                            }
+                            AnimatedVisibility(
+                                visible = itemVisible,
+                                enter = fadeIn(tween(if (reduceMotion) 0 else 280)) +
+                                        slideInVertically(tween(if (reduceMotion) 0 else 280)) { 24 }
+                            ) {
                             fun trackToQueueItem(t: DownloadedTrack) = QueueItem(
                                 uri = Uri.fromFile(File(t.filePath)).toString(),
                                 title = t.title,
@@ -872,6 +936,7 @@ fun LibraryScreen(
                             )
                             }
                         )
+                        } // end AnimatedVisibility (stagger)
                         }
                     }
                     } // end list branch
@@ -951,7 +1016,7 @@ fun LibraryScreen(
     }
 }
 
-private enum class LibraryFilter { ALL, FAVORITES }
+private enum class LibraryFilter { ALL, BY_ALBUM, FAVORITES }
 
 private enum class SmartPlaylistType(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     MOST_PLAYED("Most played", Icons.Default.PlayArrow),
@@ -997,6 +1062,204 @@ private fun libraryAlbumGroupKey(track: DownloadedTrack): String {
 }
 
 @Composable
+private fun AlbumGroupHeader(
+    album: LibraryAlbumGroup,
+    isExpanded: Boolean,
+    isPlaying: Boolean,
+    onToggle: () -> Unit
+) {
+    val accent = LocalAccentColor.current
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "chevron_${album.key}"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isPlaying) accent.copy(alpha = 0.06f) else Color.Transparent)
+            .clickable(onClick = onToggle)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(SurfaceElevated),
+            contentAlignment = Alignment.Center
+        ) {
+            if (album.artworkUrl != null) {
+                AsyncImage(
+                    model = album.artworkUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    Icons.Default.LibraryMusic,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = Text3
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+        ) {
+            Text(
+                text = album.title,
+                style = MaterialTheme.typography.headlineSmall,
+                color = if (isPlaying) accent else Text1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = listOfNotNull(
+                    album.artist.takeIf { it.isNotBlank() },
+                    album.year?.toString(),
+                    "${album.tracks.size} songs"
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = Text3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ExpandMore,
+            contentDescription = if (isExpanded) "Collapse" else "Expand",
+            modifier = Modifier
+                .size(20.dp)
+                .graphicsLayer { rotationZ = chevronRotation },
+            tint = Text3
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumGroupedList(
+    albumGroups: List<LibraryAlbumGroup>,
+    currentPlayingTrackId: String?,
+    viewModel: PlayerViewModel,
+    downloadManager: DownloadManager,
+    snackbarHostState: SnackbarHostState,
+    onAddToPlaylist: (DownloadedTrack) -> Unit,
+    onMoodTag: (DownloadedTrack) -> Unit,
+    onArtistClick: (String) -> Unit,
+    reduceMotion: Boolean,
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: android.content.Context, // needed for shareText
+    modifier: Modifier = Modifier
+) {
+    val collapsedAlbums = remember { mutableStateSetOf<String>() }
+
+    if (albumGroups.isEmpty()) {
+        EmptyState(
+            icon = Icons.Default.LibraryMusic,
+            title = "Your library is empty",
+            subtitle = "Search and download to get started",
+            actionLabel = null,
+            onAction = null
+        )
+        return
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        albumGroups.forEach { album ->
+            val isExpanded = album.key !in collapsedAlbums
+            val isPlayingAlbum = currentPlayingTrackId != null &&
+                album.tracks.any { it.id == currentPlayingTrackId }
+
+            item(key = "header_${album.key}") {
+                AlbumGroupHeader(
+                    album = album,
+                    isExpanded = isExpanded,
+                    isPlaying = isPlayingAlbum,
+                    onToggle = {
+                        if (isExpanded) collapsedAlbums.add(album.key)
+                        else collapsedAlbums.remove(album.key)
+                    }
+                )
+            }
+
+            if (isExpanded) {
+                itemsIndexed(
+                    items = album.tracks,
+                    key = { _, track -> "track_${track.id}" }
+                ) { index, track ->
+                    var itemVisible by remember(track.id) { mutableStateOf(index >= 5 || reduceMotion) }
+                    LaunchedEffect(track.id) {
+                        if (!itemVisible) {
+                            kotlinx.coroutines.delay((index * 30L).coerceAtMost(120L))
+                            itemVisible = true
+                        }
+                    }
+                    AnimatedVisibility(
+                        visible = itemVisible,
+                        enter = fadeIn(tween(if (reduceMotion) 0 else 280)) +
+                                slideInVertically(tween(if (reduceMotion) 0 else 280)) { 24 }
+                    ) {
+                        LibraryTrackItem(
+                            track = track,
+                            modifier = Modifier.padding(start = 40.dp),
+                            showArt = false,
+                            isCurrentlyPlaying = track.id == currentPlayingTrackId,
+                            onPlayClick = {
+                                val queueItems = album.tracks.map { t ->
+                                    QueueItem(
+                                        uri = Uri.fromFile(File(t.filePath)).toString(),
+                                        title = t.title,
+                                        artist = t.artist,
+                                        trackId = t.id,
+                                        thumbnailUrl = t.thumbnailUrl,
+                                        startMs = t.startMs,
+                                        endMs = t.endMs
+                                    )
+                                }
+                                viewModel.playTrackWithQueue(queueItems, album.tracks.indexOf(track).coerceAtLeast(0))
+                            },
+                            onFavoriteClick = { downloadManager.setFavorite(track.id, !track.isFavorite) },
+                            onDeleteClick = {
+                                downloadManager.deleteTrack(track.id)
+                                scope.launch { snackbarHostState.showSnackbar("\"${track.title}\" removed") }
+                            },
+                            onAddToPlaylistClick = onAddToPlaylist,
+                            onMoodTagClick = onMoodTag,
+                            onArtistClick = onArtistClick,
+                            reduceMotion = reduceMotion,
+                            onShareClick = { t ->
+                                val text = if (t.sourceUrl.isNotBlank()) t.sourceUrl else "${t.title} — ${t.artist}"
+                                shareText(context, text, "Share track")
+                            }
+                        )
+                    }
+                }
+            }
+
+            item(key = "divider_${album.key}") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(BorderSubtle)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun FilterChip(
     label: String,
     selected: Boolean,
@@ -1004,6 +1267,7 @@ private fun FilterChip(
 ) {
     Box(
         modifier = Modifier
+            .pressScale(0.92f)
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) LocalAccentColor.current.copy(alpha = 0.18f) else SurfaceElevated.copy(alpha = 0.56f))
             .border(
@@ -1027,19 +1291,51 @@ private fun FilterChip(
 @Composable
 private fun LibraryAlbumCard(
     album: LibraryAlbumGroup,
+    isPlaying: Boolean = false,
     onClick: () -> Unit
 ) {
+    val accentColor = LocalAccentColor.current
+    val infiniteTransition = rememberInfiniteTransition(label = "bloom_${album.key}")
+    val bloomPulse by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bloomPulse"
+    )
     Column(
         modifier = Modifier
             .width(116.dp)
+            .pressScale(0.96f)
             .clickable(onClick = onClick)
     ) {
         Box(
-            modifier = Modifier
-                .size(104.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(SurfaceElevated)
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(104.dp)
         ) {
+            if (isPlaying) {
+                val bloomScale = 1f + bloomPulse * 0.18f
+                val bloomAlpha = 0.35f + bloomPulse * 0.45f
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = bloomScale
+                            scaleY = bloomScale
+                            alpha = bloomAlpha
+                        }
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(accentColor)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(104.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(SurfaceElevated)
+            ) {
             if (album.artworkUrl != null) {
                 AsyncImage(
                     model = album.artworkUrl,
@@ -1061,6 +1357,7 @@ private fun LibraryAlbumCard(
                         tint = Text3
                     )
                 }
+            }
             }
         }
         Text(
@@ -1155,6 +1452,7 @@ private fun LibraryTrackItem(
     track: DownloadedTrack,
     modifier: Modifier = Modifier,
     isCurrentlyPlaying: Boolean = false,
+    showArt: Boolean = true,
     canSplitByChapters: Boolean = false,
     onPlayClick: () -> Unit,
     onFavoriteClick: () -> Unit,
@@ -1203,6 +1501,7 @@ private fun LibraryTrackItem(
                         .background(LocalAccentColor.current)
                 )
             }
+            if (showArt) {
             if (track.thumbnailUrl != null) {
                 AsyncImage(
                     model = track.thumbnailUrl,
@@ -1228,6 +1527,7 @@ private fun LibraryTrackItem(
                         tint = Text3
                     )
                 }
+            }
             }
             Column(
                 modifier = Modifier
