@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,7 +32,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,11 +41,11 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -77,6 +79,15 @@ import com.shuckler.app.playlist.PlaylistEntry
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import com.shuckler.app.ui.theme.Base
+import com.shuckler.app.ui.theme.Border
+import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Red
+import com.shuckler.app.ui.theme.Surface
+import com.shuckler.app.ui.theme.SurfaceElevated
+import com.shuckler.app.ui.theme.Text1
+import com.shuckler.app.ui.theme.Text2
+import com.shuckler.app.ui.theme.Text3
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -134,11 +145,14 @@ fun PlaylistDetailScreen(
         val maxCoverHeightDp = with(density) { (maxCoverHeightPx / density.density).toDp() }
 
     androidx.compose.material3.Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Base,
+        contentColor = Text1
     ) { paddingValues ->
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Base)
             .padding(paddingValues)
     ) {
         Row(
@@ -148,31 +162,32 @@ fun PlaylistDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Text2)
             }
             Text(
                 text = playlist.name,
                 style = MaterialTheme.typography.titleLarge,
+                color = Text1,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = {
                 val lines = listOf(playlist.name) + tracks.map { "${it.title} — ${it.artist}" }
                 shareText(context, lines.joinToString("\n"), "Share playlist")
             }) {
-                Icon(Icons.Default.Share, contentDescription = "Share playlist")
+                Icon(Icons.Default.Share, contentDescription = "Share playlist", tint = Text2)
             }
             IconButton(onClick = { showEditDialog = true }) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Text2)
             }
             IconButton(onClick = { showDeleteConfirm = true }) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Red)
             }
         }
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
                 content = {
                     item {
                         Spacer(modifier = Modifier.fillMaxWidth().height(maxCoverHeightDp))
@@ -182,7 +197,7 @@ fun PlaylistDetailScreen(
                             Text(
                                 text = playlist.description!!,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Text2,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -194,7 +209,7 @@ fun PlaylistDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                TextButton(
+                                Button(
                                     onClick = {
                                         val items = tracks.map { t ->
                                             QueueItem(
@@ -208,7 +223,12 @@ fun PlaylistDetailScreen(
                                             )
                                         }
                                         viewModel.playTrackWithQueue(items, 0)
-                                    }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = LocalAccentColor.current,
+                                        contentColor = Base
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
                                     Text("Play")
@@ -242,7 +262,8 @@ fun PlaylistDetailScreen(
                                             toDownload.isNotEmpty() -> "Download ${toDownload.size} missing"
                                             inLibrary == total && total > 0 -> "All $total in library"
                                             else -> "Download all"
-                                        }
+                                        },
+                                        color = if (downloadAllEnabled) LocalAccentColor.current else Text3
                                     )
                                 }
                             }
@@ -252,6 +273,7 @@ fun PlaylistDetailScreen(
                         Text(
                             text = "Tracks (${tracks.size})",
                             style = MaterialTheme.typography.titleMedium,
+                            color = Text1,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
@@ -303,14 +325,14 @@ fun PlaylistDetailScreen(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.error)
+                                        .background(Red)
                                         .padding(horizontal = 20.dp),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
                                         contentDescription = "Remove",
-                                        tint = MaterialTheme.colorScheme.onError,
+                                        tint = Text1,
                                         modifier = Modifier.size(28.dp)
                                     )
                                 }
@@ -318,54 +340,60 @@ fun PlaylistDetailScreen(
                             enableDismissFromStartToEnd = false,
                             enableDismissFromEndToStart = true,
                             content = {
-                                Card(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .background(
+                                            if (track.id == currentPlayingTrackId) {
+                                                LocalAccentColor.current.copy(alpha = 0.12f)
+                                            } else {
+                                                Base
+                                            }
+                                        )
                                         .clickable {
                                             val idx = displayTracks.indexOf(track)
                                             val items = displayTracks.map { toQueueItem(it) }
                                             viewModel.playTrackWithQueue(items, idx)
-                                        },
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
                                         if (track.id == currentPlayingTrackId) {
                                             Box(
                                                 modifier = Modifier
                                                     .width(4.dp)
                                                     .height(32.dp)
                                                     .padding(end = 8.dp)
-                                                    .background(MaterialTheme.colorScheme.primary)
+                                                    .background(LocalAccentColor.current)
                                             )
                                         }
                                         if (track.thumbnailUrl != null) {
                                             AsyncImage(
                                                 model = track.thumbnailUrl,
                                                 contentDescription = null,
-                                                modifier = Modifier.size(40.dp)
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .clip(RoundedCornerShape(6.dp)),
+                                                contentScale = ContentScale.Crop
                                             )
                                         } else {
                                             Box(
                                                 modifier = Modifier
                                                     .size(40.dp)
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(SurfaceElevated)
                                             ) {
                                                 Icon(
                                                     Icons.Default.PlayArrow,
                                                     contentDescription = null,
                                                     modifier = Modifier.size(20.dp).align(Alignment.Center),
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    tint = Text2
                                                 )
                                             }
                                         }
                                         Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                            Text(text = track.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                                            Text(text = track.artist, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                            Text(text = track.title, style = MaterialTheme.typography.titleSmall, color = Text1, maxLines = 1)
+                                            Text(text = track.artist, style = MaterialTheme.typography.bodySmall, color = Text2, maxLines = 1)
                                         }
                                         IconButton(
                                             onClick = {
@@ -384,9 +412,8 @@ fun PlaylistDetailScreen(
                                                 }
                                             }
                                         ) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = MaterialTheme.colorScheme.error)
+                                            Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Red)
                                         }
-                                    }
                                 }
                             }
                         )
@@ -428,14 +455,14 @@ fun PlaylistDetailScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                .background(SurfaceElevated),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.PlaylistAdd,
                                 contentDescription = null,
                                 modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                tint = Text2
                             )
                         }
                     }
@@ -448,7 +475,10 @@ fun PlaylistDetailScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete playlist?") },
+            containerColor = Surface,
+            titleContentColor = Text1,
+            textContentColor = Text2,
+            title = { Text("Delete playlist?", style = MaterialTheme.typography.titleMedium) },
             text = { Text("This will permanently delete \"${playlist.name}\". Tracks in your library are not affected.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -456,12 +486,12 @@ fun PlaylistDetailScreen(
                     showDeleteConfirm = false
                     onBack()
                 }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = Red)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel")
+                    Text("Cancel", color = Text2)
                 }
             }
         )
@@ -543,7 +573,15 @@ fun CreateEditPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (playlist != null) "Edit playlist" else "New playlist") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = {
+            Text(
+                if (playlist != null) "Edit playlist" else "New playlist",
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
@@ -551,14 +589,16 @@ fun CreateEditPlaylistDialog(
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    colors = playlistTextFieldColors()
                 )
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Description (optional)") },
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 2
+                    maxLines = 2,
+                    colors = playlistTextFieldColors()
                 )
                 Box(
                     modifier = Modifier
@@ -592,14 +632,14 @@ fun CreateEditPlaylistDialog(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        .background(SurfaceElevated),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.PlaylistAdd,
                                         contentDescription = null,
                                         modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = Text2
                                     )
                                 }
                             }
@@ -612,7 +652,7 @@ fun CreateEditPlaylistDialog(
                                 Icons.Default.Edit,
                                 contentDescription = "Change cover",
                                 modifier = Modifier.size(36.dp),
-                                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                                tint = Text1.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -645,16 +685,29 @@ fun CreateEditPlaylistDialog(
                     }
                 }
             }) {
-                Text("Save")
+                Text("Save", color = LocalAccentColor.current)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = Text2)
             }
         }
     )
 }
+
+@Composable
+private fun playlistTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Text1,
+    unfocusedTextColor = Text1,
+    focusedContainerColor = SurfaceElevated,
+    unfocusedContainerColor = SurfaceElevated,
+    focusedBorderColor = LocalAccentColor.current,
+    unfocusedBorderColor = Border,
+    focusedLabelColor = Text2,
+    unfocusedLabelColor = Text3,
+    cursorColor = LocalAccentColor.current
+)
 
 @Composable
 fun AddToPlaylistDialog(
@@ -668,10 +721,13 @@ fun AddToPlaylistDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to playlist") },
+        containerColor = Surface,
+        titleContentColor = Text1,
+        textContentColor = Text2,
+        title = { Text("Add to playlist", style = MaterialTheme.typography.titleMedium) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Add \"${track.title}\" to:", style = MaterialTheme.typography.bodyMedium)
+                Text("Add \"${track.title}\" to:", style = MaterialTheme.typography.bodyMedium, color = Text2)
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(playlists) { p ->
                         Text(
@@ -684,18 +740,19 @@ fun AddToPlaylistDialog(
                                     onDismiss()
                                 }
                                 .padding(12.dp),
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Text1
                         )
                     }
                 }
                 TextButton(onClick = { showCreateDialog = true }) {
-                    Text("+ New playlist")
+                    Text("+ New playlist", color = LocalAccentColor.current)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done")
+                Text("Done", color = LocalAccentColor.current)
             }
         }
     )

@@ -70,6 +70,11 @@ Date: 2026-05-13
   - `WaveformDownloadCard` now supports `DownloadStatus` labels (`QUEUED`, `DONE`, `FAILED`) and uses the tighter tokenized 8dp card style.
   - Search passes each active download's status into the waveform card.
   - Library's "Manage storage & downloads" disclosure now uses warm token styling, subtle border, and tokenized action colors.
+- Continued Playlist Detail flow polish:
+  - Playlist Detail now uses the warm Base canvas and tokenized header/icon colors.
+  - Playlist play/download actions now use the album accent and Text1/Text2/Text3 hierarchy.
+  - Playlist track rows were flattened from Material cards to canvas rows with rectangular artwork and an accent wash for the currently playing row.
+  - Playlist create/edit/add/delete dialogs now use warm tokenized surfaces, text fields, and action colors.
 
 ## Checks
 
@@ -109,6 +114,9 @@ Date: 2026-05-13
 - Android Studio compile reported unresolved `FilledIconButtonDefaults` in `PlayerScreen.kt`; fixed by using `IconButtonDefaults.filledIconButtonColors`.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/SearchScreen.kt` passes after the Search recommendation flicker fix.
 - `git diff --check -- app/src/main/java/com/shuckler/app/ui/WaveformDownloadCard.kt app/src/main/java/com/shuckler/app/ui/SearchScreen.kt app/src/main/java/com/shuckler/app/ui/LibraryScreen.kt` passes after the Downloads/utility polish.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes after the Playlist Detail flow polish.
+- `rg` confirms no `Card`, `CardDefaults`, or targeted default Material surface/primary color usages remain in `PlaylistScreen.kt`.
+- Re-attempted `ANDROID_HOME=/mnt/c/Users/nguye/AppData/Local/Android/Sdk ANDROID_SDK_ROOT=/mnt/c/Users/nguye/AppData/Local/Android/Sdk GRADLE_USER_HOME=.gradle ./gradlew :app:compileDebugKotlin --no-daemon`; still blocked before Kotlin compilation by the known WSL/Windows-SDK `aapt` mismatch.
 
 ## Known Risks
 
@@ -127,8 +135,9 @@ Date: 2026-05-13
 - Device-review active, queued, failed, and completed download states if possible.
 - Device-review Stats/Analytics for empty library, active listening history, achievements, and playlist stat shelf.
 - Device-review Now Playing, Queue, Lyrics, and Settings after Android Studio build.
-- Continue remaining flow-first polish using `DESIGN.md`, especially Downloads/active download surfaces and any remaining boxed utility sections.
+- Continue remaining flow-first polish using `DESIGN.md`, especially Artist Detail, Album Detail, Import dialog, Onboarding, Create/utility screens, Crop Cover, Equalizer, and any remaining boxed/default-Material utility sections.
 - Review `catdoodle.png` in launcher/header/onboarding after Android Studio sync/build.
 - Device-test tapping artist names from Library and Smart Playlists, then opening Album Detail from Artist and Library album shelves.
 - Device-test Search preview/play/download actions on a narrow phone viewport; the result action row scrolls horizontally if localized/long labels do not fit.
+- Device-test Playlist Detail after Android Studio build: cover collapse, Play, Download missing, swipe/remove/undo, edit cover, delete dialog, add-to-playlist dialog, and currently-playing row highlight.
 - Consider a future metadata-enrichment pass for existing YouTube-only downloads that do not have album title/year.

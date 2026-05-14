@@ -1,6 +1,6 @@
 # Current Task
 
-Date: 2026-05-13
+Date: 2026-05-14
 
 ## Status
 
@@ -8,7 +8,7 @@ In progress: design completion work from `DESIGN.md`.
 
 ## Active Slice
 
-Now Playing and Settings redesign are now the active implementation slice:
+Flow-first `DESIGN.md` completion is the active implementation slice:
 - Library track artist names open an artist detail screen.
 - Artist detail shows a blurred artwork hero, Songs section, Albums artwork shelf, Play All, Shuffle, and currently-playing highlighting.
 - Codex restored context from `CLAUDE.md`, `DESIGN.md`, and shared docs.
@@ -38,7 +38,8 @@ Now Playing and Settings redesign are now the active implementation slice:
 - Settings dialog polish continued: warm tokenized dialog surface, DM section headers, tokenized segmented controls, and Text1/Text2/Text3 copy hierarchy.
 - Search idle recommendation flicker fixed: "Recommended for you" now renders only when visible recommendation tiles are available, and empty background refreshes no longer clear an already-visible shelf.
 - Downloads flow polish continued: waveform download cards now use the tighter 8dp card radius, token border, status labels for queued/done/failed states, and Library's storage/download disclosure uses warm token styling.
+- Playlist Detail flow polish continued: the screen now uses the warm Base canvas, tokenized header/actions/dialogs, flattened playlist track rows, rectangular artwork, and an accent wash for the currently playing row instead of card containers.
 
 ## Next Best Work
 
-Android Studio build/run the latest Search, Downloads, Library manage, Now Playing, and Settings slices, then device-review Home, Library sheet/full tab, Search idle/results states, active downloads, Stats, Now Playing, Queue, Lyrics, and Settings.
+Continue remaining `DESIGN.md` consistency passes on the less-polished surfaces: Artist Detail, Album Detail, Import dialog, Onboarding, Create/utility screens, Crop Cover, Equalizer, and any remaining default Material color usage. Android Studio build/run should cover Home, Library sheet/full tab, Search idle/results, active downloads, Stats, Playlist Detail, Now Playing, Queue, Lyrics, and Settings.

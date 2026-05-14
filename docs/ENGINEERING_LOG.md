@@ -42,3 +42,9 @@
 - Search idle recommendations previously showed the section title while loading, then removed it if YouTube returned no recommendation results. The fix now keeps a separate visible recommendation shelf and only replaces it with non-empty fetches, so transient empty refreshes cannot make "Recommended for you" blink away.
 - Download card polish added `DownloadStatus` labels to `WaveformDownloadCard` and tightened its shape/border to match the active-download exception in `DESIGN.md`; Search now passes the track status into the shared card.
 - Library's storage/download disclosure now uses the warm tokenized utility style instead of default Material surface/text colors.
+
+## 2026-05-14
+
+- User asked to keep implementing `DESIGN.md` before doing a full visual review. Gap scan showed the core flow-first screens are close, but detail/utility surfaces still need consistency passes.
+- Playlist Detail was still using Material cards/default colors for track rows and dialogs. It now uses Base, Surface, SurfaceElevated, Text1/Text2/Text3, Red, and LocalAccentColor directly, with flat track rows and rectangular artwork.
+- `git diff --check -- app/src/main/java/com/shuckler/app/ui/PlaylistScreen.kt` passes. Codex-side Gradle remains blocked before Kotlin compilation by the Windows Android SDK build-tools lacking Linux `aapt`.
