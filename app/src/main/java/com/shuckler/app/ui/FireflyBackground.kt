@@ -43,9 +43,9 @@ private fun buildFireflies(count: Int = 28): List<Firefly> {
             driftYPhase = f() * tau,
             blinkFreq = (f() * 0.35f + 0.15f) * 0.001f,
             blinkPhase = f() * tau,
-            minAlpha = f() * 0.03f,
-            maxAlpha = f() * 0.18f + 0.06f,
-            glowRadius = f() * 22f + 14f,
+            minAlpha = f() * 0.08f + 0.02f,
+            maxAlpha = f() * 0.25f + 0.22f,
+            glowRadius = f() * 30f + 19f,
         )
     }
 }
@@ -75,8 +75,8 @@ fun FireflyBackground(modifier: Modifier = Modifier) {
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFFFFF5CC).copy(alpha = alpha),
-                        Color(0xFFFFDDA0).copy(alpha = alpha * 0.3f),
+                        Color(0xFFFFCC44).copy(alpha = alpha),
+                        Color(0xFFFF9900).copy(alpha = alpha * 0.35f),
                         Color.Transparent,
                     ),
                     center = Offset(cx, cy),
