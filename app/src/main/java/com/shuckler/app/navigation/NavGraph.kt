@@ -339,7 +339,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                                     )
                                 }
                             },
-                            label = { Text(screen.title, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            label = { Text(screen.title, fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                             selected = isSelected,
                             onClick = {
                                 if (screen == Screen.Library) {
