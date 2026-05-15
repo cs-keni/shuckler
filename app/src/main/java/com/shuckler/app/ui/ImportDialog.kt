@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Button
@@ -72,7 +74,6 @@ import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
 import com.shuckler.app.ui.theme.Text3
-import com.shuckler.app.youtube.YouTubeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -346,30 +347,17 @@ private fun SpotifyImportContent(
     val clientId = BuildConfig.SPOTIFY_CLIENT_ID
     val accessToken by spotifyAuthManager.accessToken.collectAsState(initial = null)
     var playlists by remember { mutableStateOf<List<SpotifyRepository.SpotifyPlaylist>>(emptyList()) }
-    var selectedPlaylist by remember { mutableStateOf<SpotifyRepository.SpotifyPlaylist?>(null) }
-    var tracks by remember { mutableStateOf<List<SpotifyRepository.SpotifyTrack>>(emptyList()) }
+    var likedSongsCount by remember { mutableStateOf<Int?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var isFetching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var isImporting by remember { mutableStateOf(false) }
+    val selectedKeys = remember { mutableStateOf(setOf(LIKED_SONGS_KEY)) }
     val scope = rememberCoroutineScope()
-
-    LaunchedEffect(Unit) {
-        if (clientId.isBlank()) {
-            error = "Spotify Client ID not configured. See IMPORT_SETUP.md"
-        }
-    }
+    val app = androidContext.applicationContext as? ShucklerApplication
 
     if (clientId.isBlank()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-        ) {
-            Text(
-                "Spotify import requires setup.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Text2
-            )
+        Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+            Text("Spotify import requires setup.", style = MaterialTheme.typography.bodyMedium, color = Text2)
             Text(
                 "Add SPOTIFY_CLIENT_ID to gradle.properties. See IMPORT_SETUP.md for steps.",
                 style = MaterialTheme.typography.bodySmall,
@@ -380,15 +368,32 @@ private fun SpotifyImportContent(
         return
     }
 
+    // Auto-load playlists + liked songs count when token becomes available
+    LaunchedEffect(accessToken) {
+        val token = accessToken ?: return@LaunchedEffect
+        if (playlists.isNotEmpty()) return@LaunchedEffect
+        isLoading = true
+        try {
+            val (pl, count) = withContext(Dispatchers.IO) {
+                Pair(
+                    SpotifyRepository.getPlaylists(token),
+                    SpotifyRepository.getLikedSongsTotal(token)
+                )
+            }
+            playlists = pl
+            likedSongsCount = count
+        } catch (e: Exception) {
+            error = "Failed to load playlists"
+        } finally {
+            isLoading = false
+        }
+    }
+
     when {
         accessToken == null -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                 Text(
-                    "Connect your Spotify account to import playlists.",
+                    "Connect your Spotify account to rescue your library.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Text2
                 )
@@ -410,145 +415,290 @@ private fun SpotifyImportContent(
                 error?.let { Text(it, color = Red, modifier = Modifier.padding(top = 8.dp)) }
             }
         }
-        selectedPlaylist == null -> {
-            when {
-                playlists.isEmpty() && !isLoading -> {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        Button(
-                            onClick = {
-                                isLoading = true
-                                scope.launch {
-                                    val token = accessToken
-                                    if (token != null) {
-                                        playlists = SpotifyRepository.getPlaylists(token)
-                                    }
-                                    isLoading = false
-                                }
-                            },
-                            colors = importPrimaryButtonColors(),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Load my playlists")
-                        }
-                    }
-                }
-                isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = LocalAccentColor.current)
-                    }
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(playlists) { pl ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(SurfaceElevated)
-                                    .clickable {
-                                        selectedPlaylist = pl
-                                        tracks = emptyList()
-                                        scope.launch {
-                                            val token = accessToken ?: return@launch
-                                            tracks = SpotifyRepository.getPlaylistTracks(token, pl.id)
-                                        }
-                                    }
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    pl.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Text1,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    "${pl.trackCount} tracks",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Text2
-                                )
-                            }
-                        }
-                    }
+
+        isLoading -> {
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(color = LocalAccentColor.current)
+                    Text("Loading your playlists…", style = MaterialTheme.typography.bodySmall, color = Text2)
                 }
             }
         }
+
+        isFetching -> {
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(color = LocalAccentColor.current)
+                    Text("Preparing import…", style = MaterialTheme.typography.bodySmall, color = Text2)
+                }
+            }
+        }
+
         else -> {
-            val pl = selectedPlaylist!!
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
+            val selKeys = selectedKeys.value
+            val allKeys = buildList {
+                add(LIKED_SONGS_KEY)
+                playlists.forEach { add(it.id) }
+            }
+            val totalTracks = run {
+                var n = 0
+                if (LIKED_SONGS_KEY in selKeys) n += likedSongsCount ?: 0
+                playlists.filter { it.id in selKeys }.forEach { n += it.trackCount }
+                n
+            }
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Select all / deselect all header
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Surface)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(pl.name, style = MaterialTheme.typography.titleMedium, color = Text1)
-                    TextButton(onClick = { selectedPlaylist = null }) { Text("Back", color = Text2) }
+                    Text(
+                        if (selKeys.isEmpty()) "Nothing selected" else "${selKeys.size} of ${allKeys.size} selected",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Text2
+                    )
+                    TextButton(
+                        onClick = {
+                            selectedKeys.value = if (selKeys.size == allKeys.size) emptySet()
+                            else allKeys.toSet()
+                        }
+                    ) {
+                        Text(
+                            if (selKeys.size == allKeys.size) "Deselect all" else "Select all",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = LocalAccentColor.current
+                        )
+                    }
                 }
-                Text("${tracks.size} tracks. Each will be searched on YouTube and downloaded.", style = MaterialTheme.typography.bodySmall, color = Text2)
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        if (tracks.isEmpty()) return@Button
-                        isImporting = true
-                        val playlist = playlistManager.createPlaylist(pl.name, pl.description)
-                        val appScope = (androidContext.applicationContext as? ShucklerApplication)?.applicationScope ?: return@Button
-                        appScope.launch {
-                            for (track in tracks) {
-                                val query = "${track.title} ${track.artist}"
-                                val results = withContext(Dispatchers.IO) {
-                                    YouTubeRepository.search(query)
-                                }
-                                val best = results.firstOrNull()
-                                if (best != null) {
-                                    val id = downloadManager.startDownloadFromYouTube(
-                                        best.url,
-                                        track.title,
-                                        track.artist,
-                                        best.thumbnailUrl,
-                                        onWifiOnlyBlocked,
-                                        albumTitle = track.album,
-                                        albumYear = track.albumYear
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Liked Songs row — always first
+                    item(key = LIKED_SONGS_KEY) {
+                        val selected = LIKED_SONGS_KEY in selKeys
+                        SpotifyChecklistRow(
+                            selected = selected,
+                            onClick = {
+                                selectedKeys.value = if (selected) selKeys - LIKED_SONGS_KEY else selKeys + LIKED_SONGS_KEY
+                            },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(LocalAccentColor.current.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Favorite,
+                                        contentDescription = null,
+                                        tint = LocalAccentColor.current,
+                                        modifier = Modifier.size(20.dp)
                                     )
-                                    if (id.isNotBlank()) {
-                                        var d = downloadManager.downloads.value.find { it.id == id }
-                                        var attempts = 0
-                                        while (d?.status != com.shuckler.app.download.DownloadStatus.COMPLETED && attempts < 120) {
-                                            kotlinx.coroutines.delay(500)
-                                            d = downloadManager.downloads.value.find { it.id == id }
-                                            if (d?.status == com.shuckler.app.download.DownloadStatus.FAILED) break
-                                            attempts++
-                                        }
-                                        d?.let { if (it.status == com.shuckler.app.download.DownloadStatus.COMPLETED) playlistManager.addTrackToPlaylist(playlist.id, it.id) }
+                                }
+                            },
+                            title = "Liked Songs",
+                            subtitle = likedSongsCount?.let { "$it tracks" } ?: "Loading…"
+                        )
+                    }
+                    items(playlists, key = { it.id }) { pl ->
+                        val selected = pl.id in selKeys
+                        SpotifyChecklistRow(
+                            selected = selected,
+                            onClick = {
+                                selectedKeys.value = if (selected) selKeys - pl.id else selKeys + pl.id
+                            },
+                            leadingContent = {
+                                if (pl.imageUrl != null) {
+                                    coil.compose.AsyncImage(
+                                        model = pl.imageUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp))
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(SurfaceElevated),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = Text3, modifier = Modifier.size(20.dp))
                                     }
                                 }
-                            }
-                            isImporting = false
-                            onImportComplete(playlist)
-                        }
-                    },
-                    enabled = !isImporting && tracks.isNotEmpty(),
-                    colors = importPrimaryButtonColors(),
-                    shape = RoundedCornerShape(8.dp)
+                            },
+                            title = pl.name,
+                            subtitle = "${pl.trackCount} tracks"
+                        )
+                    }
+                }
+
+                // Action buttons
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (isImporting) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Base)
-                    else Text("Import ${tracks.size} tracks from YouTube")
+                    Button(
+                        onClick = {
+                            selectedKeys.value = allKeys.toSet()
+                            fireImport(
+                                keys = allKeys.toSet(),
+                                playlists = playlists,
+                                accessToken = accessToken ?: return@Button,
+                                app = app ?: return@Button,
+                                androidContext = androidContext,
+                                onWifiOnlyBlocked = onWifiOnlyBlocked,
+                                scope = scope,
+                                setFetching = { isFetching = it },
+                                onDone = onDismiss
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = importPrimaryButtonColors(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Import All")
+                    }
+                    Button(
+                        onClick = {
+                            fireImport(
+                                keys = selKeys,
+                                playlists = playlists,
+                                accessToken = accessToken ?: return@Button,
+                                app = app ?: return@Button,
+                                androidContext = androidContext,
+                                onWifiOnlyBlocked = onWifiOnlyBlocked,
+                                scope = scope,
+                                setFetching = { isFetching = it },
+                                onDone = onDismiss
+                            )
+                        },
+                        enabled = selKeys.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        colors = importPrimaryButtonColors(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            if (selKeys.isEmpty()) "Import 0 selected"
+                            else "Import $totalTracks tracks"
+                        )
+                    }
+                }
+                error?.let {
+                    Text(it, color = Red, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
             }
         }
     }
 }
+
+@Composable
+private fun SpotifyChecklistRow(
+    selected: Boolean,
+    onClick: () -> Unit,
+    leadingContent: @Composable () -> Unit,
+    title: String,
+    subtitle: String
+) {
+    val accent = LocalAccentColor.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) accent.copy(alpha = 0.11f) else SurfaceElevated)
+            .border(
+                width = 1.dp,
+                color = if (selected) accent.copy(alpha = 0.28f) else Border,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        leadingContent()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Text1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Text2)
+        }
+        androidx.compose.material3.Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            colors = androidx.compose.material3.CheckboxDefaults.colors(
+                checkedColor = accent,
+                checkmarkColor = Base,
+                uncheckedColor = Border
+            )
+        )
+    }
+}
+
+private fun fireImport(
+    keys: Set<String>,
+    playlists: List<SpotifyRepository.SpotifyPlaylist>,
+    accessToken: String,
+    app: ShucklerApplication,
+    androidContext: android.content.Context,
+    onWifiOnlyBlocked: () -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+    setFetching: (Boolean) -> Unit,
+    onDone: () -> Unit
+) {
+    if (keys.isEmpty()) return
+    setFetching(true)
+    scope.launch {
+        val items = mutableListOf<com.shuckler.app.spotify.SelectedImportItem>()
+
+        // Fetch Liked Songs if selected
+        if (LIKED_SONGS_KEY in keys) {
+            val tracks = withContext(Dispatchers.IO) {
+                SpotifyRepository.getLikedSongs(accessToken)
+            }
+            if (tracks.isNotEmpty()) {
+                items.add(com.shuckler.app.spotify.SelectedImportItem(
+                    key = LIKED_SONGS_KEY,
+                    displayName = "Liked Songs",
+                    description = null,
+                    tracks = tracks
+                ))
+            }
+        }
+
+        // Fetch selected playlists
+        for (pl in playlists.filter { it.id in keys }) {
+            val tracks = withContext(Dispatchers.IO) {
+                SpotifyRepository.getPlaylistTracks(accessToken, pl.id)
+            }
+            if (tracks.isNotEmpty()) {
+                items.add(com.shuckler.app.spotify.SelectedImportItem(
+                    key = pl.id,
+                    displayName = pl.name,
+                    description = pl.description,
+                    tracks = tracks
+                ))
+            }
+        }
+
+        if (items.isNotEmpty()) {
+            app.spotifyImportManager.startImport(items, onWifiOnlyBlocked)
+            val importId = app.spotifyImportManager.progress.value?.importId ?: return@launch
+            com.shuckler.app.spotify.SpotifyImportService.start(androidContext, importId)
+        }
+
+        setFetching(false)
+        kotlinx.coroutines.delay(200)
+        onDone()
+    }
+}
+
+private const val LIKED_SONGS_KEY = "__liked__"

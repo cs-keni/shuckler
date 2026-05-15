@@ -72,16 +72,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.ui.AnalyticsScreen
+import com.shuckler.app.ui.ImportCompleteSheet
 import com.shuckler.app.ui.LocalOnWifiOnlyBlocked
 import com.shuckler.app.ui.LocalSnackbarHostState
 import com.shuckler.app.ui.HomeScreen
 import com.shuckler.app.ui.LibraryScreen
 import com.shuckler.app.ui.MiniPlayerBar
+import com.shuckler.app.ui.MismatchReviewScreen
 import com.shuckler.app.ui.PlayerScreen
 import com.shuckler.app.ui.SearchScreen
 import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.ui.OnboardingScreen
 import com.shuckler.app.ui.FireflyBackground
+import com.shuckler.app.spotify.SpotifyImportManager
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
 import androidx.compose.ui.text.style.TextOverflow
 import com.shuckler.app.ui.SettingsDialog
@@ -108,7 +111,12 @@ private val tabOrder = listOf(Screen.Home, Screen.Search, Screen.Library, Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShucklerNavGraph(modifier: Modifier = Modifier) {
+fun ShucklerNavGraph(
+    modifier: Modifier = Modifier,
+    pendingImportScreen: String? = null,
+    pendingImportId: String? = null,
+    onImportIntentConsumed: () -> Unit = {}
+) {
     val downloadManager = LocalDownloadManager.current
     val initialScreen = when (downloadManager.defaultTab) {
         "search" -> Screen.Search
@@ -129,6 +137,27 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     var showTutorial by remember { mutableStateOf(false) }
     var selectedPlaylistToOpen by remember { mutableStateOf<Playlist?>(null) }
     var pendingSearchQuery by remember { mutableStateOf<String?>(null) }
+    var showImportCompleteSheet by remember { mutableStateOf(false) }
+    var showMismatchReview by remember { mutableStateOf(false) }
+    var activeImportId by remember { mutableStateOf<String?>(null) }
+
+    // React to import-complete intents from MainActivity
+    LaunchedEffect(pendingImportScreen, pendingImportId) {
+        val screen = pendingImportScreen ?: return@LaunchedEffect
+        val importId = pendingImportId ?: return@LaunchedEffect
+        activeImportId = importId
+        when (screen) {
+            SpotifyImportManager.SCREEN_IMPORT_COMPLETE -> {
+                showImportCompleteSheet = true
+                showMismatchReview = false
+            }
+            SpotifyImportManager.SCREEN_MISMATCH_REVIEW -> {
+                showMismatchReview = true
+                showImportCompleteSheet = false
+            }
+        }
+        onImportIntentConsumed()
+    }
 
     val viewModel: PlayerViewModel = viewModel(
         factory = PlayerViewModel.Factory(
@@ -432,5 +461,34 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
             OnboardingScreen(onComplete = { showTutorial = false })
         }
     }
+
+    if (showImportCompleteSheet) {
+        val id = activeImportId
+        if (id != null) {
+            ImportCompleteSheet(
+                importId = id,
+                onDismiss = { showImportCompleteSheet = false },
+                onReviewMismatches = {
+                    showImportCompleteSheet = false
+                    showMismatchReview = true
+                }
+            )
+        }
+    }
+
+    if (showMismatchReview) {
+        val id = activeImportId
+        if (id != null) {
+            MismatchReviewScreen(
+                importId = id,
+                onBack = {
+                    showMismatchReview = false
+                    showImportCompleteSheet = true
+                },
+                onDone = { showMismatchReview = false }
+            )
+        }
+    }
+
     } // end LocalAccentColor provider
 }

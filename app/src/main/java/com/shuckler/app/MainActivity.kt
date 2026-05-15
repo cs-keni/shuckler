@@ -30,6 +30,7 @@ import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.shortcut.AppShortcutHandler
 import com.shuckler.app.spotify.LocalSpotifyAuthManager
+import com.shuckler.app.spotify.SpotifyImportManager
 import com.shuckler.app.lastfm.LocalLastFmScrobbler
 import com.shuckler.app.ui.theme.ShucklerTheme
 import com.shuckler.app.BuildConfig
@@ -42,11 +43,17 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
 
+    // Surviving import-complete intent across process death: store as state so NavGraph
+    // can observe it. Written from onNewIntent so it works whether the app was running or cold-started.
+    private val _pendingImportScreen = mutableStateOf<String?>(null)
+    private val _pendingImportId = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
         handleLastFmCallback(intent)
+        handleImportCompleteIntent(intent)
         requestNotificationPermission()
         enableEdgeToEdge()
         val app = application as ShucklerApplication
@@ -54,31 +61,40 @@ class MainActivity : ComponentActivity() {
         val showOnboarding = !OnboardingPreferences.hasCompletedOnboarding(this)
         setContent {
             var onboardingComplete by remember { mutableStateOf(!showOnboarding) }
+            val pendingScreen by _pendingImportScreen
+            val pendingImportId by _pendingImportId
             CompositionLocalProvider(
                 LocalAccessibilityPreferences provides app.accessibilityPreferences
             ) {
-            ShucklerTheme {
-                if (onboardingComplete) {
-                    CompositionLocalProvider(
-                        LocalMusicServiceConnection provides app.musicServiceConnection,
-                        LocalDownloadManager provides downloadManager,
-                        LocalPlaylistManager provides (application as ShucklerApplication).playlistManager,
-                        LocalAchievementManager provides app.achievementManager,
-                        LocalListeningPersonalityManager provides app.listeningPersonalityManager,
-                        LocalSpotifyAuthManager provides app.spotifyAuthManager,
-                        LocalLastFmScrobbler provides app.lastFmScrobbler
-                    ) {
-                        Surface(modifier = Modifier.fillMaxSize()) {
-                            ShucklerNavGraph()
+                ShucklerTheme {
+                    if (onboardingComplete) {
+                        CompositionLocalProvider(
+                            LocalMusicServiceConnection provides app.musicServiceConnection,
+                            LocalDownloadManager provides downloadManager,
+                            LocalPlaylistManager provides app.playlistManager,
+                            LocalAchievementManager provides app.achievementManager,
+                            LocalListeningPersonalityManager provides app.listeningPersonalityManager,
+                            LocalSpotifyAuthManager provides app.spotifyAuthManager,
+                            LocalLastFmScrobbler provides app.lastFmScrobbler
+                        ) {
+                            Surface(modifier = Modifier.fillMaxSize()) {
+                                ShucklerNavGraph(
+                                    pendingImportScreen = pendingScreen,
+                                    pendingImportId = pendingImportId,
+                                    onImportIntentConsumed = {
+                                        _pendingImportScreen.value = null
+                                        _pendingImportId.value = null
+                                    }
+                                )
+                            }
                         }
+                    } else {
+                        OnboardingScreen(onComplete = {
+                            OnboardingPreferences.setOnboardingCompleted(this@MainActivity)
+                            onboardingComplete = true
+                        })
                     }
-                } else {
-                    OnboardingScreen(onComplete = {
-                        OnboardingPreferences.setOnboardingCompleted(this@MainActivity)
-                        onboardingComplete = true
-                    })
                 }
-            }
             }
         }
     }
@@ -89,6 +105,7 @@ class MainActivity : ComponentActivity() {
         handleShortcutIntent(intent)
         handleSpotifyCallback(intent)
         handleLastFmCallback(intent)
+        handleImportCompleteIntent(intent)
     }
 
     private fun handleShortcutIntent(intent: Intent?) {
@@ -102,9 +119,7 @@ class MainActivity : ComponentActivity() {
         if (clientId.isBlank()) return
         lifecycleScope.launch {
             val handled = (application as ShucklerApplication).spotifyAuthManager.handleCallback(intent, clientId)
-            if (handled) {
-                setIntent(Intent()) // Clear the redirect intent
-            }
+            if (handled) setIntent(Intent())
         }
     }
 
@@ -118,12 +133,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleImportCompleteIntent(intent: Intent?) {
+        val screen = intent?.getStringExtra(SpotifyImportManager.EXTRA_SCREEN) ?: return
+        val importId = intent.getStringExtra(SpotifyImportManager.EXTRA_IMPORT_ID) ?: return
+        if (screen == SpotifyImportManager.SCREEN_IMPORT_COMPLETE ||
+            screen == SpotifyImportManager.SCREEN_MISMATCH_REVIEW
+        ) {
+            _pendingImportScreen.value = screen
+            _pendingImportId.value = importId
+            setIntent(Intent())
+        }
+    }
+
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-                    PackageManager.PERMISSION_GRANTED -> { /* Already granted */ }
-                else -> requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

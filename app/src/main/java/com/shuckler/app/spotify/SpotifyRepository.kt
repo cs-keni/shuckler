@@ -25,10 +25,16 @@ object SpotifyRepository {
     private const val AUTH_URL = "https://accounts.spotify.com/authorize"
     private const val TOKEN_URL = "https://accounts.spotify.com/api/token"
     private const val API_BASE = "https://api.spotify.com/v1"
-    private const val SCOPES = "playlist-read-private playlist-read-collaborative"
+    const val SCOPES = "playlist-read-private playlist-read-collaborative user-library-read"
     private const val TAG = "SpotifyRepository"
 
     private val httpClient = OkHttpClient()
+
+    data class TokenResponse(
+        val accessToken: String,
+        val refreshToken: String?,
+        val expiresIn: Int
+    )
 
     data class SpotifyPlaylist(
         val id: String,
@@ -84,9 +90,9 @@ object SpotifyRepository {
     }
 
     /**
-     * Exchange authorization code for access token.
+     * Exchange authorization code for access + refresh token.
      */
-    suspend fun exchangeCodeForToken(clientId: String, code: String, codeVerifier: String): String? =
+    suspend fun exchangeCodeForToken(clientId: String, code: String, codeVerifier: String): TokenResponse? =
         withContext(Dispatchers.IO) {
             try {
                 val body = FormBody.Builder()
@@ -107,9 +113,44 @@ object SpotifyRepository {
                     return@withContext null
                 }
                 val json = JSONObject(response.body?.string() ?: "{}")
-                json.optString("access_token").takeIf { it.isNotBlank() }
+                val accessToken = json.optString("access_token").takeIf { it.isNotBlank() } ?: return@withContext null
+                val refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() }
+                val expiresIn = json.optInt("expires_in", 3600)
+                TokenResponse(accessToken, refreshToken, expiresIn)
             } catch (e: Exception) {
                 Log.e(TAG, "Token exchange error", e)
+                null
+            }
+        }
+
+    /**
+     * Silently refresh an access token using the stored refresh token.
+     */
+    suspend fun refreshAccessToken(clientId: String, refreshToken: String): TokenResponse? =
+        withContext(Dispatchers.IO) {
+            try {
+                val body = FormBody.Builder()
+                    .add("grant_type", "refresh_token")
+                    .add("refresh_token", refreshToken)
+                    .add("client_id", clientId)
+                    .build()
+                val request = Request.Builder()
+                    .url(TOKEN_URL)
+                    .post(body)
+                    .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                    .build()
+                val response = httpClient.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "Token refresh failed: ${response.code}")
+                    return@withContext null
+                }
+                val json = JSONObject(response.body?.string() ?: "{}")
+                val accessToken = json.optString("access_token").takeIf { it.isNotBlank() } ?: return@withContext null
+                val newRefreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() } ?: refreshToken
+                val expiresIn = json.optInt("expires_in", 3600)
+                TokenResponse(accessToken, newRefreshToken, expiresIn)
+            } catch (e: Exception) {
+                Log.e(TAG, "Token refresh error", e)
                 null
             }
         }
@@ -206,6 +247,71 @@ object SpotifyRepository {
             Pair(tracks, next)
         } catch (e: Exception) {
             Log.e(TAG, "Fetch tracks error", e)
+            null
+        }
+    }
+
+    /**
+     * Returns the total count of Liked Songs without fetching all tracks.
+     */
+    suspend fun getLikedSongsTotal(accessToken: String): Int = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$API_BASE/me/tracks?limit=1")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext 0
+            JSONObject(response.body?.string() ?: "{}").optInt("total", 0)
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch liked songs total error", e)
+            0
+        }
+    }
+
+    /**
+     * Fetch the user's Liked Songs (Saved Tracks). Requires user-library-read scope.
+     */
+    suspend fun getLikedSongs(accessToken: String): List<SpotifyTrack> = withContext(Dispatchers.IO) {
+        val all = mutableListOf<SpotifyTrack>()
+        var url = "$API_BASE/me/tracks?limit=50"
+        while (url.isNotBlank()) {
+            val page = fetchLikedSongsPage(accessToken, url) ?: break
+            all.addAll(page.first)
+            url = page.second
+        }
+        all
+    }
+
+    private fun fetchLikedSongsPage(token: String, url: String): Pair<List<SpotifyTrack>, String>? {
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $token")
+                .build()
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) return null
+            val json = JSONObject(response.body?.string() ?: "{}")
+            val items = json.optJSONArray("items") ?: JSONArray()
+            val tracks = (0 until items.length()).mapNotNull { i ->
+                val obj = items.optJSONObject(i) ?: return@mapNotNull null
+                val track = obj.optJSONObject("track") ?: return@mapNotNull null
+                if (track.isNull("id")) return@mapNotNull null
+                val title = track.optString("name", "Unknown")
+                val artists = track.optJSONArray("artists")
+                val artist = (0 until (artists?.length() ?: 0))
+                    .mapNotNull { j -> artists?.optJSONObject(j)?.optString("name") }
+                    .joinToString(", ")
+                    .takeIf { it.isNotBlank() } ?: "Unknown"
+                val albumObject = track.optJSONObject("album")
+                val album = albumObject?.optString("name")?.takeIf { it.isNotBlank() }
+                val albumYear = albumObject?.optString("release_date")?.take(4)?.toIntOrNull()
+                SpotifyTrack(title = title, artist = artist, album = album, albumYear = albumYear)
+            }
+            val next = json.optString("next", "").takeIf { it.isNotBlank() } ?: ""
+            Pair(tracks, next)
+        } catch (e: Exception) {
+            Log.e(TAG, "Fetch liked songs error", e)
             null
         }
     }

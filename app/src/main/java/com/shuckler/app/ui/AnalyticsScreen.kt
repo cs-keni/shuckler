@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,8 +27,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,12 +62,17 @@ import com.shuckler.app.download.DownloadedTrack
 import com.shuckler.app.download.LocalDownloadManager
 import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.playlist.Playlist
+import com.shuckler.app.ShucklerApplication
+import com.shuckler.app.spotify.SpotifySavingsTracker
+import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor
+import com.shuckler.app.ui.theme.Surface
 import com.shuckler.app.ui.theme.SurfaceElevated
 import com.shuckler.app.ui.theme.Text1
 import com.shuckler.app.ui.theme.Text2
 import com.shuckler.app.ui.theme.Text3
+import androidx.compose.ui.platform.LocalContext
 import java.util.Calendar
 
 private enum class AnalyticsTimeRange(val label: String, val ms: Long?) {
@@ -332,6 +341,105 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
                 }
             }
         }
+
+        SpotifySavingsSection()
+    }
+}
+
+@Composable
+private fun SpotifySavingsSection() {
+    val context = LocalContext.current
+    val tracker = remember {
+        (context.applicationContext as? ShucklerApplication)?.spotifySavingsTracker
+            ?: SpotifySavingsTracker(context)
+    }
+    var hasCancelled by remember { mutableStateOf(tracker.hasCancellationDate) }
+    val accent = LocalAccentColor.current
+
+    Text(
+        text = "Spotify Savings",
+        style = MaterialTheme.typography.headlineSmall,
+        color = Text1,
+        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+    )
+
+    if (!hasCancelled) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(SurfaceElevated, RoundedCornerShape(12.dp))
+                .border(1.dp, accent.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Track your savings", style = MaterialTheme.typography.titleSmall, color = Text1)
+                Text(
+                    "Mark the day you cancelled Spotify to see how much you've saved.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Text2
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                tracker.setCancelledToday()
+                hasCancelled = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = accent,
+                contentColor = Base
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("I cancelled Spotify today")
+        }
+    } else {
+        val savedMonth = tracker.savedThisMonth()
+        val savedYear = tracker.savedThisYear()
+        val cancelDate = tracker.getCancellationDate()
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SavingsCard(
+                label = "This month",
+                value = "\${"%.2f".format(savedMonth)}",
+                modifier = Modifier.weight(1f)
+            )
+            SavingsCard(
+                label = "This year",
+                value = "\${"%.0f".format(savedYear)}",
+                modifier = Modifier.weight(1f)
+            )
+        }
+        cancelDate?.let {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Since ${it.month.name.lowercase().replaceFirstChar { c -> c.uppercase() }} ${it.dayOfMonth}, ${it.year}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Text3,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavingsCard(label: String, value: String, modifier: Modifier = Modifier) {
+    val accent = LocalAccentColor.current
+    Column(
+        modifier = modifier
+            .background(accent.copy(alpha = 0.11f), RoundedCornerShape(10.dp))
+            .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(10.dp))
+            .padding(14.dp)
+    ) {
+        Text(value, style = MaterialTheme.typography.headlineSmall, color = Text1)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Text2)
     }
 }
 

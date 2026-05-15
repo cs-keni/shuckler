@@ -84,6 +84,7 @@ dependencies {
     implementation(libs.androidx.palette.ktx)
     implementation(libs.newpipe.extractor)
     implementation(libs.reorderable)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
