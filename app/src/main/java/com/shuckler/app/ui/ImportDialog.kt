@@ -383,6 +383,8 @@ private fun SpotifyImportContent(
             }
             playlists = pl
             likedSongsCount = count
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             error = "Failed to load playlists"
         } finally {

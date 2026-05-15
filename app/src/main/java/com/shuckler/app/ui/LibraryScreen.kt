@@ -89,6 +89,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -120,6 +121,7 @@ import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
+import com.shuckler.app.ShucklerApplication
 import com.shuckler.app.ui.ImportDialog
 import com.shuckler.app.util.shareText
 import kotlinx.coroutines.Dispatchers
@@ -477,6 +479,62 @@ fun LibraryScreen(
                 }
             }
         )
+
+        val importApp = remember(context) { context.applicationContext as? ShucklerApplication }
+        val importProgress by remember(importApp) {
+            importApp?.spotifyImportManager?.progress ?: kotlinx.coroutines.flow.MutableStateFlow(null)
+        }.collectAsState()
+        val isImporting by remember(importApp) {
+            importApp?.spotifyImportManager?.isImporting ?: kotlinx.coroutines.flow.MutableStateFlow(false)
+        }.collectAsState()
+
+        AnimatedVisibility(
+            visible = isImporting,
+            enter = expandVertically(animationSpec = tween(300)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = tween(300)) + fadeOut()
+        ) {
+            val progress = importProgress
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(LocalAccentColor.current.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Rescuing your music",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Text1
+                    )
+                    if (progress != null && progress.total > 0) {
+                        Text(
+                            text = "${progress.terminal} of ${progress.total}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Text2
+                        )
+                    }
+                }
+                Spacer(Modifier.height(3.dp))
+                if (progress != null && progress.total > 0) {
+                    LinearProgressIndicator(
+                        progress = { progress.terminal.toFloat() / progress.total },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LocalAccentColor.current,
+                        trackColor = LocalAccentColor.current.copy(alpha = 0.15f)
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LocalAccentColor.current,
+                        trackColor = LocalAccentColor.current.copy(alpha = 0.15f)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+            }
+        }
+
         AnimatedVisibility(
             visible = showSearchField,
             enter = expandVertically(animationSpec = tween(200)),
