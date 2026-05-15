@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -34,6 +36,8 @@ class PlaylistManager(private val context: Context) {
     private val _allEntries = MutableStateFlow<List<PlaylistEntry>>(emptyList())
     val allEntries: StateFlow<List<PlaylistEntry>> = _allEntries.asStateFlow()
     private val entriesFile: File get() = context.filesDir.resolve(ENTRIES_FILENAME)
+    // Serializes concurrent read-modify-write in addTrackToPlaylist / removeTrackFromPlaylist
+    private val entriesMutex = Mutex()
 
     init {
         scope.launch {
@@ -149,25 +153,25 @@ class PlaylistManager(private val context: Context) {
 
     fun addTrackToPlaylist(playlistId: String, trackId: String) {
         scope.launch {
-            withContext(Dispatchers.IO) {
-                val entries = loadEntries()
-                if (entries.any { it.playlistId == playlistId && it.trackId == trackId }) return@withContext
+            entriesMutex.withLock {
+                val entries = withContext(Dispatchers.IO) { loadEntries() }
+                if (entries.any { it.playlistId == playlistId && it.trackId == trackId }) return@withLock
                 val maxPos = entries.filter { it.playlistId == playlistId }.maxOfOrNull { it.position } ?: -1
-                saveEntries(entries + PlaylistEntry(playlistId, trackId, maxPos + 1))
+                withContext(Dispatchers.IO) { saveEntries(entries + PlaylistEntry(playlistId, trackId, maxPos + 1)) }
             }
         }
     }
 
     fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
         scope.launch {
-            withContext(Dispatchers.IO) {
-                val entries = loadEntries()
+            entriesMutex.withLock {
+                val entries = withContext(Dispatchers.IO) { loadEntries() }
                     .filterNot { it.playlistId == playlistId && it.trackId == trackId }
                 val playlistEntries = entries.filter { it.playlistId == playlistId }
                 val reordered = playlistEntries.sortedBy { it.position }.mapIndexed { i, e ->
                     PlaylistEntry(e.playlistId, e.trackId, i)
                 }
-                saveEntries(entries.filter { it.playlistId != playlistId } + reordered)
+                withContext(Dispatchers.IO) { saveEntries(entries.filter { it.playlistId != playlistId } + reordered) }
             }
         }
     }
