@@ -51,6 +51,8 @@ fun ScreenHeader(
             text = title,
             style = MaterialTheme.typography.titleLarge,
             color = Text1,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
                 .padding(start = 12.dp)
                 .weight(1f)
