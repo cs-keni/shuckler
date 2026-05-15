@@ -456,20 +456,21 @@ fun LibraryScreen(
             onSettingsClick = onSettingsClick,
             trailingContent = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { isGridView = !isGridView }) {
+                    IconButton(modifier = Modifier.size(36.dp), onClick = { isGridView = !isGridView }) {
                         Icon(
                             imageVector = if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                            contentDescription = if (isGridView) "Switch to list view" else "Switch to grid view"
+                            contentDescription = if (isGridView) "Switch to list view" else "Switch to grid view",
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    IconButton(onClick = { showSearchField = !showSearchField }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search library")
+                    IconButton(modifier = Modifier.size(36.dp), onClick = { showSearchField = !showSearchField }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search library", modifier = Modifier.size(20.dp))
                     }
-                    IconButton(onClick = { showImportDialog = true }) {
-                        Icon(Icons.Default.Download, contentDescription = "Import playlist")
+                    IconButton(modifier = Modifier.size(36.dp), onClick = { showImportDialog = true }) {
+                        Icon(Icons.Default.Download, contentDescription = "Import playlist", modifier = Modifier.size(20.dp))
                     }
-                    IconButton(onClick = { showCreatePlaylistDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Create new playlist")
+                    IconButton(modifier = Modifier.size(36.dp), onClick = { showCreatePlaylistDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Create new playlist", modifier = Modifier.size(20.dp))
                     }
                 }
             }

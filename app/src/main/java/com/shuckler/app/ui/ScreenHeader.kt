@@ -49,10 +49,10 @@ fun ScreenHeader(
         }
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = Text1,
             maxLines = 1,
-            softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier
                 .padding(start = 12.dp)
                 .weight(1f)
