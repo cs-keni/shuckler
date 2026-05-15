@@ -336,28 +336,30 @@ class SpotifyImportManager(
         }
     }
 
-    fun loadImportTable(importId: String): List<ImportTrackRecord>? = try {
+    fun loadImportTable(importId: String): List<ImportTrackRecord>? {
         val file = importTableFile(importId)
         if (!file.exists()) return null
-        val arr = JSONArray(file.readText())
-        (0 until arr.length()).map { i ->
-            val o = arr.getJSONObject(i)
-            ImportTrackRecord(
-                importId = o.getString("importId"),
-                playlistKey = o.getString("playlistKey"),
-                playlistName = o.getString("playlistName"),
-                trackTitle = o.getString("trackTitle"),
-                trackArtist = o.getString("trackArtist"),
-                trackAlbum = o.optString("trackAlbum").takeIf { it.isNotBlank() },
-                trackAlbumYear = o.optInt("trackAlbumYear", -1).takeIf { it >= 0 },
-                state = ImportState.valueOf(o.getString("state")),
-                downloadId = o.optString("downloadId").takeIf { it.isNotBlank() },
-                shucklerPlaylistId = o.optString("shucklerPlaylistId").takeIf { it.isNotBlank() }
-            )
+        return try {
+            val arr = JSONArray(file.readText())
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                ImportTrackRecord(
+                    importId = o.getString("importId"),
+                    playlistKey = o.getString("playlistKey"),
+                    playlistName = o.getString("playlistName"),
+                    trackTitle = o.getString("trackTitle"),
+                    trackArtist = o.getString("trackArtist"),
+                    trackAlbum = o.optString("trackAlbum").takeIf { it.isNotBlank() },
+                    trackAlbumYear = o.optInt("trackAlbumYear", -1).takeIf { it >= 0 },
+                    state = ImportState.valueOf(o.getString("state")),
+                    downloadId = o.optString("downloadId").takeIf { it.isNotBlank() },
+                    shucklerPlaylistId = o.optString("shucklerPlaylistId").takeIf { it.isNotBlank() }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load import table", e)
+            null
         }
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to load import table", e)
-        null
     }
 
     private fun importTableFile(importId: String): File =

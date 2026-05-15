@@ -65,6 +65,7 @@ import com.shuckler.app.playlist.LocalPlaylistManager
 import com.shuckler.app.spotify.LocalSpotifyAuthManager
 import com.shuckler.app.playlist.Playlist
 import com.shuckler.app.spotify.SpotifyRepository
+import com.shuckler.app.youtube.YouTubeRepository
 import com.shuckler.app.ui.theme.Base
 import com.shuckler.app.ui.theme.Border
 import com.shuckler.app.ui.theme.LocalAccentColor

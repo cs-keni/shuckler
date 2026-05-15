@@ -408,12 +408,12 @@ private fun SpotifySavingsSection() {
         ) {
             SavingsCard(
                 label = "This month",
-                value = "\${"%.2f".format(savedMonth)}",
+                value = "${"$%.2f".format(savedMonth)}",
                 modifier = Modifier.weight(1f)
             )
             SavingsCard(
                 label = "This year",
-                value = "\${"%.0f".format(savedYear)}",
+                value = "${"$%.0f".format(savedYear)}",
                 modifier = Modifier.weight(1f)
             )
         }
