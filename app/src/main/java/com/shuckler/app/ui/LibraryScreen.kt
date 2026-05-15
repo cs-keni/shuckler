@@ -199,6 +199,7 @@ fun LibraryScreen(
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var importInitialTab by remember { mutableStateOf(0) }
     var showAddToPlaylistTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
     var showMoodTagTrack by remember { mutableStateOf<DownloadedTrack?>(null) }
     var selectedSmartPlaylist by remember { mutableStateOf<SmartPlaylistType?>(null) }
@@ -364,6 +365,7 @@ fun LibraryScreen(
 
     if (showImportDialog) {
         ImportDialog(
+            initialTab = importInitialTab,
             onDismiss = { showImportDialog = false },
             onImportComplete = { playlist ->
                 showImportDialog = false
@@ -742,6 +744,7 @@ fun LibraryScreen(
                 context = context
             )
         } else if (filteredTracks.isEmpty()) {
+                    val isReallyEmpty = searchQuery.isBlank() && libraryFilter == LibraryFilter.ALL
                     EmptyState(
                         icon = when {
                             searchQuery.isNotBlank() -> Icons.Default.Search
@@ -756,18 +759,20 @@ fun LibraryScreen(
                         subtitle = when {
                             searchQuery.isNotBlank() -> "Try a different search."
                             libraryFilter == LibraryFilter.FAVORITES -> "Tap the heart on any track to add it."
-                            else -> "Search and download to get started"
+                            else -> "Import your Spotify playlists or search YouTube to get started."
                         },
                         actionLabel = when {
                             searchQuery.isNotBlank() -> null
                             libraryFilter == LibraryFilter.FAVORITES -> null
-                            else -> "Open Search"
+                            else -> "Import from Spotify"
                         },
                         onAction = when {
                             searchQuery.isNotBlank() -> null
                             libraryFilter == LibraryFilter.FAVORITES -> null
-                            else -> onOpenSearch
-                        }
+                            else -> { { importInitialTab = 1; showImportDialog = true } }
+                        },
+                        secondaryActionLabel = if (isReallyEmpty) "Search YouTube" else null,
+                        onSecondaryAction = if (isReallyEmpty) onOpenSearch else null
                     )
         } else {
             AnimatedContent(
@@ -1225,7 +1230,7 @@ private fun AlbumGroupedList(
         EmptyState(
             icon = Icons.Default.LibraryMusic,
             title = "Your library is empty",
-            subtitle = "Search and download to get started",
+            subtitle = "Import your Spotify playlists or search YouTube to get started.",
             actionLabel = null,
             onAction = null
         )

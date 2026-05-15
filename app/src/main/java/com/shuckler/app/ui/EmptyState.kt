@@ -40,7 +40,9 @@ fun EmptyState(
     subtitle: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    secondaryActionLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -80,6 +82,20 @@ fun EmptyState(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(actionLabel)
+            }
+        }
+        if (secondaryActionLabel != null && onSecondaryAction != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onSecondaryAction,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    contentColor = Text2
+                ),
+                shape = RoundedCornerShape(8.dp),
+                elevation = androidx.compose.material3.ButtonDefaults.buttonElevation(0.dp)
+            ) {
+                Text(secondaryActionLabel)
             }
         }
     }

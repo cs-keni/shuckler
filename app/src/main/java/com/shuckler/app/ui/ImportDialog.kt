@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,7 +81,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ImportDialog(
     onDismiss: () -> Unit,
-    onImportComplete: (Playlist?) -> Unit = {}
+    onImportComplete: (Playlist?) -> Unit = {},
+    initialTab: Int = 0
 ) {
     val context = LocalContext.current
     val downloadManager = LocalDownloadManager.current
@@ -88,7 +90,7 @@ fun ImportDialog(
     val onWifiOnlyBlocked = LocalOnWifiOnlyBlocked.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(initialTab) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -409,40 +411,41 @@ private fun SpotifyImportContent(
             }
         }
         selectedPlaylist == null -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                if (playlists.isEmpty() && !isLoading) {
-                    Button(
-                        onClick = {
-                            isLoading = true
-                            scope.launch {
-                                val token = accessToken
-                                if (token != null) {
-                                    playlists = SpotifyRepository.getPlaylists(token)
+            when {
+                playlists.isEmpty() && !isLoading -> {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                scope.launch {
+                                    val token = accessToken
+                                    if (token != null) {
+                                        playlists = SpotifyRepository.getPlaylists(token)
+                                    }
+                                    isLoading = false
                                 }
-                                isLoading = false
-                            }
-                        },
-                        modifier = Modifier.padding(16.dp),
-                        colors = importPrimaryButtonColors(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        if (isLoading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Base)
-                        else Text("Load my playlists")
+                            },
+                            colors = importPrimaryButtonColors(),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Load my playlists")
+                        }
                     }
-                } else if (isLoading) {
-                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                }
+                isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         CircularProgressIndicator(color = LocalAccentColor.current)
                     }
-                } else {
+                }
+                else -> {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .heightIn(max = 400.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(playlists) { pl ->
@@ -452,29 +455,29 @@ private fun SpotifyImportContent(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(SurfaceElevated)
                                     .clickable {
-                                    selectedPlaylist = pl
-                                    tracks = emptyList()
-                                    scope.launch {
-                                        val token = accessToken ?: return@launch
-                                        tracks = SpotifyRepository.getPlaylistTracks(token, pl.id)
+                                        selectedPlaylist = pl
+                                        tracks = emptyList()
+                                        scope.launch {
+                                            val token = accessToken ?: return@launch
+                                            tracks = SpotifyRepository.getPlaylistTracks(token, pl.id)
+                                        }
                                     }
-                                }
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                    Text(
-                                        pl.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = Text1,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        "${pl.trackCount} tracks",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Text2
-                                    )
+                                Text(
+                                    pl.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Text1,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    "${pl.trackCount} tracks",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Text2
+                                )
                             }
                         }
                     }
