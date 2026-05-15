@@ -31,9 +31,19 @@ android {
         buildConfigField("String", "LAST_FM_API_SECRET", "\"${localProp("LAST_FM_API_SECRET")}\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(localProp("KEYSTORE_FILE"))
+            storePassword = localProp("KEYSTORE_PASSWORD")
+            keyAlias = localProp("KEY_ALIAS")
+            keyPassword = localProp("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
