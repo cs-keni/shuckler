@@ -68,8 +68,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.AlertDialog
@@ -122,6 +124,8 @@ import com.shuckler.app.player.LocalMusicServiceConnection
 import com.shuckler.app.player.PlayerViewModel
 import com.shuckler.app.player.QueueItem
 import com.shuckler.app.ShucklerApplication
+import com.shuckler.app.spotify.ImportState
+import com.shuckler.app.spotify.ImportTrackRecord
 import com.shuckler.app.ui.ImportDialog
 import com.shuckler.app.util.shareText
 import kotlinx.coroutines.Dispatchers
@@ -207,6 +211,9 @@ fun LibraryScreen(
     var selectedSmartPlaylist by remember { mutableStateOf<SmartPlaylistType?>(null) }
     var showCleanUpDialog by remember { mutableStateOf(false) }
     var showPlaylistsSheet by remember { mutableStateOf(false) }
+    var showImportQueueSheet by remember { mutableStateOf(false) }
+    var resolvingRecord by remember { mutableStateOf<ImportTrackRecord?>(null) }
+    var resolveUrl by remember { mutableStateOf("") }
     val queueItems by viewModel.queueItems.collectAsState(initial = emptyList())
     val queueInfo by viewModel.queueInfo.collectAsState(initial = 0 to 0)
     val currentPlayingTrackId = queueItems.getOrNull((queueInfo.first - 1).coerceIn(0, queueItems.size))?.trackId
@@ -445,6 +452,156 @@ fun LibraryScreen(
         }
     }
 
+    // Import queue bottom sheet
+    if (showImportQueueSheet) {
+        val sheetImportApp = remember(context) { context.applicationContext as? ShucklerApplication }
+        val sheetProgress by remember(sheetImportApp) {
+            sheetImportApp?.spotifyImportManager?.progress ?: kotlinx.coroutines.flow.MutableStateFlow(null)
+        }.collectAsState()
+        val sheetRecords = remember(sheetProgress) {
+            val id = sheetProgress?.importId ?: return@remember emptyList<ImportTrackRecord>()
+            sheetImportApp?.spotifyImportManager?.getImportRecords(id) ?: emptyList()
+        }
+        ModalBottomSheet(
+            onDismissRequest = { showImportQueueSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+            containerColor = Base
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Rescuing your music", style = MaterialTheme.typography.titleMedium, color = Text1)
+                    val sp = sheetProgress
+                    if (sp != null && sp.total > 0) {
+                        Text("${sp.terminal} of ${sp.total}", style = MaterialTheme.typography.labelMedium, color = Text2)
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                val sp = sheetProgress
+                if (sp != null && sp.total > 0) {
+                    LinearProgressIndicator(
+                        progress = { sp.terminal.toFloat() / sp.total },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LocalAccentColor.current,
+                        trackColor = LocalAccentColor.current.copy(alpha = 0.15f)
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = LocalAccentColor.current,
+                        trackColor = LocalAccentColor.current.copy(alpha = 0.15f)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+            val downloading = sheetRecords.filter { it.state == ImportState.DOWNLOADING }
+            val inQueue = sheetRecords.filter { it.state == ImportState.SEARCHING || it.state == ImportState.QUEUED }
+            val completed = sheetRecords.filter { it.state == ImportState.COMPLETED }
+            val notFound = sheetRecords.filter { it.state == ImportState.NOT_FOUND }
+            val failed = sheetRecords.filter { it.state == ImportState.FAILED }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
+            ) {
+                if (downloading.isNotEmpty()) {
+                    item(key = "hdr_downloading") {
+                        ImportQueueSectionHeader("DOWNLOADING", downloading.size, LocalAccentColor.current)
+                    }
+                    items(downloading, key = { it.trackTitle + it.trackArtist + "dl" }) { r ->
+                        ImportQueueTrackRow(r, accentColor = LocalAccentColor.current)
+                    }
+                    item(key = "spacer_downloading") { Spacer(Modifier.height(12.dp)) }
+                }
+                if (inQueue.isNotEmpty()) {
+                    item(key = "hdr_queue") {
+                        ImportQueueSectionHeader("IN QUEUE", inQueue.size, Text2)
+                    }
+                    items(inQueue, key = { it.trackTitle + it.trackArtist + "q" }) { r ->
+                        ImportQueueTrackRow(r)
+                    }
+                    item(key = "spacer_queue") { Spacer(Modifier.height(12.dp)) }
+                }
+                if (completed.isNotEmpty()) {
+                    item(key = "hdr_completed") {
+                        ImportQueueSectionHeader("COMPLETED", completed.size, Text2)
+                    }
+                    items(completed, key = { it.trackTitle + it.trackArtist + "done" }) { r ->
+                        ImportQueueTrackRow(r)
+                    }
+                    item(key = "spacer_completed") { Spacer(Modifier.height(12.dp)) }
+                }
+                if (notFound.isNotEmpty()) {
+                    item(key = "hdr_notfound") {
+                        ImportQueueSectionHeader("NOT FOUND", notFound.size, Text3)
+                    }
+                    items(notFound, key = { it.trackTitle + it.trackArtist + "nf" }) { r ->
+                        ImportQueueTrackRow(
+                            record = r,
+                            onFix = { resolvingRecord = r; resolveUrl = "" }
+                        )
+                    }
+                    item(key = "spacer_notfound") { Spacer(Modifier.height(12.dp)) }
+                }
+                if (failed.isNotEmpty()) {
+                    item(key = "hdr_failed") {
+                        ImportQueueSectionHeader("FAILED", failed.size, Red)
+                    }
+                    items(failed, key = { it.trackTitle + it.trackArtist + "fail" }) { r ->
+                        ImportQueueTrackRow(r)
+                    }
+                }
+                item(key = "bottom_padding") { Spacer(Modifier.height(32.dp)) }
+            }
+        }
+    }
+
+    // Resolve not-found track dialog
+    resolvingRecord?.let { record ->
+        AlertDialog(
+            onDismissRequest = { resolvingRecord = null },
+            title = { Text(record.trackTitle, color = Text1) },
+            text = {
+                Column {
+                    Text(
+                        "Paste a YouTube URL to manually match this track.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Text2
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = resolveUrl,
+                        onValueChange = { resolveUrl = it },
+                        placeholder = { Text("https://youtube.com/watch?v=...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = libraryTextFieldColors()
+                    )
+                }
+            },
+            confirmButton = {
+                val sheetImportApp2 = remember(context) { context.applicationContext as? ShucklerApplication }
+                val sheetProgress2 by remember(sheetImportApp2) {
+                    sheetImportApp2?.spotifyImportManager?.progress ?: kotlinx.coroutines.flow.MutableStateFlow(null)
+                }.collectAsState()
+                TextButton(
+                    onClick = {
+                        val importId = sheetProgress2?.importId ?: return@TextButton
+                        sheetImportApp2?.spotifyImportManager?.resolveNotFoundTrack(importId, record, resolveUrl)
+                        resolvingRecord = null
+                    },
+                    enabled = resolveUrl.isNotBlank()
+                ) { Text("Add", color = LocalAccentColor.current) }
+            },
+            dismissButton = {
+                TextButton(onClick = { resolvingRecord = null }) { Text("Cancel", color = Text2) }
+            },
+            containerColor = Base
+        )
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -499,6 +656,7 @@ fun LibraryScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(LocalAccentColor.current.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                        .clickable { showImportQueueSheet = true }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -508,11 +666,22 @@ fun LibraryScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = Text1
                     )
-                    if (progress != null && progress.total > 0) {
-                        Text(
-                            text = "${progress.terminal} of ${progress.total}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Text2
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (progress != null && progress.total > 0) {
+                            Text(
+                                text = "${progress.terminal} of ${progress.total}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Text2
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = Text3,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -2147,6 +2316,73 @@ private fun CleanUpDialog(
             }
         }
     )
+}
+
+@Composable
+private fun ImportQueueSectionHeader(label: String, count: Int, color: androidx.compose.ui.graphics.Color) {
+    Text(
+        text = "$label  $count",
+        style = MaterialTheme.typography.labelSmall,
+        color = color,
+        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
+    )
+}
+
+@Composable
+private fun ImportQueueTrackRow(
+    record: ImportTrackRecord,
+    accentColor: androidx.compose.ui.graphics.Color = Text3,
+    onFix: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        val icon = when (record.state) {
+            ImportState.COMPLETED -> Icons.Default.Done
+            ImportState.DOWNLOADING -> Icons.Default.Download
+            ImportState.FAILED -> Icons.Default.Warning
+            ImportState.NOT_FOUND -> Icons.Default.Warning
+            else -> Icons.Default.HourglassEmpty
+        }
+        val iconTint = when (record.state) {
+            ImportState.DOWNLOADING -> accentColor
+            ImportState.FAILED, ImportState.NOT_FOUND -> Red
+            ImportState.COMPLETED -> Text2
+            else -> Text3
+        }
+        Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = record.trackTitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Text1,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = record.trackArtist,
+                style = MaterialTheme.typography.labelSmall,
+                color = Text2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (onFix != null) {
+            Spacer(Modifier.width(8.dp))
+            TextButton(
+                onClick = onFix,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.height(28.dp)
+            ) {
+                Text("Fix", style = MaterialTheme.typography.labelSmall, color = LocalAccentColor.current)
+            }
+        }
+    }
 }
 
 @Composable
