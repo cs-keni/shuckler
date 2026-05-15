@@ -244,8 +244,10 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
         )
         val badges = AchievementDefinitions.ALL
         val cols = 4
+        var showAllAchievements by remember { mutableStateOf(false) }
+        val visibleBadges = if (showAllAchievements) badges else badges.take(cols)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            badges.chunked(cols).forEach { rowBadges ->
+            visibleBadges.chunked(cols).forEach { rowBadges ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -256,6 +258,18 @@ fun AnalyticsScreen(onSettingsClick: () -> Unit = {}) {
                             unlocked = unlockedIds.contains(badge.id)
                         )
                     }
+                }
+            }
+            if (badges.size > cols) {
+                androidx.compose.material3.TextButton(
+                    onClick = { showAllAchievements = !showAllAchievements },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        text = if (showAllAchievements) "Show less" else "Show all ${badges.size}",
+                        color = com.shuckler.app.ui.theme.Text3,
+                        style = MaterialTheme.typography.labelMedium
+                    )
                 }
             }
         }

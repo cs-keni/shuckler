@@ -99,7 +99,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -425,23 +424,8 @@ fun PlayerScreen(
         )
     }
 
-    val topGradientColor = lerp(albumColor, Base, 0.45f)
-    val animatedTopColor by animateColorAsState(
-        targetValue = topGradientColor,
-        animationSpec = tween(if (reduceMotion) 0 else 600),
-        label = "bgGradient"
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(animatedTopColor, Base),
-                    startY = 0f,
-                    endY = Float.POSITIVE_INFINITY
-                )
-            )
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        FireflyBackground()
     Column(
         modifier = Modifier
             .fillMaxSize()

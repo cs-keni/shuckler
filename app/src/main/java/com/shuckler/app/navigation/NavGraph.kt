@@ -40,9 +40,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,7 +81,9 @@ import com.shuckler.app.ui.PlayerScreen
 import com.shuckler.app.ui.SearchScreen
 import com.shuckler.app.ui.EqualizerDialog
 import com.shuckler.app.ui.OnboardingScreen
+import com.shuckler.app.ui.FireflyBackground
 import com.shuckler.app.accessibility.LocalAccessibilityPreferences
+import androidx.compose.ui.text.style.TextOverflow
 import com.shuckler.app.ui.SettingsDialog
 import android.content.Intent
 import android.net.Uri
@@ -294,30 +293,8 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
     }
 
     CompositionLocalProvider(LocalAccentColor provides animatedAccent) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Base)
-            .drawBehind {
-                val origin = Offset(size.width / 2f, 0f)
-                // Persistent warm baseline — always present even with no music
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Amber.copy(alpha = 0.09f), Color.Transparent),
-                        center = origin,
-                        radius = size.width * 1.1f
-                    )
-                )
-                // Album accent overlay — animates with playing track color
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(animatedAccent.copy(alpha = 0.15f), Color.Transparent),
-                        center = origin,
-                        radius = size.width * 0.9f
-                    )
-                )
-            }
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        FireflyBackground()
     androidx.compose.material3.Scaffold(
         modifier = modifier,
         containerColor = Color.Transparent,
@@ -362,7 +339,7 @@ fun ShucklerNavGraph(modifier: Modifier = Modifier) {
                                     )
                                 }
                             },
-                            label = { Text(screen.title, fontSize = 10.sp) },
+                            label = { Text(screen.title, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             selected = isSelected,
                             onClick = {
                                 if (screen == Screen.Library) {
